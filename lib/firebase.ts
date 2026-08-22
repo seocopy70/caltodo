@@ -3,7 +3,7 @@ import { getFirestore } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBTXHnbW5ptpBjbJt43wrfbVABKtm1n3OU",
+  apiKey: "AIzaSyBTxHnbW5ptpBjbJt43wrfbVABKtm1n3OU",
   authDomain: "caltodo-b54b1.firebaseapp.com",
   projectId: "caltodo-b54b1",
   storageBucket: "caltodo-b54b1.firebasestorage.app",
