@@ -97,7 +97,7 @@ export default function Calendar({ view, events, user }: any) {
 
       <div className={`grid grid-cols-7 flex-1 border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl bg-slate-900/20`}>
         {days.map((day, i) => {
-          const dayEvents = events.filter(e => isSameDay(e.start, day));
+          const dayEvents = events.filter((e: any) => isSameDay(e.start, day));
           const isToday = isSameDay(day, new Date());
           return (
             <div 
@@ -112,7 +112,7 @@ export default function Calendar({ view, events, user }: any) {
                 {format(day, 'd')}
               </div>
               <div className="space-y-1.5">
-                {dayEvents.map((event, idx) => (
+                {dayEvents.map((event: any, idx: number) => (
                   <div 
                     key={idx}
                     onClick={(e) => {

@@ -15,12 +15,14 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [events, setEvents] = useState<any[]>([]);
   const [todos, setTodos] = useState<any[]>([]);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // 1. 페이지 로드 시 로그인 상태 및 리디렉션 결과 확인
   useEffect(() => {
     // 리디렉션 후 돌아왔을 때 결과를 처리
     getRedirectResult(auth).catch((error) => {
       console.error("로그인 에러:", error);
+      setAuthError(`${error.code || 'unknown'}: ${error.message || error}`);
     });
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -59,10 +61,12 @@ export default function Home() {
 
   const handleLogin = async () => {
     setLoading(true); // 클릭 시 로딩 표시
+    setAuthError(null);
     try {
       await signInWithRedirect(auth, googleProvider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("로그인 시도 에러:", error);
+      setAuthError(`${error.code || 'unknown'}: ${error.message || error}`);
       setLoading(false);
     }
   };
@@ -89,6 +93,11 @@ export default function Home() {
         >
           <LogIn className="w-6 h-6" /> 구글로 시작하기
         </button>
+        {authError && (
+          <p className="mt-6 max-w-xs text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 break-words">
+            로그인 실패: {authError}
+          </p>
+        )}
       </div>
     );
   }
