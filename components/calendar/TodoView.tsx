@@ -1,187 +1,122 @@
 'use client';
 
 import { useState } from 'react';
-import { cn } from '@/lib/utils';
-import { getColorClasses } from '@/lib/types';
-import { formatDateKey } from '@/lib/date-utils';
-import type { Todo } from '@/lib/supabase-client';
-import { Check, Pencil, ChevronDown, ChevronRight, Calendar, Circle, CheckCircle2 } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { format, isToday, isFuture } from 'date-fns';
+import { Plus, Trash2, CheckCircle2, Circle, Calendar as CalIcon } from 'lucide-react';
 
-type Props = {
-  todos: Todo[];
-  selectedDate: Date | null;
-  onToggle: (todo: Todo) => void;
-  onEdit: (todo: Todo) => void;
-  onAddClick: () => void;
-};
+interface TodoViewProps {
+  todos: any[];
+  db: any;
+}
 
-export default function TodoView({ todos, selectedDate, onToggle, onEdit, onAddClick }: Props) {
-  const [showCompleted, setShowCompleted] = useState(false);
+export default function TodoView({ todos }: TodoViewProps) {
+  const [newTodo, setNewTodo] = useState('');
+  const [dueDate, setDueDate] = useState('');
 
-  const todayKey = formatDateKey(new Date());
-  const selectedKey = selectedDate ? formatDateKey(selectedDate) : todayKey;
+  const addTodo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTodo.trim()) return;
 
-  const activeTodos = todos.filter((t) => !t.completed);
-  const completedTodos = todos.filter((t) => t.completed);
+    await addDoc(collection(db, "todos"), {
+      title: newTodo,
+      completed: false,
+      dueDate: dueDate ? Timestamp.fromDate(new Date(dueDate)) : null,
+      createdAt: Timestamp.now()
+    });
+    setNewTodo('');
+    setDueDate('');
+  };
 
-  const todayTodos = activeTodos.filter((t) => !t.due_date || t.due_date === todayKey);
-  const datedTodos = activeTodos.filter((t) => t.due_date && t.due_date !== todayKey);
-  const selectedDayTodos = activeTodos.filter((t) => t.due_date === selectedKey && t.due_date !== todayKey);
+  const toggleTodo = async (id: string, currentStatus: boolean) => {
+    await updateDoc(doc(db, "todos", id), {
+      completed: !currentStatus
+    });
+  };
+
+  const deleteTodo = async (id: string) => {
+    if (confirm('할 일을 삭제할까요?')) {
+      await deleteDoc(doc(db, "todos", id));
+    }
+  };
+
+  const activeTodos = todos.filter(t => !t.completed);
+  const completedTodos = todos.filter(t => t.completed);
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-1 pb-3">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">할일</h2>
-          <p className="text-xs text-muted-foreground">
-            {activeTodos.length}개 남음 · {completedTodos.length}개 완료
-          </p>
-        </div>
-        <button
-          onClick={onAddClick}
-          className="text-xs font-medium text-foreground/80 hover:text-foreground transition-colors"
-        >
-          + 추가
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto pr-1">
-        {/* Today's todos */}
-        {selectedDayTodos.length > 0 && selectedKey !== todayKey && (
-          <div className="mb-4">
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <Calendar className="h-3.5 w-3.5" />
-              {selectedDate!.getMonth() + 1}월 {selectedDate!.getDate()}일
-            </div>
-            <div className="space-y-1.5">
-              {selectedDayTodos.map((todo) => (
-                <TodoItem key={todo.id} todo={todo} onToggle={onToggle} onEdit={onEdit} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Today section */}
-        <div className="mb-4">
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Circle className="h-3.5 w-3.5" />
-            오늘 할일
-          </div>
-          {todayTodos.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">오늘 할일이 없습니다</p>
-          ) : (
-            <div className="space-y-1.5">
-              {todayTodos.map((todo) => (
-                <TodoItem key={todo.id} todo={todo} onToggle={onToggle} onEdit={onEdit} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Upcoming/dated todos */}
-        {datedTodos.length > 0 && (
-          <div className="mb-4">
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <Calendar className="h-3.5 w-3.5" />
-              예정된 할일
-            </div>
-            <div className="space-y-1.5">
-              {datedTodos
-                .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
-                .map((todo) => (
-                  <TodoItem key={todo.id} todo={todo} onToggle={onToggle} onEdit={onEdit} />
-                ))}
-            </div>
-          </div>
-        )}
-
-        {/* Completed todos */}
-        <div>
-          <button
-            onClick={() => setShowCompleted(!showCompleted)}
-            className="mb-2 flex w-full items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {showCompleted ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            완료됨 ({completedTodos.length})
+    <div className="max-w-2xl mx-auto space-y-8">
+      {/* 할일 입력창 */}
+      <form onSubmit={addTodo} className="bg-slate-800 p-4 rounded-xl shadow-lg space-y-3 border border-slate-700">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 rounded-full border-2 border-slate-600 flex-shrink-0" />
+          <input 
+            className="bg-transparent flex-1 focus:outline-none text-lg placeholder:text-slate-500"
+            placeholder="새로운 할 일..."
+            value={newTodo}
+            onChange={(e) => setNewTodo(e.target.value)}
+          />
+          <button type="submit" className="p-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition">
+            <Plus className="w-5 h-5 text-white" />
           </button>
-          {showCompleted && (
-            <div className="space-y-1.5">
-              {completedTodos.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">완료된 할일이 없습니다</p>
-              ) : (
-                completedTodos
-                  .sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''))
-                  .map((todo) => (
-                    <TodoItem key={todo.id} todo={todo} onToggle={onToggle} onEdit={onEdit} />
-                  ))
-              )}
-            </div>
-          )}
         </div>
-      </div>
-    </div>
-  );
-}
+        <div className="flex items-center gap-2 pl-9">
+          <CalIcon className="w-4 h-4 text-slate-500" />
+          <input 
+            type="date"
+            className="bg-slate-700 text-xs p-1 rounded text-slate-300 focus:outline-none"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+        </div>
+      </form>
 
-function TodoItem({ todo, onToggle, onEdit }: { todo: Todo; onToggle: (t: Todo) => void; onEdit: (t: Todo) => void }) {
-  const cc = getColorClasses(todo.color);
+      {/* 활성 할일 목록 */}
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold text-slate-400 flex items-center gap-2">
+          진행 중 <span className="bg-slate-800 px-2 py-0.5 rounded-full text-xs">{activeTodos.length}</span>
+        </h3>
+        <div className="space-y-2">
+          {activeTodos.map(todo => (
+            <div key={todo.id} className="group flex items-center gap-3 bg-slate-800/40 p-3 rounded-lg border border-slate-700/50 hover:border-blue-500/50 transition">
+              <button onClick={() => toggleTodo(todo.id, todo.completed)}>
+                <Circle className="w-6 h-6 text-slate-500 hover:text-blue-400" />
+              </button>
+              <div className="flex-1">
+                <p className="text-slate-200">{todo.title}</p>
+                {todo.dueDate && (
+                  <p className={`text-[10px] mt-0.5 ${isToday(todo.dueDate) ? 'text-orange-400 font-bold' : 'text-slate-500'}`}>
+                    기한: {format(todo.dueDate, 'M월 d일')}
+                  </p>
+                )}
+              </div>
+              <button onClick={() => deleteTodo(todo.id)} className="opacity-0 group-hover:opacity-100 p-2 text-slate-500 hover:text-red-400 transition">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
 
-  return (
-    <div
-      className={cn(
-        'group flex items-center gap-2.5 rounded-lg border p-2.5 transition-all duration-150',
-        'hover:border-foreground/20',
-        todo.completed ? 'border-border/30 bg-card/20 opacity-60' : cn(cc.border, cc.bg),
+      {/* 완료된 할일 목록 */}
+      {completedTodos.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold text-slate-500">완료됨</h3>
+          <div className="space-y-2 opacity-60">
+            {completedTodos.map(todo => (
+              <div key={todo.id} className="flex items-center gap-3 bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                <button onClick={() => toggleTodo(todo.id, todo.completed)}>
+                  <CheckCircle2 className="w-6 h-6 text-blue-500" />
+                </button>
+                <p className="flex-1 text-slate-500 line-through text-sm">{todo.title}</p>
+                <button onClick={() => deleteTodo(todo.id)} className="p-2 text-slate-600 hover:text-red-400">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
-    >
-      <button
-        onClick={() => onToggle(todo)}
-        className={cn(
-          'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all',
-          todo.completed
-            ? 'border-foreground bg-foreground text-background'
-            : 'border-muted-foreground hover:border-foreground',
-        )}
-      >
-        {todo.completed && <Check className="h-3 w-3" />}
-      </button>
-
-      <div className="min-w-0 flex-1 cursor-pointer" onClick={() => onEdit(todo)}>
-        <p className={cn(
-          'truncate text-sm font-medium',
-          todo.completed && 'line-through text-muted-foreground',
-        )}>
-          {todo.title}
-        </p>
-        {todo.due_date && (
-          <p className="text-xs text-muted-foreground">
-            {formatDueDate(todo.due_date)}
-          </p>
-        )}
-      </div>
-
-      <button
-        onClick={() => onEdit(todo)}
-        className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
-      >
-        <Pencil className="h-3.5 w-3.5" />
-      </button>
     </div>
   );
-}
-
-function formatDueDate(dateStr: string) {
-  const date = new Date(dateStr + 'T00:00:00');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diff = Math.floor((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (diff === 0) return '오늘';
-  if (diff === 1) return '내일';
-  if (diff === -1) return '어제';
-  if (diff < 0) return `${Math.abs(diff)}일 지남`;
-  if (diff < 7) return `${diff}일 후`;
-  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
 }

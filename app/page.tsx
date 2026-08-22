@@ -13,8 +13,8 @@ import {
   orderBy,
   Timestamp 
 } from 'firebase/firestore';
-import Calendar from '@/components/Calendar';
-import TodoView from '@/components/TodoView';
+import Calendar from '@/components/ui/Calendar';
+import TodoView from '@/components/calendar/TodoView';
 import { Calendar as CalendarIcon, CheckSquare, Search, Plus, Bell, Sun, Moon } from 'lucide-react';
 
 export default function Home() {
