@@ -1,184 +1,115 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { supabase, type CalendarEvent, type NewEvent, type Todo, type NewTodo } from '@/lib/supabase-client';
-import { useTheme } from '@/lib/use-theme';
-import { useEventNotifications } from '@/lib/use-notifications';
-import { MONTHS_KO } from '@/lib/date-utils';
-import CalendarMonthView from '@/components/calendar/CalendarMonthView';
-import CalendarWeekView from '@/components/calendar/CalendarWeekView';
-import EventDialog from '@/components/calendar/EventDialog';
-import EventList from '@/components/calendar/EventList';
-import TodoDialog from '@/components/calendar/TodoDialog';
-import TodoView from '@/components/calendar/TodoView';
-import SearchBar from '@/components/calendar/SearchBar';
-import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Loader2, Sun, Moon, Bell, BellOff, LayoutGrid, CalendarDays, ListTodo } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { db } from '@/lib/firebase';
+import { 
+  collection, 
+  onSnapshot, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  query, 
+  orderBy,
+  Timestamp 
+} from 'firebase/firestore';
+import Calendar from '@/components/Calendar';
+import TodoView from '@/components/TodoView';
+import { Calendar as CalendarIcon, CheckSquare, Search, Plus, Bell, Sun, Moon } from 'lucide-react';
 
-type ViewMode = 'month' | 'week' | 'todo';
+export default function Home() {
+  const [view, setView] = useState<'month' | 'week' | 'todo'>('month');
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [events, setEvents] = useState<any[]>([]);
+  const [todos, setTodos] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
-export default function CalendarPage() {
-  const { theme, toggle } = useTheme();
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [todoDialogOpen, setTodoDialogOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
-  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  // 실시간 데이터 구독 (Firestore)
+  useEffect(() => {
+    const qEvents = query(collection(db, "events"));
+    const unsubscribeEvents = onSnapshot(qEvents, (snapshot) => {
+      const eventData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        start: (doc.data().start as Timestamp).toDate(),
+        end: (doc.data().end as Timestamp).toDate(),
+      }));
+      setEvents(eventData);
+    });
 
-  const { permission, requestPermission } = useEventNotifications(events);
+    const qTodos = query(collection(db, "todos"), orderBy("createdAt", "desc"));
+    const unsubscribeTodos = onSnapshot(qTodos, (snapshot) => {
+      const todoData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        dueDate: doc.data().dueDate ? (doc.data().dueDate as Timestamp).toDate() : null,
+      }));
+      setTodos(todoData);
+    });
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [eventsResponse, todosResponse] = await Promise.all([
-        supabase.from('events').select('*').order('start_time', { ascending: true }),
-        supabase.from('todos').select('*').order('created_at', { ascending: true }),
-      ]);
-      if (eventsResponse.error) throw eventsResponse.error;
-      if (todosResponse.error) throw todosResponse.error;
-      setEvents(eventsResponse.data || []);
-      setTodos(todosResponse.data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '데이터를 불러오는데 실패했습니다');
-    } finally {
-      setLoading(false);
-    }
+    return () => {
+      unsubscribeEvents();
+      unsubscribeTodos();
+    };
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  const handleSave = async (event: NewEvent, id?: string) => {
-    const result = id
-      ? await supabase.from('events').update({ ...event, updated_at: new Date().toISOString() }).eq('id', id)
-      : await supabase.from('events').insert([event]);
-    if (result.error) throw result.error;
-    await fetchData();
-  };
-
-  const handleDelete = async (id: string) => {
-    const { error: deleteError } = await supabase.from('events').delete().eq('id', id);
-    if (deleteError) throw deleteError;
-    await fetchData();
-  };
-
-  const handleSaveTodo = async (todo: NewTodo, id?: string) => {
-    const result = id
-      ? await supabase.from('todos').update({ ...todo, updated_at: new Date().toISOString() }).eq('id', id)
-      : await supabase.from('todos').insert([todo]);
-    if (result.error) throw result.error;
-    await fetchData();
-  };
-
-  const handleDeleteTodo = async (id: string) => {
-    const { error: deleteError } = await supabase.from('todos').delete().eq('id', id);
-    if (deleteError) throw deleteError;
-    await fetchData();
-  };
-
-  const handleToggleTodo = async (todo: Todo) => {
-    const { error: updateError } = await supabase
-      .from('todos')
-      .update({ completed: !todo.completed, updated_at: new Date().toISOString() })
-      .eq('id', todo.id);
-    if (updateError) setError('할일 상태를 변경하지 못했습니다');
-    else await fetchData();
-  };
-
-  const handleEventDrop = async (eventId: string, newDate: string) => {
-    const { error: updateError } = await supabase.from('events').update({ date: newDate, updated_at: new Date().toISOString() }).eq('id', eventId);
-    if (updateError) setError('일정 이동에 실패했습니다');
-    else await fetchData();
-  };
-
-  const handleTodoDrop = async (todoId: string, newDate: string) => {
-    const { error: updateError } = await supabase.from('todos').update({ due_date: newDate, updated_at: new Date().toISOString() }).eq('id', todoId);
-    if (updateError) setError('할일 이동에 실패했습니다');
-    else await fetchData();
-  };
-
-  const handleDateClick = (date: Date) => setSelectedDate(date);
-  const handleEventClick = (event: CalendarEvent) => { setEditingEvent(event); setDialogOpen(true); };
-  const handleTodoClick = (todo: Todo) => { setEditingTodo(todo); setTodoDialogOpen(true); };
-  const handleAddClick = () => { setEditingEvent(null); setDialogOpen(true); };
-  const handleAddTodoClick = () => { setEditingTodo(null); setTodoDialogOpen(true); };
-
-  const prevPeriod = () => {
-    if (viewMode === 'month') setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    else if (viewMode === 'week') { const d = new Date(currentDate); d.setDate(d.getDate() - 7); setCurrentDate(d); }
-  };
-  const nextPeriod = () => {
-    if (viewMode === 'month') setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-    else if (viewMode === 'week') { const d = new Date(currentDate); d.setDate(d.getDate() + 7); setCurrentDate(d); }
-  };
-  const goToToday = () => { const today = new Date(); setCurrentDate(today); setSelectedDate(today); };
-  const periodLabel = viewMode === 'month' ? `${currentDate.getFullYear()}년 ${MONTHS_KO[currentDate.getMonth()]}` : `${currentDate.getFullYear()}년 ${currentDate.getMonth() + 1}월`;
-
-  const viewButton = (mode: ViewMode, icon: React.ReactNode, label: string) => (
-    <button onClick={() => setViewMode(mode)} className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${viewMode === mode ? 'bg-foreground/10 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
-      {icon}{label}
-    </button>
-  );
+  // 테마 변경
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode);
+  }, [isDarkMode]);
 
   return (
-    <div className={`min-h-screen bg-background text-foreground ${theme === 'dark' ? 'dark' : ''}`}>
-      <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
-        <header className="sticky top-0 z-40 border-b border-border/50 bg-card/30 backdrop-blur-sm">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
-            <div className="flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-background"><CalendarIcon className="h-4 w-4" /></div><h1 className="text-base font-semibold tracking-tight">내 캘린더</h1></div>
-            <div className="flex items-center gap-1.5">
-              <div className="hidden items-center gap-0.5 rounded-lg border border-border/50 p-0.5 mr-1 sm:flex">
-                {viewButton('month', <LayoutGrid className="h-3.5 w-3.5" />, '월')}
-                {viewButton('week', <CalendarDays className="h-3.5 w-3.5" />, '주')}
-                {viewButton('todo', <ListTodo className="h-3.5 w-3.5" />, '할일')}
-              </div>
-              <Button variant="ghost" size="icon" onClick={requestPermission} className="h-8 w-8" title={permission === 'granted' ? '알림 켜짐' : '알림 켜기'}>{permission === 'granted' ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4 text-muted-foreground" />}</Button>
-              <Button variant="ghost" size="icon" onClick={toggle} className="h-8 w-8" title="테마 전환">{theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</Button>
-              <Button onClick={viewMode === 'todo' ? handleAddTodoClick : handleAddClick} size="sm" className="gap-1.5"><Plus className="h-4 w-4" /><span className="hidden sm:inline">{viewMode === 'todo' ? '새 할일' : '새 일정'}</span><span className="sm:hidden">추가</span></Button>
-            </div>
+    <main className={`min-h-screen ${isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-gray-50 text-gray-900'}`}>
+      {/* 헤더 */}
+      <header className="border-b border-slate-700 p-4 flex items-center justify-between sticky top-0 bg-opacity-80 backdrop-blur-md z-10">
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            CalTodo
+          </h1>
+          <div className="flex bg-slate-800 rounded-lg p-1">
+            <button 
+              onClick={() => setView('month')}
+              className={`px-3 py-1 rounded-md text-sm transition ${view === 'month' ? 'bg-blue-600' : 'hover:bg-slate-700'}`}
+            >월</button>
+            <button 
+              onClick={() => setView('week')}
+              className={`px-3 py-1 rounded-md text-sm transition ${view === 'week' ? 'bg-blue-600' : 'hover:bg-slate-700'}`}
+            >주</button>
+            <button 
+              onClick={() => setView('todo')}
+              className={`px-3 py-1 rounded-md text-sm transition ${view === 'todo' ? 'bg-blue-600' : 'hover:bg-slate-700'}`}
+            >할일</button>
           </div>
-        </header>
+        </div>
 
-        <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6">
-          <div className="mb-4"><SearchBar events={events} onEventClick={handleEventClick} /></div>
-          {error && <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
-
-          <div className="grid gap-4 lg:grid-cols-[1fr_320px] lg:gap-6">
-            <div className="flex flex-col rounded-xl border border-border/50 bg-card/20 p-4 sm:p-6">
-              {viewMode === 'todo' ? (
-                <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-semibold tracking-tight">할일 목록</h2><Button variant="ghost" size="sm" onClick={handleAddTodoClick} className="gap-1 text-xs"><Plus className="h-3.5 w-3.5" />할일 추가</Button></div>
-              ) : (
-                <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold tracking-tight">{periodLabel}</h2><div className="flex items-center gap-1"><Button variant="ghost" size="icon" onClick={prevPeriod} className="h-8 w-8"><ChevronLeft className="h-4 w-4" /></Button><Button variant="ghost" size="sm" onClick={goToToday} className="h-8 px-3 text-xs">오늘</Button><Button variant="ghost" size="icon" onClick={nextPeriod} className="h-8 w-8"><ChevronRight className="h-4 w-4" /></Button></div></div>
-              )}
-
-              <div className="mb-3 flex items-center gap-0.5 rounded-lg border border-border/50 p-0.5 sm:hidden">
-                {viewButton('month', <LayoutGrid className="h-3.5 w-3.5" />, '월별')}{viewButton('week', <CalendarDays className="h-3.5 w-3.5" />, '주별')}{viewButton('todo', <ListTodo className="h-3.5 w-3.5" />, '할일')}
-              </div>
-
-              {loading ? <div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div> : viewMode === 'todo' ? (
-                <TodoView todos={todos} selectedDate={selectedDate} onToggle={handleToggleTodo} onEdit={handleTodoClick} onAddClick={handleAddTodoClick} />
-              ) : viewMode === 'month' ? (
-                <CalendarMonthView currentDate={currentDate} selectedDate={selectedDate} events={events} todos={todos} onDateClick={handleDateClick} onEventClick={handleEventClick} onTodoClick={handleTodoClick} onEventDrop={handleEventDrop} onTodoDrop={handleTodoDrop} />
-              ) : (
-                <CalendarWeekView currentDate={currentDate} selectedDate={selectedDate} events={events} todos={todos} onDateClick={handleDateClick} onEventClick={handleEventClick} onTodoClick={handleTodoClick} onEventDrop={handleEventDrop} onTodoDrop={handleTodoDrop} />
-              )}
-            </div>
-
-            <div className="rounded-xl border border-border/50 bg-card/20 p-4 sm:p-6 lg:max-h-[calc(100vh-160px)]">
-              {viewMode === 'todo' ? <TodoView todos={todos} selectedDate={selectedDate} onToggle={handleToggleTodo} onEdit={handleTodoClick} onAddClick={handleAddTodoClick} /> : <EventList selectedDate={selectedDate} events={events} onEventClick={handleEventClick} onAddClick={handleAddClick} />}
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="relative hidden md:block">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input 
+              type="text"
+              placeholder="검색..."
+              className="bg-slate-800 rounded-full pl-10 pr-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-        </main>
+          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 hover:bg-slate-800 rounded-full">
+            {isDarkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5" />}
+          </button>
+          <button className="p-2 hover:bg-slate-800 rounded-full text-blue-400">
+            <Plus className="w-6 h-6" />
+          </button>
+        </div>
+      </header>
 
-        <EventDialog open={dialogOpen} onOpenChange={setDialogOpen} selectedDate={selectedDate} editingEvent={editingEvent} onSave={handleSave} onDelete={handleDelete} />
-        <TodoDialog open={todoDialogOpen} onOpenChange={setTodoDialogOpen} editingTodo={editingTodo} onSave={handleSaveTodo} onDelete={handleDeleteTodo} />
+      {/* 컨텐츠 구역 */}
+      <div className="p-4">
+        {view === 'todo' ? (
+          <TodoView todos={todos} db={db} />
+        ) : (
+          <Calendar view={view} events={events} db={db} />
+        )}
       </div>
-    </div>
+    </main>
   );
 }
