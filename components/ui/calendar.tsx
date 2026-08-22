@@ -4,26 +4,19 @@ import { useState } from 'react';
 import { 
   format, addMonths, subMonths, startOfMonth, endOfMonth, 
   startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, 
-  isSameDay, addDays, startOfDay, parseISO 
+  isSameDay, addDays, subDays, isWithinInterval 
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { db } from '@/lib/firebase';
+import { db } from '../../lib/firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { ChevronLeft, ChevronRight, MapPin, Clock, AlignLeft, Trash2, X } from 'lucide-react';
 
-interface CalendarProps {
-  view: 'month' | 'week';
-  events: any[];
-  db: any;
-}
-
-export default function Calendar({ view, events }: CalendarProps) {
+export default function Calendar({ view, events, user }: any) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
   
-  // 입력 폼 상태
   const [title, setTitle] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
@@ -32,27 +25,36 @@ export default function Calendar({ view, events }: CalendarProps) {
   const [color, setColor] = useState('blue');
 
   const monthStart = startOfMonth(currentDate);
+  const weekStart = startOfWeek(currentDate);
   const days = eachDayOfInterval({
-    start: startOfWeek(monthStart),
-    end: endOfWeek(endOfMonth(monthStart)),
+    start: view === 'month' ? startOfWeek(monthStart) : weekStart,
+    end: view === 'month' ? endOfWeek(endOfMonth(monthStart)) : endOfWeek(currentDate),
   });
 
-  // 일정 저장/수정 함수 (Firebase 연동)
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingEvent(null);
+    setTitle('');
+    setStartTime('09:00');
+    setEndTime('10:00');
+    setLocation('');
+    setDescription('');
+    setColor('blue');
+  };
+
   const saveEvent = async () => {
-    if (!title) return;
+    if (!title.trim() || !user) return;
 
-    const startDateTime = new Date(selectedDate);
-    const [startH, startM] = startTime.split(':');
-    startDateTime.setHours(parseInt(startH), parseInt(startM));
-
-    const endDateTime = new Date(selectedDate);
-    const [endH, endM] = endTime.split(':');
-    endDateTime.setHours(parseInt(endH), parseInt(endM));
+    const start = new Date(selectedDate);
+    const [sh, sm] = startTime.split(':'); start.setHours(parseInt(sh), parseInt(sm));
+    const end = new Date(selectedDate);
+    const [eh, em] = endTime.split(':'); end.setHours(parseInt(eh), parseInt(em));
 
     const eventData = {
       title,
-      start: Timestamp.fromDate(startDateTime),
-      end: Timestamp.fromDate(endDateTime),
+      userId: user.uid, // 보안을 위한 유저 아이디 저장
+      start: Timestamp.fromDate(start),
+      end: Timestamp.fromDate(end),
       location,
       description,
       color,
@@ -66,155 +68,118 @@ export default function Calendar({ view, events }: CalendarProps) {
         await addDoc(collection(db, "events"), eventData);
       }
       closeModal();
-    } catch (e) {
-      console.error("Error saving event: ", e);
-    }
+    } catch (e) { console.error(e); }
   };
 
-  // 일정 삭제 함수
   const deleteEvent = async (id: string) => {
-    if (confirm('정말 삭제하시겠습니까?')) {
+    if (confirm('삭제할까요?')) {
       await deleteDoc(doc(db, "events", id));
       closeModal();
     }
   };
 
-  const openAddModal = (date: Date) => {
-    setSelectedDate(date);
-    setEditingEvent(null);
-    setTitle('');
-    setStartTime('09:00');
-    setEndTime('10:00');
-    setLocation('');
-    setDescription('');
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (event: any) => {
-    setEditingEvent(event);
-    setSelectedDate(event.start);
-    setTitle(event.title);
-    setStartTime(format(event.start, 'HH:mm'));
-    setEndTime(format(event.end, 'HH:mm'));
-    setLocation(event.location || '');
-    setDescription(event.description || '');
-    setColor(event.color || 'blue');
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingEvent(null);
-  };
-
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)]">
-      {/* 캘린더 헤더 */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">
-          {format(currentDate, 'yyyy년 MMMM', { locale: ko })}
+    <div className="flex flex-col h-full animate-in fade-in duration-500">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold">
+          {format(currentDate, view === 'month' ? 'yyyy년 MMMM' : 'M월 W주차', { locale: ko })}
         </h2>
         <div className="flex gap-2">
-          <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-1 hover:bg-slate-800 rounded"><ChevronLeft /></button>
-          <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-sm bg-slate-800 rounded hover:bg-slate-700">오늘</button>
-          <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-1 hover:bg-slate-800 rounded"><ChevronRight /></button>
+          <button onClick={() => setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-800 rounded-lg border border-slate-700 transition"><ChevronLeft/></button>
+          <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 text-sm font-bold bg-slate-800 rounded-lg border border-slate-700">오늘</button>
+          <button onClick={() => setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7))} className="p-2 hover:bg-slate-800 rounded-lg border border-slate-700 transition"><ChevronRight/></button>
         </div>
       </div>
 
-      {/* 요일 표시 */}
-      <div className="grid grid-cols-7 mb-2 text-center text-sm font-medium text-slate-400">
+      <div className="grid grid-cols-7 mb-4 text-center text-xs font-black text-slate-500">
         {['일', '월', '화', '수', '목', '금', '토'].map(d => <div key={d}>{d}</div>)}
       </div>
 
-      {/* 날짜 그리드 */}
-      <div className="grid grid-cols-7 flex-1 border-t border-l border-slate-700">
+      <div className={`grid grid-cols-7 flex-1 border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl bg-slate-900/20`}>
         {days.map((day, i) => {
           const dayEvents = events.filter(e => isSameDay(e.start, day));
+          const isToday = isSameDay(day, new Date());
           return (
             <div 
               key={i}
-              onClick={() => openAddModal(day)}
-              className={`min-h-[100px] border-r border-b border-slate-700 p-1 cursor-pointer hover:bg-slate-800 transition-colors
-                ${!isSameMonth(day, monthStart) ? 'opacity-30' : ''}
-                ${isSameDay(day, new Date()) ? 'bg-blue-900/20' : ''}`}
+              onClick={() => { setSelectedDate(day); setIsModalOpen(true); }}
+              className={`min-h-[120px] p-2 border-r border-b border-slate-700/30 transition-all cursor-pointer hover:bg-blue-500/5
+                ${view === 'month' && !isSameMonth(day, monthStart) ? 'opacity-10' : ''}
+                ${isToday ? 'bg-blue-500/10' : ''}
+                ${view === 'week' ? 'min-h-[400px]' : ''}`}
             >
-              <span className={`text-xs p-1 ${isSameDay(day, new Date()) ? 'bg-blue-600 rounded-full w-6 h-6 flex items-center justify-center text-white' : ''}`}>
+              <div className={`text-sm mb-2 font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center mx-auto' : 'text-slate-400 text-center'}`}>
                 {format(day, 'd')}
-              </span>
-              <div className="mt-1 space-y-1">
-                {dayEvents.slice(0, 3).map((event, idx) => (
+              </div>
+              <div className="space-y-1.5">
+                {dayEvents.map((event, idx) => (
                   <div 
                     key={idx}
-                    onClick={(e) => { e.stopPropagation(); openEditModal(event); }}
-                    className={`text-[10px] p-1 rounded truncate bg-${event.color || 'blue'}-600/30 border-l-2 border-${event.color || 'blue'}-500 text-${event.color || 'blue'}-200`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingEvent(event);
+                      setSelectedDate(event.start);
+                      setTitle(event.title);
+                      setStartTime(format(event.start, 'HH:mm'));
+                      setEndTime(format(event.end, 'HH:mm'));
+                      setLocation(event.location || '');
+                      setDescription(event.description || '');
+                      setColor(event.color || 'blue');
+                      setIsModalOpen(true);
+                    }}
+                    className={`p-1.5 rounded-md text-[10px] font-bold border-l-4 truncate
+                      ${event.color === 'green' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-200' : 
+                        event.color === 'rose' ? 'bg-rose-500/20 border-rose-500 text-rose-200' :
+                        event.color === 'amber' ? 'bg-amber-500/20 border-amber-500 text-amber-200' :
+                        event.color === 'violet' ? 'bg-violet-500/20 border-violet-500 text-violet-200' :
+                        'bg-blue-500/20 border-blue-500 text-blue-200'}`}
                   >
                     {event.title}
+                    {view === 'week' && <div className="text-[8px] opacity-60">{format(event.start, 'HH:mm')}</div>}
                   </div>
                 ))}
-                {dayEvents.length > 3 && <div className="text-[9px] text-slate-500 pl-1">+{dayEvents.length - 3}개 더보기</div>}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* 일정 추가/수정 모달 */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
-              <h3 className="font-bold text-lg">{editingEvent ? '일정 수정' : '새 일정 추가'}</h3>
-              <button onClick={closeModal} className="p-1 hover:bg-slate-700 rounded"><X /></button>
-            </div>
-            
-            <div className="p-5 space-y-4">
-              <input 
-                autoFocus
-                className="w-full bg-transparent text-xl font-bold focus:outline-none placeholder:text-slate-600"
-                placeholder="일정 제목"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-              
-              <div className="flex items-center gap-3 text-slate-300">
-                <Clock className="w-5 h-5 text-blue-400" />
-                <div className="flex gap-2 flex-1">
-                  <input type="time" className="bg-slate-800 p-1.5 rounded flex-1" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-                  <span>~</span>
-                  <input type="time" className="bg-slate-800 p-1.5 rounded flex-1" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
+            <div className="p-6 space-y-5">
+              <div className="flex justify-between items-center">
+                <h3 className="font-bold text-xl text-white">{editingEvent ? '일정 수정' : '새 일정'}</h3>
+                <button onClick={closeModal} className="p-1 hover:bg-slate-800 rounded-full"><X/></button>
+              </div>
+              <input autoFocus className="w-full bg-transparent text-2xl font-bold focus:outline-none" placeholder="일정 제목" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <div className="flex gap-3">
+                <div className="flex-1 bg-slate-800 p-3 rounded-2xl">
+                  <label className="text-[9px] text-slate-500 font-bold block mb-1">시작</label>
+                  <input type="time" className="bg-transparent w-full outline-none" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                </div>
+                <div className="flex-1 bg-slate-800 p-3 rounded-2xl">
+                  <label className="text-[9px] text-slate-500 font-bold block mb-1">종료</label>
+                  <input type="time" className="bg-transparent w-full outline-none" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                 </div>
               </div>
-
-              <div className="flex items-center gap-3 text-slate-300">
-                <MapPin className="w-5 h-5 text-red-400" />
-                <input className="bg-slate-800 p-2 rounded flex-1 text-sm" placeholder="위치 추가" value={location} onChange={(e) => setLocation(e.target.value)} />
+              <div className="flex items-center gap-3 bg-slate-800 p-3 rounded-2xl">
+                <MapPin className="w-4 h-4 text-slate-500" />
+                <input className="bg-transparent flex-1 outline-none text-sm" placeholder="장소" value={location} onChange={(e) => setLocation(e.target.value)} />
               </div>
-
-              <div className="flex items-center gap-3 text-slate-300">
-                <AlignLeft className="w-5 h-5 text-green-400" />
-                <textarea className="bg-slate-800 p-2 rounded flex-1 text-sm h-20 resize-none" placeholder="설명 추가" value={description} onChange={(e) => setDescription(e.target.value)} />
+              <div className="flex items-start gap-3 bg-slate-800 p-3 rounded-2xl">
+                <AlignLeft className="w-4 h-4 text-slate-500 mt-1" />
+                <textarea className="bg-transparent flex-1 outline-none text-sm h-20 resize-none" placeholder="메모" value={description} onChange={(e) => setDescription(e.target.value)} />
               </div>
-
-              <div className="flex gap-2 pt-2">
+              <div className="flex justify-center gap-3">
                 {['blue', 'green', 'amber', 'rose', 'violet'].map(c => (
-                  <button 
-                    key={c} 
-                    onClick={() => setColor(c)}
-                    className={`w-6 h-6 rounded-full bg-${c}-500 ${color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-900' : ''}`}
-                  />
+                  <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition ${color === c ? 'ring-4 ring-white scale-110' : 'opacity-40'} ${c === 'green' ? 'bg-emerald-500' : c === 'rose' ? 'bg-rose-500' : c === 'amber' ? 'bg-amber-500' : c === 'violet' ? 'bg-violet-500' : 'bg-blue-500'}`} />
                 ))}
               </div>
-            </div>
-
-            <div className="p-4 bg-slate-800/30 flex justify-between gap-3">
-              {editingEvent && (
-                <button onClick={() => deleteEvent(editingEvent.id)} className="flex items-center gap-1 text-red-400 hover:bg-red-400/10 px-3 py-2 rounded text-sm transition">
-                  <Trash2 className="w-4 h-4" /> 삭제
-                </button>
-              )}
-              <div className="flex gap-2 ml-auto">
-                <button onClick={closeModal} className="px-4 py-2 text-slate-400 hover:bg-slate-800 rounded text-sm">취소</button>
-                <button onClick={saveEvent} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-semibold text-sm">저장</button>
+              <div className="flex gap-3 pt-4">
+                {editingEvent && <button onClick={() => deleteEvent(editingEvent.id)} className="p-3 text-rose-500 hover:bg-rose-500/10 rounded-2xl"><Trash2/></button>}
+                <button onClick={closeModal} className="flex-1 py-3 font-bold text-slate-400">취소</button>
+                <button onClick={saveEvent} className="flex-[2] py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold">저장</button>
               </div>
             </div>
           </div>

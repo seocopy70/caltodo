@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBTXHnbW5ptpBjbJt43wrfbVABKtm1n3OU",
@@ -11,6 +12,7 @@ const firebaseConfig = {
   measurementId: "G-F8FGGZ1NBG"
 };
 
-// 앱이 이미 초기화되었는지 확인 후 초기화
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
