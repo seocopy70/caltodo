@@ -23,3 +23,16 @@ export type CalendarEvent = {
 };
 
 export type NewEvent = Omit<CalendarEvent, 'id' | 'created_at' | 'updated_at'>;
+
+export type Todo = {
+  id: string;
+  title: string;
+  description: string | null;
+  completed: boolean;
+  due_date: string | null;
+  color: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type NewTodo = Omit<Todo, 'id' | 'created_at' | 'updated_at'>;

@@ -2,75 +2,58 @@
 
 import { cn } from '@/lib/utils';
 import { getColorClasses } from '@/lib/types';
-import { WEEKDAYS_KO, formatDateKey, isSameDay, formatTimeKo } from '@/lib/date-utils';
-import type { CalendarEvent } from '@/lib/supabase-client';
+import { WEEKDAYS_KO, formatDateKey, formatTimeKo } from '@/lib/date-utils';
+import type { CalendarEvent, Todo } from '@/lib/supabase-client';
+import { Check } from 'lucide-react';
 
 type Props = {
   currentDate: Date;
   selectedDate: Date | null;
   events: CalendarEvent[];
+  todos: Todo[];
   onDateClick: (date: Date) => void;
   onEventClick: (event: CalendarEvent) => void;
+  onTodoClick: (todo: Todo) => void;
   onEventDrop: (eventId: string, newDate: string) => void;
+  onTodoDrop: (todoId: string, newDate: string) => void;
 };
 
-export default function CalendarWeekView({ currentDate, selectedDate, events, onDateClick, onEventClick, onEventDrop }: Props) {
-  const today = new Date();
+export default function CalendarWeekView({ currentDate, selectedDate, events, todos, onDateClick, onEventClick, onTodoClick, onEventDrop, onTodoDrop }: Props) {
   const dayOfWeek = currentDate.getDay();
   const weekStart = new Date(currentDate);
   weekStart.setDate(currentDate.getDate() - dayOfWeek);
-
   const days: Date[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
     days.push(d);
   }
-
-  const hours: number[] = [];
-  for (let h = 0; h < 24; h++) hours.push(h);
-
+  const hours = Array.from({ length: 24 }, (_, i) => i);
   const eventsByDate = new Map<string, CalendarEvent[]>();
   for (const ev of events) {
     const arr = eventsByDate.get(ev.date) || [];
     arr.push(ev);
     eventsByDate.set(ev.date, arr);
   }
+  const todosByDate = new Map<string, Todo[]>();
+  for (const todo of todos.filter((item) => item.due_date)) {
+    const arr = todosByDate.get(todo.due_date as string) || [];
+    arr.push(todo);
+    todosByDate.set(todo.due_date as string, arr);
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Day headers */}
       <div className="grid grid-cols-[48px_repeat(7,1fr)] border-b border-border/50 sticky top-0 z-10 bg-card/80 backdrop-blur-sm">
         <div className="border-r border-border/50" />
-        {days.map((date, i) => {
-          const isToday = isSameDay(date, today);
-          const isSelected = selectedDate && isSameDay(date, selectedDate);
-          return (
-            <button
-              key={i}
-              onClick={() => onDateClick(date)}
-              className={cn(
-                'flex flex-col items-center py-2 transition-colors',
-                isSelected && 'bg-foreground/[0.06]',
-              )}
-            >
-              <span className="text-xs font-medium text-muted-foreground">{WEEKDAYS_KO[i]}</span>
-              <span
-                className={cn(
-                  'mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm transition-colors',
-                  isToday
-                    ? 'bg-foreground text-background font-semibold'
-                    : 'text-foreground',
-                )}
-              >
-                {date.getDate()}
-              </span>
-            </button>
-          );
-        })}
+        {days.map((date, i) => (
+          <button key={i} onClick={() => onDateClick(date)} className="flex flex-col items-center py-2 transition-colors hover:bg-foreground/[0.03]">
+            <span className="text-xs font-medium text-muted-foreground">{WEEKDAYS_KO[i]}</span>
+            <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm text-foreground">{date.getDate()}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Time grid */}
       <div className="flex-1 overflow-y-auto">
         <div className="grid grid-cols-[48px_repeat(7,1fr)]">
           {hours.map((hour) => (
@@ -80,10 +63,8 @@ export default function CalendarWeekView({ currentDate, selectedDate, events, on
               </div>
               {days.map((date, dayIdx) => {
                 const key = formatDateKey(date);
-                const hourEvents = (eventsByDate.get(key) || [])
-                  .filter((e) => parseInt(e.start_time.split(':')[0], 10) === hour)
-                  .sort((a, b) => a.start_time.localeCompare(b.start_time));
-
+                const hourEvents = (eventsByDate.get(key) || []).filter((e) => parseInt(e.start_time.split(':')[0], 10) === hour);
+                const dayTodos = hour === 9 ? (todosByDate.get(key) || []) : [];
                 return (
                   <div
                     key={dayIdx}
@@ -91,31 +72,26 @@ export default function CalendarWeekView({ currentDate, selectedDate, events, on
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => {
                       e.preventDefault();
-                      const eventId = e.dataTransfer.getData('text/plain');
-                      if (eventId) onEventDrop(eventId, key);
+                      const kind = e.dataTransfer.getData('calendar-item-type');
+                      const id = e.dataTransfer.getData('text/plain');
+                      if (kind === 'todo' && id) onTodoDrop(id, key);
+                      if (kind === 'event' && id) onEventDrop(id, key);
                     }}
                   >
                     {hourEvents.map((ev) => {
                       const cc = getColorClasses(ev.color);
                       return (
-                        <div
-                          key={ev.id}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', ev.id);
-                            e.dataTransfer.effectAllowed = 'move';
-                          }}
-                          onClick={() => onEventClick(ev)}
-                          className={cn(
-                            'cursor-pointer rounded px-1.5 py-1 text-[10px] leading-tight transition-opacity hover:opacity-80',
-                            cc.bg, cc.text,
-                          )}
-                        >
-                          <div className="flex items-center gap-1">
-                            <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', cc.dot)} />
-                            <span className="truncate font-medium">{ev.title}</span>
-                          </div>
+                        <div key={ev.id} draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', ev.id); e.dataTransfer.setData('calendar-item-type', 'event'); }} onClick={() => onEventClick(ev)} className={cn('cursor-pointer rounded px-1.5 py-1 text-[10px] leading-tight transition-opacity hover:opacity-80', cc.bg, cc.text)}>
+                          <div className="flex items-center gap-1"><span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', cc.dot)} /><span className="truncate font-medium">{ev.title}</span></div>
                           <span className="text-[9px] opacity-70">{formatTimeKo(ev.start_time)}</span>
+                        </div>
+                      );
+                    })}
+                    {dayTodos.map((todo) => {
+                      const cc = getColorClasses(todo.color);
+                      return (
+                        <div key={todo.id} draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', todo.id); e.dataTransfer.setData('calendar-item-type', 'todo'); }} onClick={() => onTodoClick(todo)} className={cn('mt-0.5 flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-[10px] leading-tight transition-opacity hover:opacity-80', cc.bg, cc.text, todo.completed && 'opacity-50 line-through')}>
+                          <Check className="h-2.5 w-2.5 shrink-0" /><span className="truncate font-medium">{todo.title}</span>
                         </div>
                       );
                     })}
