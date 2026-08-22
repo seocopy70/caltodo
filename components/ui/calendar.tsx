@@ -94,7 +94,7 @@ export default function Calendar({ view, events, user, onNotify }: any) {
       closeModal();
     } catch (e: any) {
       console.error(e);
-      notify(`저장 실패: ${e.code || e.message || e}`, 'error');
+      notify(`저장 실패: ${e.isTimeout ? e.message : (e.code || e.message || e)}`, 'error');
     } finally {
       setIsSaving(false);
     }
@@ -109,7 +109,7 @@ export default function Calendar({ view, events, user, onNotify }: any) {
       closeModal();
     } catch (e: any) {
       console.error(e);
-      notify(`삭제 실패: ${e.code || e.message || e}`, 'error');
+      notify(`삭제 실패: ${e.isTimeout ? e.message : (e.code || e.message || e)}`, 'error');
     } finally {
       setIsSaving(false);
     }
