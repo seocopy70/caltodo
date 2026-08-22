@@ -4,25 +4,38 @@ import { useState } from 'react';
 import { 
   format, addMonths, subMonths, startOfMonth, endOfMonth, 
   startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, 
-  isSameDay, addDays, subDays, isWithinInterval 
+  isSameDay, addDays, subDays
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
-import { ChevronLeft, ChevronRight, MapPin, Clock, AlignLeft, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, AlignLeft, Trash2, X, Repeat } from 'lucide-react';
+import { getKoreanHolidaysForYears } from '../../lib/holidays';
+import KoreanLunarCalendar from 'korean-lunar-calendar';
 
-export default function Calendar({ view, events, user }: any) {
+function getLunarLabel(date: Date) {
+  const cal = new KoreanLunarCalendar();
+  cal.setSolarDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
+  const lunar = cal.getLunarCalendar();
+  return `${lunar.intercalation ? '윤' : ''}${lunar.month}.${lunar.day}`;
+}
+
+export default function Calendar({ view, events, user, onNotify }: any) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
-  
+  const [isSaving, setIsSaving] = useState(false);
+
   const [title, setTitle] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState('blue');
+  const [recurring, setRecurring] = useState(false);
+
+  const notify = onNotify || (() => {});
 
   const monthStart = startOfMonth(currentDate);
   const weekStart = startOfWeek(currentDate);
@@ -33,6 +46,9 @@ export default function Calendar({ view, events, user }: any) {
 
   const weekOfMonth = Math.ceil((currentDate.getDate() + startOfMonth(currentDate).getDay()) / 7);
 
+  // 표시되는 날짜 범위가 걸친 모든 연도의 공휴일을 미리 계산
+  const holidayMap = getKoreanHolidaysForYears(days.map((d) => d.getFullYear()));
+
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingEvent(null);
@@ -42,6 +58,7 @@ export default function Calendar({ view, events, user }: any) {
     setLocation('');
     setDescription('');
     setColor('blue');
+    setRecurring(false);
   };
 
   const saveEvent = async () => {
@@ -60,23 +77,40 @@ export default function Calendar({ view, events, user }: any) {
       location,
       description,
       color,
+      recurring,
       updatedAt: Timestamp.now()
     };
 
+    setIsSaving(true);
     try {
       if (editingEvent) {
         await updateDoc(doc(db, "events", editingEvent.id), eventData);
+        notify('일정이 수정되었습니다.');
       } else {
         await addDoc(collection(db, "events"), eventData);
+        notify('일정이 추가되었습니다.');
       }
       closeModal();
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      console.error(e);
+      notify(`저장 실패: ${e.code || e.message || e}`, 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const deleteEvent = async (id: string) => {
-    if (confirm('삭제할까요?')) {
+    if (!confirm('삭제할까요?')) return;
+    setIsSaving(true);
+    try {
       await deleteDoc(doc(db, "events", id));
+      notify('일정이 삭제되었습니다.');
       closeModal();
+    } catch (e: any) {
+      console.error(e);
+      notify(`삭제 실패: ${e.code || e.message || e}`, 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -94,13 +128,32 @@ export default function Calendar({ view, events, user }: any) {
       </div>
 
       <div className="grid grid-cols-7 mb-4 text-center text-xs font-black text-slate-500">
-        {['일', '월', '화', '수', '목', '금', '토'].map(d => <div key={d}>{d}</div>)}
+        {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
+          <div key={d} className={i === 0 ? 'text-rose-400' : i === 6 ? 'text-blue-400' : ''}>{d}</div>
+        ))}
       </div>
 
       <div className={`grid grid-cols-7 flex-1 border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl bg-slate-900/20`}>
         {days.map((day, i) => {
-          const dayEvents = events.filter((e: any) => isSameDay(e.start, day));
+          const dayEvents = events.filter((e: any) =>
+            e.recurring
+              ? e.start.getMonth() === day.getMonth() && e.start.getDate() === day.getDate()
+              : isSameDay(e.start, day)
+          );
           const isToday = isSameDay(day, new Date());
+          const dow = day.getDay();
+          const dateKey = format(day, 'yyyy-MM-dd');
+          const holidayName = holidayMap[dateKey];
+          const lunarLabel = getLunarLabel(day);
+
+          const dateColorClass = isToday
+            ? ''
+            : holidayName || dow === 0
+              ? 'text-rose-400'
+              : dow === 6
+                ? 'text-blue-400'
+                : 'text-slate-400';
+
           return (
             <div 
               key={i}
@@ -110,8 +163,14 @@ export default function Calendar({ view, events, user }: any) {
                 ${isToday ? 'bg-blue-500/10' : ''}
                 ${view === 'week' ? 'min-h-[400px]' : ''}`}
             >
-              <div className={`text-sm mb-2 font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center mx-auto' : 'text-slate-400 text-center'}`}>
-                {format(day, 'd')}
+              <div className="text-center mb-1">
+                <div className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center mx-auto' : dateColorClass}`}>
+                  {format(day, 'd')}
+                </div>
+                <div className="text-[9px] text-slate-600 leading-tight">{lunarLabel}</div>
+                {holidayName && (
+                  <div className="text-[9px] text-rose-400 font-bold truncate leading-tight">{holidayName}</div>
+                )}
               </div>
               <div className="space-y-1.5">
                 {dayEvents.map((event: any, idx: number) => (
@@ -127,17 +186,19 @@ export default function Calendar({ view, events, user }: any) {
                       setLocation(event.location || '');
                       setDescription(event.description || '');
                       setColor(event.color || 'blue');
+                      setRecurring(!!event.recurring);
                       setIsModalOpen(true);
                     }}
-                    className={`p-1.5 rounded-md text-[10px] font-bold border-l-4 truncate
+                    className={`p-1.5 rounded-md text-[10px] font-bold border-l-4 truncate flex items-center gap-1
                       ${event.color === 'green' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-200' : 
                         event.color === 'rose' ? 'bg-rose-500/20 border-rose-500 text-rose-200' :
                         event.color === 'amber' ? 'bg-amber-500/20 border-amber-500 text-amber-200' :
                         event.color === 'violet' ? 'bg-violet-500/20 border-violet-500 text-violet-200' :
                         'bg-blue-500/20 border-blue-500 text-blue-200'}`}
                   >
-                    {event.title}
-                    {view === 'week' && <div className="text-[8px] opacity-60">{format(event.start, 'HH:mm')}</div>}
+                    {event.recurring && <Repeat className="w-2.5 h-2.5 shrink-0" />}
+                    <span className="truncate">{event.title}</span>
+                    {view === 'week' && !event.recurring && <div className="text-[8px] opacity-60">{format(event.start, 'HH:mm')}</div>}
                   </div>
                 ))}
               </div>
@@ -173,15 +234,22 @@ export default function Calendar({ view, events, user }: any) {
                 <AlignLeft className="w-4 h-4 text-slate-500 mt-1" />
                 <textarea className="bg-transparent flex-1 outline-none text-sm h-20 resize-none" placeholder="메모" value={description} onChange={(e) => setDescription(e.target.value)} />
               </div>
+              <label className="flex items-center gap-3 bg-slate-800 p-3 rounded-2xl cursor-pointer">
+                <Repeat className="w-4 h-4 text-slate-500" />
+                <span className="flex-1 text-sm">매년 반복 (생일·기념일)</span>
+                <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
+              </label>
               <div className="flex justify-center gap-3">
                 {['blue', 'green', 'amber', 'rose', 'violet'].map(c => (
                   <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition ${color === c ? 'ring-4 ring-white scale-110' : 'opacity-40'} ${c === 'green' ? 'bg-emerald-500' : c === 'rose' ? 'bg-rose-500' : c === 'amber' ? 'bg-amber-500' : c === 'violet' ? 'bg-violet-500' : 'bg-blue-500'}`} />
                 ))}
               </div>
               <div className="flex gap-3 pt-4">
-                {editingEvent && <button onClick={() => deleteEvent(editingEvent.id)} className="p-3 text-rose-500 hover:bg-rose-500/10 rounded-2xl"><Trash2/></button>}
-                <button onClick={closeModal} className="flex-1 py-3 font-bold text-slate-400">취소</button>
-                <button onClick={saveEvent} className="flex-[2] py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold">저장</button>
+                {editingEvent && <button disabled={isSaving} onClick={() => deleteEvent(editingEvent.id)} className="p-3 text-rose-500 hover:bg-rose-500/10 rounded-2xl disabled:opacity-40"><Trash2/></button>}
+                <button disabled={isSaving} onClick={closeModal} className="flex-1 py-3 font-bold text-slate-400 disabled:opacity-40">취소</button>
+                <button disabled={isSaving} onClick={saveEvent} className="flex-[2] py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold disabled:opacity-60">
+                  {isSaving ? '저장 중...' : '저장'}
+                </button>
               </div>
             </div>
           </div>

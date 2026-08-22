@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { db, auth, googleProvider } from '../lib/firebase';
 import { signInWithPopup, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { collection, onSnapshot, query, where, orderBy, Timestamp } from 'firebase/firestore';
@@ -16,6 +16,14 @@ export default function Home() {
   const [events, setEvents] = useState<any[]>([]);
   const [todos, setTodos] = useState<any[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const notify = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, type });
+    toastTimer.current = setTimeout(() => setToast(null), 2500);
+  }, []);
 
   // 1. 페이지 로드 시 로그인 상태 확인
   useEffect(() => {
@@ -122,8 +130,16 @@ export default function Home() {
         </div>
       </header>
       <div className="p-4 max-w-7xl mx-auto">
-        {view === 'todo' ? <TodoView todos={todos} user={user} /> : <Calendar view={view} events={events} user={user} />}
+        {view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} /> : <Calendar view={view} events={events} user={user} onNotify={notify} />}
       </div>
+      {toast && (
+        <div
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-xl shadow-2xl text-sm font-bold text-white transition-all
+            ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'}`}
+        >
+          {toast.message}
+        </div>
+      )}
     </main>
   );
 }
