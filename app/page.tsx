@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { db, auth, googleProvider } from '../lib/firebase';
-import { signInWithRedirect, onAuthStateChanged, signOut, User, getRedirectResult } from 'firebase/auth';
+import { signInWithPopup, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { collection, onSnapshot, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import Calendar from '../components/ui/calendar';
 import TodoView from '../components/calendar/TodoView';
@@ -17,14 +17,8 @@ export default function Home() {
   const [todos, setTodos] = useState<any[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // 1. 페이지 로드 시 로그인 상태 및 리디렉션 결과 확인
+  // 1. 페이지 로드 시 로그인 상태 확인
   useEffect(() => {
-    // 리디렉션 후 돌아왔을 때 결과를 처리
-    getRedirectResult(auth).catch((error) => {
-      console.error("로그인 에러:", error);
-      setAuthError(`${error.code || 'unknown'}: ${error.message || error}`);
-    });
-
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false); // 상태 파악 완료 후 로딩 해제
@@ -60,14 +54,17 @@ export default function Home() {
   }, [isDarkMode]);
 
   const handleLogin = async () => {
-    setLoading(true); // 클릭 시 로딩 표시
     setAuthError(null);
     try {
-      await signInWithRedirect(auth, googleProvider);
+      await signInWithPopup(auth, googleProvider);
+      // 성공 시 onAuthStateChanged가 자동으로 user를 세팅함
     } catch (error: any) {
+      // 사용자가 팝업을 닫은 경우는 에러로 표시하지 않음
+      if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') {
+        return;
+      }
       console.error("로그인 시도 에러:", error);
       setAuthError(`${error.code || 'unknown'}: ${error.message || error}`);
-      setLoading(false);
     }
   };
 
