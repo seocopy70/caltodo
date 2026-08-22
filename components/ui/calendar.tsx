@@ -11,6 +11,7 @@ import { db } from '../../lib/firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { ChevronLeft, ChevronRight, MapPin, AlignLeft, Trash2, X, Repeat } from 'lucide-react';
 import { getKoreanHolidaysForYears } from '../../lib/holidays';
+import { withTimeout } from '../../lib/withTimeout';
 import KoreanLunarCalendar from 'korean-lunar-calendar';
 
 function getLunarLabel(date: Date) {
@@ -84,10 +85,10 @@ export default function Calendar({ view, events, user, onNotify }: any) {
     setIsSaving(true);
     try {
       if (editingEvent) {
-        await updateDoc(doc(db, "events", editingEvent.id), eventData);
+        await withTimeout(updateDoc(doc(db, "events", editingEvent.id), eventData));
         notify('일정이 수정되었습니다.');
       } else {
-        await addDoc(collection(db, "events"), eventData);
+        await withTimeout(addDoc(collection(db, "events"), eventData));
         notify('일정이 추가되었습니다.');
       }
       closeModal();
@@ -103,7 +104,7 @@ export default function Calendar({ view, events, user, onNotify }: any) {
     if (!confirm('삭제할까요?')) return;
     setIsSaving(true);
     try {
-      await deleteDoc(doc(db, "events", id));
+      await withTimeout(deleteDoc(doc(db, "events", id)));
       notify('일정이 삭제되었습니다.');
       closeModal();
     } catch (e: any) {

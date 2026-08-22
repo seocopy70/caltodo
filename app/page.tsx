@@ -89,7 +89,7 @@ export default function Home() {
   // 로그인 전 화면
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center">
+      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center safe-top">
         <h1 className="text-5xl font-black mb-4 text-white tracking-tighter italic">CalTodo</h1>
         <p className="text-slate-400 mb-10 max-w-xs">기기를 접거나 꺼도 데이터가 안전하게 보관됩니다.</p>
         <button 
@@ -110,7 +110,7 @@ export default function Home() {
   // 로그인 후 메인 화면
   return (
     <main className={`min-h-screen ${isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-gray-50 text-gray-900'}`}>
-      <header className="border-b p-4 flex items-center justify-between sticky top-0 z-50 backdrop-blur-md border-slate-700 bg-[#0f172a]/80">
+      <header className="safe-top border-b p-4 flex items-center justify-between sticky top-0 z-50 backdrop-blur-md border-slate-700 bg-[#0f172a]/80">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">CalTodo</h1>
           <nav className="flex bg-slate-800 rounded-lg p-1">

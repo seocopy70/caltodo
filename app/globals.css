@@ -82,4 +82,16 @@
   ::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground));
   }
+
+  /* PWA(홈 화면 앱)로 실행될 때 노치/홈 인디케이터 영역과 겹치지 않도록 여백 확보 */
+  html {
+    height: 100%;
+  }
+  body {
+    min-height: 100%;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
 }

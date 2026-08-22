@@ -5,39 +5,45 @@ import { db } from '../../lib/firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { format, isToday } from 'date-fns';
 import { Plus, Trash2, CheckCircle2, Circle, Calendar as CalIcon } from 'lucide-react';
+import { withTimeout } from '../../lib/withTimeout';
 
 export default function TodoView({ todos, user, onNotify }: any) {
   const [newTodo, setNewTodo] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
 
   const notify = onNotify || (() => {});
 
   const addTodo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTodo.trim() || !user) return;
-    setIsAdding(true);
+    const title = newTodo.trim();
+    if (!title || !user) return;
+
+    // 즉시 입력창을 비워서 다음 입력을 바로 이어갈 수 있게 함 (실패 시에만 복구)
+    const savedDueDate = dueDate;
+    setNewTodo('');
+    setDueDate('');
+
     try {
-      await addDoc(collection(db, "todos"), {
-        title: newTodo,
+      await withTimeout(addDoc(collection(db, "todos"), {
+        title,
         userId: user.uid,
         completed: false,
-        dueDate: dueDate ? Timestamp.fromDate(new Date(dueDate)) : null,
+        dueDate: savedDueDate ? Timestamp.fromDate(new Date(savedDueDate)) : null,
         createdAt: Timestamp.now()
-      });
-      setNewTodo(''); setDueDate('');
+      }));
       notify('할 일이 추가되었습니다.');
     } catch (err: any) {
       console.error(err);
+      // 실패 시 입력 내용을 복구해서 다시 시도할 수 있게 함
+      setNewTodo(title);
+      setDueDate(savedDueDate);
       notify(`추가 실패: ${err.code || err.message || err}`, 'error');
-    } finally {
-      setIsAdding(false);
     }
   };
 
   const toggleTodo = async (id: string, completed: boolean) => {
     try {
-      await updateDoc(doc(db, "todos", id), { completed });
+      await withTimeout(updateDoc(doc(db, "todos", id), { completed }));
     } catch (err: any) {
       console.error(err);
       notify(`업데이트 실패: ${err.code || err.message || err}`, 'error');
@@ -46,7 +52,7 @@ export default function TodoView({ todos, user, onNotify }: any) {
 
   const removeTodo = async (id: string) => {
     try {
-      await deleteDoc(doc(db, "todos", id));
+      await withTimeout(deleteDoc(doc(db, "todos", id)));
       notify('할 일이 삭제되었습니다.');
     } catch (err: any) {
       console.error(err);
@@ -63,7 +69,7 @@ export default function TodoView({ todos, user, onNotify }: any) {
         <div className="flex items-center gap-4">
           <div className="w-6 h-6 rounded-full border-2 border-slate-600" />
           <input className="bg-transparent flex-1 outline-none text-lg" placeholder="새로운 할 일..." value={newTodo} onChange={(e) => setNewTodo(e.target.value)} />
-          <button type="submit" disabled={isAdding} className="p-3 bg-blue-600 rounded-xl hover:bg-blue-500 transition disabled:opacity-50">
+          <button type="submit" className="p-3 bg-blue-600 rounded-xl hover:bg-blue-500 transition">
             <Plus className="w-6 h-6 text-white" />
           </button>
         </div>
