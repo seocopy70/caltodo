@@ -31,6 +31,8 @@ export default function Calendar({ view, events, user }: any) {
     end: view === 'month' ? endOfWeek(endOfMonth(monthStart)) : endOfWeek(currentDate),
   });
 
+  const weekOfMonth = Math.ceil((currentDate.getDate() + startOfMonth(currentDate).getDay()) / 7);
+
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingEvent(null);
@@ -82,7 +84,7 @@ export default function Calendar({ view, events, user }: any) {
     <div className="flex flex-col h-full animate-in fade-in duration-500">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">
-          {format(currentDate, view === 'month' ? 'yyyy년 MMMM' : 'M월 W주차', { locale: ko })}
+          {view === 'month' ? format(currentDate, 'yyyy년 MMMM', { locale: ko }) : `${format(currentDate, 'M', { locale: ko })}월 ${weekOfMonth}주차`}
         </h2>
         <div className="flex gap-2">
           <button onClick={() => setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-800 rounded-lg border border-slate-700 transition"><ChevronLeft/></button>
