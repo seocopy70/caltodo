@@ -14,24 +14,26 @@ export async function POST(req: NextRequest) {
       const q = String(body.query || '').trim();
       if (!q) return NextResponse.json({ events: [] });
       const pattern = `%${q}%`;
+      // Keep the query deliberately simple for libSQL/Turso compatibility.
       const result = await turso.execute({
-        sql: `SELECT id, title, start, end_time, source FROM events
-              WHERE user_id = ? AND (title LIKE ? OR location LIKE ? OR description LIKE ?)
-              ORDER BY start DESC LIMIT 200`,
-        args: [uid, pattern, pattern, pattern],
+        sql: 'SELECT id, title, start, end_time, source FROM events WHERE user_id = ? AND title LIKE ? ORDER BY start DESC LIMIT 200',
+        args: [uid, pattern],
       });
       return NextResponse.json({ events: result.rows });
     }
 
     if (action === 'delete_all') {
-      const result = await turso.execute({ sql: 'DELETE FROM events WHERE user_id = ?', args: [uid] });
+      const result = await turso.execute({
+        sql: 'DELETE FROM events WHERE user_id = ?',
+        args: [uid],
+      });
       return NextResponse.json({ deleted: Number(result.rowsAffected || 0) });
     }
 
     if (action === 'delete_imported') {
       const result = await turso.execute({
-        sql: "DELETE FROM events WHERE user_id = ? AND source = 'google_ics'",
-        args: [uid],
+        sql: 'DELETE FROM events WHERE user_id = ? AND source = ?',
+        args: [uid, 'google_ics'],
       });
       return NextResponse.json({ deleted: Number(result.rowsAffected || 0) });
     }
@@ -41,9 +43,8 @@ export async function POST(req: NextRequest) {
       if (!q) return NextResponse.json({ error: '검색어가 필요합니다.' }, { status: 400 });
       const pattern = `%${q}%`;
       const result = await turso.execute({
-        sql: `DELETE FROM events
-              WHERE user_id = ? AND (title LIKE ? OR location LIKE ? OR description LIKE ?)`,
-        args: [uid, pattern, pattern, pattern],
+        sql: 'DELETE FROM events WHERE user_id = ? AND title LIKE ?',
+        args: [uid, pattern],
       });
       return NextResponse.json({ deleted: Number(result.rowsAffected || 0) });
     }
