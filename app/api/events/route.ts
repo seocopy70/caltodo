@@ -29,30 +29,33 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const uid = await verifyRequestUser(req);
-  if (!uid) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  try {
+    const uid = await verifyRequestUser(req);
 
-  const body = await req.json();
-  const id = randomUUID();
-  const now = Date.now();
+    if (!uid) {
+      return NextResponse.json(
+        { step: 'auth', error: 'unauthorized' },
+        { status: 401 }
+      );
+    }
 
-  await turso.execute({
-    sql: `INSERT INTO events (id, user_id, title, start, end_time, end_date, location, description, color, recurrence_type, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [
-      id,
+    const body = await req.json();
+
+    return NextResponse.json({
+      step: 'body',
       uid,
-      body.title,
-      new Date(body.start).getTime(),
-      new Date(body.end).getTime(),
-      body.endDate ? new Date(body.endDate).getTime() : null,
-      body.location || '',
-      body.description || '',
-      body.color || 'blue',
-      body.recurrenceType || 'none',
-      now,
-    ],
-  });
+      body,
+    });
 
-  return NextResponse.json({ id });
+  } catch (error: any) {
+    console.error('[POST /api/events DEBUG]', error);
+
+    return NextResponse.json(
+      {
+        step: 'exception',
+        error: error?.message || String(error),
+      },
+      { status: 500 }
+    );
+  }
 }
