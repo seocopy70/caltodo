@@ -21,7 +21,7 @@ export default function EventListView({ events, user, onNotify, onRefresh }: any
         if (!map.has(y)) map.set(y, []);
         map.get(y)!.push(e);
       });
-    return [...map.entries()].sort((a, b) => ascending ? a[0] - b[0] : b[0] - a[0]);
+    return Array.from(map.entries()).sort((a, b) => ascending ? a[0] - b[0] : b[0] - a[0]);
   }, [events, ascending]);
 
   const toggleYear = (year: number) => setOpenYears((prev) => ({ ...prev, [String(year)]: !prev[String(year)] }));
