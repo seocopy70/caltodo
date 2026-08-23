@@ -11,6 +11,7 @@ import NotesView from '../components/calendar/NotesView';
 import EventListView from '../components/calendar/EventListView';
 import GlobalSearch from '../components/calendar/GlobalSearch';
 import ImportExportPanel from '../components/calendar/ImportExportPanel';
+import DataManagementPanel from '../components/calendar/DataManagementPanel';
 import TodoModal from '../components/calendar/TodoModal';
 import { LogIn, Menu, Search } from 'lucide-react';
 
@@ -25,6 +26,7 @@ export default function Home() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
+  const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [editingTodo, setEditingTodo] = useState<any>(null);
@@ -41,10 +43,10 @@ export default function Home() {
   const refreshData = useCallback(async () => {
     if (!auth.currentUser) return;
     try {
-      const [eventsRes, todosRes, notesRes] = await Promise.all([api.events.list(), api.todos.list(), api.notes.list()]);
+      const [eventsRes, todosRes, notesRes] = await Promise.all([api.events.list(), api.todos.list(), api.notes.list(true)]);
       setEvents(eventsRes.events.map((e: any) => ({ ...e, start: new Date(e.start), end: new Date(e.end), endDate: e.endDate ? new Date(e.endDate) : null, updatedAt: new Date(e.updatedAt) })));
       setTodos(todosRes.todos.map((t: any) => ({ ...t, dueDate: t.dueDate ? new Date(t.dueDate) : null, createdAt: new Date(t.createdAt) })));
-      setNotes(notesRes.notes.map((n: any) => ({ ...n, createdAt: new Date(n.createdAt), updatedAt: new Date(n.updatedAt) })));
+      setNotes(notesRes.notes.map((n: any) => ({ ...n, createdAt: new Date(n.createdAt), updatedAt: new Date(n.updatedAt), deletedAt: n.deletedAt ? new Date(n.deletedAt) : null })));
     } catch (err) { console.error('데이터 조회 실패:', err); }
   }, []);
 
@@ -65,6 +67,8 @@ export default function Home() {
 
   const go = (next: typeof view) => { setView(next); setMenuOpen(false); };
   const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['month', '월'], ['week', '주'], ['list', '목록'], ['todo', '할일'], ['notes', '메모']];
+  const activeNotes = notes.filter((n: any) => !n.deletedAt);
+  const todayNotes = activeNotes.filter((n: any) => n.showToday);
 
   return <div className="min-h-screen bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100">
     <header className="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur">
@@ -76,12 +80,14 @@ export default function Home() {
       </div>
     </header>
     {menuOpen && <div className="absolute top-14 left-2 z-50 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-2">
-      <button onClick={() => setIsImportExportOpen(true)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">가져오기 / 내보내기</button>
+      <button onClick={() => { setIsImportExportOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">가져오기 / 내보내기</button>
+      <button onClick={() => { setIsDataManagementOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">데이터 관리</button>
       <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">{isDarkMode ? '밝은 모드' : '다크 모드'}</button>
       <button onClick={() => signOut(auth)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">로그아웃</button>
     </div>}
-    <main className="max-w-7xl mx-auto p-3 sm:p-5">{search.trim() ? <GlobalSearch query={search} events={events} todos={todos} notes={notes} onEditTodo={setEditingTodo} /> : view === 'today' ? <HomeView events={events} todos={todos} user={user} onNotify={notify} onRefresh={refreshData} /> : view === 'month' ? <Calendar key="month-view" view="month" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'week' ? <Calendar key="week-view" view="week" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} onRefresh={refreshData} /> : <NotesView notes={notes} user={user} onNotify={notify} onRefresh={refreshData} />}</main>
-    {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={notes} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
+    <main className="max-w-7xl mx-auto p-3 sm:p-5">{search.trim() ? <GlobalSearch query={search} events={events} todos={todos} notes={activeNotes} onEditTodo={setEditingTodo} /> : view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} user={user} onNotify={notify} onRefresh={refreshData} /> : view === 'month' ? <Calendar key="month-view" view="month" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'week' ? <Calendar key="week-view" view="week" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} onRefresh={refreshData} /> : <NotesView notes={notes} user={user} onNotify={notify} onRefresh={refreshData} />}</main>
+    {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
+    {isDataManagementOpen && <DataManagementPanel events={events} user={user} onClose={() => setIsDataManagementOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {editingTodo && <TodoModal todo={editingTodo} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
     {toast && <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold ${toast.type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>{toast.message}</div>}
   </div>;
