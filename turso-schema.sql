@@ -27,9 +27,11 @@ CREATE TABLE IF NOT EXISTS todos (
   completed INTEGER NOT NULL DEFAULT 0,
   due_date INTEGER,
   memo TEXT DEFAULT '',
+  order_index REAL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_todos_user ON todos(user_id);
+CREATE INDEX IF NOT EXISTS idx_todos_user_order ON todos(user_id, completed, order_index);
 
 CREATE TABLE IF NOT EXISTS notes (
   id TEXT PRIMARY KEY,
