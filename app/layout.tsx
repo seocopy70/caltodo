@@ -5,7 +5,7 @@ import { Inter } from 'next/font/google';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'CalTodo',
+  title: 'Cal2do',
   description: '갤럭시 폰과 PC에서 동기화되는 나만의 캘린더',
   manifest: '/manifest.webmanifest',
   icons: {
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'CalTodo',
+    title: 'Cal2do',
   },
 };
 
@@ -26,7 +26,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  viewportFit: 'cover', // 노치/홈 인디케이터가 있는 기기에서 앱을 화면 전체로 채움
+  viewportFit: 'cover',
   themeColor: '#0f172a',
 };
 
