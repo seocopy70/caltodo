@@ -3,7 +3,9 @@ import { turso } from '../../../lib/turso';
 
 export async function GET() {
   try {
-    const result = await turso.execute('SELECT 1 AS test');
+    const result = await turso.execute(
+      'SELECT * FROM events LIMIT 1'
+    );
 
     return NextResponse.json({
       ok: true,
