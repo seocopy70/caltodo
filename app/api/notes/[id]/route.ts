@@ -41,8 +41,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     await turso.execute({ sql: 'UPDATE notes SET deleted_at = NULL, updated_at = ? WHERE id = ?', args: [Date.now(), params.id] });
   } else if (body.action === 'purge') {
     await turso.execute({ sql: 'DELETE FROM notes WHERE id = ?', args: [params.id] });
-  } else if (body.action === 'toggle_today') {
-    await turso.execute({ sql: 'UPDATE notes SET show_today = CASE WHEN show_today = 1 THEN 0 ELSE 1 END, updated_at = ? WHERE id = ? AND deleted_at IS NULL', args: [Date.now(), params.id] });
   } else {
     return NextResponse.json({ error: 'invalid action' }, { status: 400 });
   }

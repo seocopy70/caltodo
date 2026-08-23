@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'CalTodo - 캘린더 & 할 일',
-    short_name: 'CalTodo',
+    name: 'Cal2do - 캘린더 & 할 일',
+    short_name: 'Cal2do',
     description: '갤럭시 폰과 PC에서 동기화되는 나만의 캘린더 & 할 일 앱',
     start_url: '/',
     display: 'standalone',
