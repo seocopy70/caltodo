@@ -3,20 +3,24 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { db, auth, googleProvider } from '../lib/firebase';
 import { signInWithPopup, onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { collection, onSnapshot, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import Calendar from '../components/ui/calendar';
-import TodoView from '../components/calendar/TodoView';
-import { LogOut, LogIn, Sun, Moon } from 'lucide-react';
+import HomeView from '../components/calendar/HomeView';
+import NotesView from '../components/calendar/NotesView';
+import ImportExportPanel from '../components/calendar/ImportExportPanel';
+import { LogOut, LogIn, Sun, Moon, Upload } from 'lucide-react';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true); // 로딩 상태 중요
-  const [view, setView] = useState<'month' | 'week' | 'todo'>('month');
+  const [view, setView] = useState<'home' | 'month' | 'week' | 'notes'>('home');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [events, setEvents] = useState<any[]>([]);
   const [todos, setTodos] = useState<any[]>([]);
+  const [notes, setNotes] = useState<any[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const notify = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -34,7 +38,7 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // 2. 데이터 실시간 구독 (이전과 동일)
+  // 2. 데이터 실시간 구독
   useEffect(() => {
     if (!user) return;
     const qEvents = query(collection(db, "events"), where("userId", "==", user.uid));
@@ -44,6 +48,7 @@ export default function Home() {
         ...doc.data(),
         start: doc.data().start?.toDate() || new Date(),
         end: doc.data().end?.toDate() || new Date(),
+        endDate: doc.data().endDate?.toDate() || null,
       })));
     });
     const qTodos = query(collection(db, "todos"), where("userId", "==", user.uid), orderBy("createdAt", "desc"));
@@ -54,7 +59,15 @@ export default function Home() {
         dueDate: doc.data().dueDate?.toDate() || null,
       })));
     });
-    return () => { unsubscribeEvents(); unsubscribeTodos(); };
+    const qNotes = query(collection(db, "notes"), where("userId", "==", user.uid), orderBy("updatedAt", "desc"));
+    const unsubscribeNotes = onSnapshot(qNotes, (snapshot) => {
+      setNotes(snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        updatedAt: doc.data().updatedAt?.toDate() || null,
+      })));
+    });
+    return () => { unsubscribeEvents(); unsubscribeTodos(); unsubscribeNotes(); };
   }, [user]);
 
   useEffect(() => {
@@ -114,14 +127,17 @@ export default function Home() {
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">CalTodo</h1>
           <nav className="flex bg-slate-800 rounded-lg p-1">
-            {['month', 'week', 'todo'].map((v: any) => (
+            {(['home', 'month', 'week', 'notes'] as const).map((v) => (
               <button key={v} onClick={() => setView(v)} className={`px-3 py-1 rounded-md text-sm font-bold ${view === v ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>
-                {v === 'month' ? '월' : v === 'week' ? '주' : '할일'}
+                {v === 'home' ? '홈' : v === 'month' ? '월' : v === 'week' ? '주' : '메모'}
               </button>
             ))}
           </nav>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={() => setIsImportExportOpen(true)} className="p-2 hover:bg-slate-800 rounded-full" title="가져오기/내보내기">
+            <Upload className="w-5 h-5 text-slate-400" />
+          </button>
           <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 hover:bg-slate-800 rounded-full">
             {isDarkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-slate-400" />}
           </button>
@@ -130,8 +146,13 @@ export default function Home() {
         </div>
       </header>
       <div className="p-4 max-w-7xl mx-auto">
-        {view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} /> : <Calendar view={view} events={events} user={user} onNotify={notify} />}
+        {view === 'home' && <HomeView events={events} todos={todos} user={user} onNotify={notify} />}
+        {view === 'notes' && <NotesView notes={notes} user={user} onNotify={notify} />}
+        {(view === 'month' || view === 'week') && <Calendar view={view} events={events} user={user} onNotify={notify} />}
       </div>
+      {isImportExportOpen && (
+        <ImportExportPanel events={events} todos={todos} notes={notes} user={user} onNotify={notify} onClose={() => setIsImportExportOpen(false)} />
+      )}
       {toast && (
         <div
           className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-xl shadow-2xl text-sm font-bold text-white transition-all
