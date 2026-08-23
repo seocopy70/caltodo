@@ -30,6 +30,7 @@ export const api = {
     create: (data: any) => request('/api/events', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => request(`/api/events/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     remove: (id: string) => request(`/api/events/${id}`, { method: 'DELETE' }),
+    manage: (data: any) => request('/api/events/manage', { method: 'POST', body: JSON.stringify(data) }),
   },
   todos: {
     list: () => request('/api/todos'),
