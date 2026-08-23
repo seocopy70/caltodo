@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { auth, googleProvider } from '../lib/firebase';
+import { api } from '../lib/api-client';
 import { signInWithPopup, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import Calendar from '../components/ui/calendar';
 import HomeView from '../components/calendar/HomeView';
@@ -63,107 +64,25 @@ export default function Home() {
   if (!user) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center safe-top"><h1 className="text-5xl font-black mb-4 text-white tracking-tighter italic">CalTodo</h1><p className="text-slate-400 mb-10 max-w-xs">기기를 접거나 꺼도 데이터가 안전하게 보관됩니다.</p><button onClick={handleLogin} className="flex items-center gap-4 bg-white text-black px-10 py-5 rounded-2xl font-black shadow-2xl"><LogIn className="w-6 h-6"/> 구글로 시작하기</button>{authError && <p className="mt-6 max-w-xs text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 break-words">로그인 실패: {authError}</p>}</div>;
 
   const go = (next: typeof view) => { setView(next); setMenuOpen(false); };
+  const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['month', '월'], ['week', '주'], ['list', '목록'], ['todo', '할일'], ['notes', '메모']];
 
-  const tabs: Array<[typeof view, string]> = [
-    ['today', '오늘'],
-    ['month', '월'],
-    ['week', '주'],
-    ['list', '목록'],
-    ['todo', '할일'],
-    ['notes', '메모'],
-  ];
-
-  const handleSearchEvent = () => { setSearch(''); setView('month'); };
-
-  return (
-    <main className={`min-h-screen ${isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-gray-50 text-gray-900'}`}>
-      <header className={`safe-top sticky top-0 z-50 border-b backdrop-blur-md ${isDarkMode ? 'border-slate-700 bg-[#0f172a]/95' : 'border-gray-200 bg-white/95'}`}>
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-2">
-          <div className="flex items-center gap-1.5 sm:gap-3 min-h-11">
-            <button onClick={() => setMenuOpen(true)} className="p-2 rounded-xl hover:bg-slate-800/60 shrink-0" aria-label="메뉴">
-              <Menu className="w-5 h-5" />
-            </button>
-            <button onClick={() => go('today')} className="text-lg sm:text-xl font-black bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent shrink-0">
-              CalTodo
-            </button>
-            <div className="relative flex-1 min-w-0 max-w-2xl mx-auto">
-              <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="일정 · 할 일 · 메모 검색"
-                className={`w-full rounded-lg sm:rounded-xl pl-8 sm:pl-9 pr-2 sm:pr-4 py-2 text-xs sm:text-sm outline-none border ${isDarkMode ? 'bg-slate-800/80 border-slate-700 text-white placeholder:text-slate-500' : 'bg-gray-100 border-gray-200 text-gray-900 placeholder:text-gray-400'}`}
-              />
-              <GlobalSearch
-                query={search}
-                events={events}
-                todos={todos}
-                notes={notes}
-                onClose={() => setSearch('')}
-                onEvent={handleSearchEvent}
-                onTodo={(t: any) => { setSearch(''); setEditingTodo(t); }}
-                onNote={() => { setSearch(''); setView('notes'); }}
-              />
-            </div>
-          </div>
-
-          <div className="mt-1.5 pb-2 overflow-x-auto scrollbar-hide">
-            <nav className="flex items-center gap-1 min-w-max">
-              {tabs.map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => go(key)}
-                  className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition whitespace-nowrap ${
-                    view === key
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : isDarkMode
-                        ? 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        : 'text-slate-600 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
-      </header>
-
-      {menuOpen && (
-        <div className="fixed inset-0 z-[80] bg-black/50" onClick={() => setMenuOpen(false)}>
-          <aside
-            onClick={(e) => e.stopPropagation()}
-            className={`absolute left-0 top-0 h-full w-[min(82vw,320px)] p-5 pt-16 shadow-2xl ${isDarkMode ? 'bg-slate-900 text-white' : 'bg-white text-gray-900'}`}
-          >
-            <button onClick={() => setMenuOpen(false)} className="absolute top-4 right-4 p-2"><X className="w-5 h-5" /></button>
-            <h2 className="text-lg font-black mb-5">CalTodo 메뉴</h2>
-            <div className="space-y-2">
-              <button onClick={() => { setIsImportExportOpen(true); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold hover:bg-slate-800/70">
-                <Download className="w-5 h-5 text-blue-400" /> 가져오기 / 내보내기
-              </button>
-              <button onClick={() => { setIsDarkMode((v) => !v); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold hover:bg-slate-800/70">
-                {isDarkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-slate-500" />}
-                {isDarkMode ? '밝은 모드' : '다크 모드'}
-              </button>
-              <button onClick={() => signOut(auth)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-rose-500 hover:bg-rose-500/10">
-                <LogOut className="w-5 h-5" /> 로그아웃
-              </button>
-            </div>
-          </aside>
-        </div>
-      )}
-
-      <div className="p-2 sm:p-4 max-w-7xl mx-auto">
-        {view === 'today' && <HomeView events={events} todos={todos} user={user} onNotify={notify} onRefresh={refreshData} />}
-        {view === 'todo' && <TodoView todos={todos} user={user} onNotify={notify} onRefresh={refreshData} />}
-        {view === 'notes' && <NotesView notes={notes} user={user} onNotify={notify} onRefresh={refreshData} />}
-        {view === 'list' && <EventListView events={events} user={user} onNotify={notify} onRefresh={refreshData} />}
-        {(view === 'month' || view === 'week') && <Calendar view={view} events={events} user={user} onNotify={notify} onRefresh={refreshData} />}
+  return <div className="min-h-screen bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100">
+    <header className="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur">
+      <div className="max-w-7xl mx-auto px-3 py-2 flex items-center gap-2">
+        <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="메뉴"><Menu className="w-5 h-5" /></button>
+        <div className="font-black tracking-tight mr-2 hidden sm:block">Cal2do</div>
+        <nav className="flex items-center gap-1 overflow-x-auto flex-1 no-scrollbar">{tabs.map(([key, label]) => <button key={key} onClick={() => go(key)} className={`px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap ${view === key ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{label}</button>)}</nav>
+        <div className="relative w-32 sm:w-48 md:w-64 shrink-0"><Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400"/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="검색" className="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" /></div>
       </div>
-
-      {isImportExportOpen && <ImportExportPanel events={events} todos={todos} notes={notes} user={user} onNotify={notify} onRefresh={refreshData} onClose={() => setIsImportExportOpen(false)} />}
-      {editingTodo && <TodoModal todo={editingTodo} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
-      {toast && <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] px-5 py-3 rounded-xl shadow-2xl text-sm font-bold text-white ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'}`}>{toast.message}</div>}
-    </main>
-  );
+    </header>
+    {menuOpen && <div className="absolute top-14 left-2 z-50 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-2">
+      <button onClick={() => setIsImportExportOpen(true)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">가져오기 / 내보내기</button>
+      <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">{isDarkMode ? '밝은 모드' : '다크 모드'}</button>
+      <button onClick={() => signOut(auth)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">로그아웃</button>
+    </div>}
+    <main className="max-w-7xl mx-auto p-3 sm:p-5">{search.trim() ? <GlobalSearch query={search} events={events} todos={todos} notes={notes} onEditTodo={setEditingTodo} /> : view === 'today' ? <HomeView events={events} todos={todos} user={user} onNotify={notify} onRefresh={refreshData} /> : view === 'month' ? <Calendar events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'week' ? <Calendar events={events} user={user} onRefresh={refreshData} onNotify={notify} weekView /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} onRefresh={refreshData} /> : <NotesView notes={notes} user={user} onNotify={notify} onRefresh={refreshData} />}</main>
+    {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={notes} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
+    {editingTodo && <TodoModal todo={editingTodo} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
+    {toast && <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold ${toast.type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>{toast.message}</div>}
+  </div>;
 }
