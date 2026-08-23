@@ -1,12 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { db } from '../../lib/firebase';
-import { collection, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
-import { format, isToday, isPast, addDays } from 'date-fns';
+import { api } from '../../lib/api-client';
+import { format, isToday, addDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Plus, Circle, CheckCircle2, Calendar as CalIcon, MapPin, Repeat, CalendarRange, AlertCircle } from 'lucide-react';
-import { withTimeout } from '../../lib/withTimeout';
 import { expandOccurrences, getRecurrenceType } from '../../lib/recurrence';
 import EventModal from './EventModal';
 import TodoModal from './TodoModal';
@@ -14,7 +12,7 @@ import TodoModal from './TodoModal';
 const RANGE_PAST_DAYS = 7;
 const RANGE_FUTURE_DAYS = 60;
 
-export default function HomeView({ events, todos, user, onNotify }: any) {
+export default function HomeView({ events, todos, user, onNotify, onRefresh }: any) {
   const [newTodo, setNewTodo] = useState('');
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [editingEvent, setEditingEvent] = useState<any>(null);
@@ -29,25 +27,19 @@ export default function HomeView({ events, todos, user, onNotify }: any) {
     if (!title || !user) return;
     setNewTodo('');
     try {
-      await withTimeout(addDoc(collection(db, 'todos'), {
-        title,
-        userId: user.uid,
-        completed: false,
-        dueDate: null,
-        memo: '',
-        createdAt: Timestamp.now(),
-      }));
+      await api.todos.create({ title, completed: false, dueDate: null, memo: '' });
       notify('할 일이 추가되었습니다.');
+      onRefresh?.();
     } catch (err: any) {
       console.error(err);
-      notify(`추가 확인 필요: ${err.isTimeout ? err.message : (err.code || err.message || err)}`, 'error');
+      notify(`추가 확인 필요: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
     }
   };
 
   const doToggle = (id: string, completed: boolean) => {
-    withTimeout(updateDoc(doc(db, 'todos', id), { completed })).catch((err: any) => {
+    api.todos.update(id, { completed }).then(() => onRefresh?.()).catch((err: any) => {
       console.error(err);
-      notify(`업데이트 실패: ${err.isTimeout ? err.message : (err.code || err.message || err)}`, 'error');
+      notify(`업데이트 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
     });
   };
 
@@ -188,7 +180,7 @@ export default function HomeView({ events, todos, user, onNotify }: any) {
         })}
       </div>
 
-      {editingTodo && <TodoModal todo={editingTodo} notify={notify} onClose={() => setEditingTodo(null)} />}
+      {editingTodo && <TodoModal todo={editingTodo} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={onRefresh} />}
       {(isEventModalOpen || editingEvent) && (
         <EventModal
           date={newEventDate}
@@ -196,6 +188,7 @@ export default function HomeView({ events, todos, user, onNotify }: any) {
           user={user}
           notify={notify}
           onClose={() => { setIsEventModalOpen(false); setEditingEvent(null); }}
+          onRefresh={onRefresh}
         />
       )}
     </div>

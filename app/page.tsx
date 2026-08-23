@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { db, auth, googleProvider } from '../lib/firebase';
+import { auth, googleProvider } from '../lib/firebase';
 import { signInWithPopup, onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { api } from '../lib/api-client';
 import Calendar from '../components/ui/calendar';
 import HomeView from '../components/calendar/HomeView';
 import NotesView from '../components/calendar/NotesView';
@@ -38,37 +38,44 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // 2. 데이터 실시간 구독
+  // 2. 데이터 조회 (30초마다 자동 재조회 - Turso는 Firestore 같은 실시간
+  //    구독이 없어서, 다른 기기/탭에서의 변경사항을 이 주기로 반영함)
+  const refreshData = useCallback(async () => {
+    if (!auth.currentUser) return;
+    try {
+      const [eventsRes, todosRes, notesRes] = await Promise.all([
+        api.events.list(),
+        api.todos.list(),
+        api.notes.list(),
+      ]);
+      setEvents(eventsRes.events.map((e: any) => ({
+        ...e,
+        start: new Date(e.start),
+        end: new Date(e.end),
+        endDate: e.endDate ? new Date(e.endDate) : null,
+        updatedAt: new Date(e.updatedAt),
+      })));
+      setTodos(todosRes.todos.map((t: any) => ({
+        ...t,
+        dueDate: t.dueDate ? new Date(t.dueDate) : null,
+        createdAt: new Date(t.createdAt),
+      })));
+      setNotes(notesRes.notes.map((n: any) => ({
+        ...n,
+        createdAt: new Date(n.createdAt),
+        updatedAt: new Date(n.updatedAt),
+      })));
+    } catch (err) {
+      console.error('데이터 조회 실패:', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) return;
-    const qEvents = query(collection(db, "events"), where("userId", "==", user.uid));
-    const unsubscribeEvents = onSnapshot(qEvents, (snapshot) => {
-      setEvents(snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        start: doc.data().start?.toDate() || new Date(),
-        end: doc.data().end?.toDate() || new Date(),
-        endDate: doc.data().endDate?.toDate() || null,
-      })));
-    });
-    const qTodos = query(collection(db, "todos"), where("userId", "==", user.uid), orderBy("createdAt", "desc"));
-    const unsubscribeTodos = onSnapshot(qTodos, (snapshot) => {
-      setTodos(snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        dueDate: doc.data().dueDate?.toDate() || null,
-      })));
-    });
-    const qNotes = query(collection(db, "notes"), where("userId", "==", user.uid), orderBy("updatedAt", "desc"));
-    const unsubscribeNotes = onSnapshot(qNotes, (snapshot) => {
-      setNotes(snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        updatedAt: doc.data().updatedAt?.toDate() || null,
-      })));
-    });
-    return () => { unsubscribeEvents(); unsubscribeTodos(); unsubscribeNotes(); };
-  }, [user]);
+    refreshData();
+    const interval = setInterval(refreshData, 30000);
+    return () => clearInterval(interval);
+  }, [user, refreshData]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
@@ -146,12 +153,12 @@ export default function Home() {
         </div>
       </header>
       <div className="p-4 max-w-7xl mx-auto">
-        {view === 'home' && <HomeView events={events} todos={todos} user={user} onNotify={notify} />}
-        {view === 'notes' && <NotesView notes={notes} user={user} onNotify={notify} />}
-        {(view === 'month' || view === 'week') && <Calendar view={view} events={events} user={user} onNotify={notify} />}
+        {view === 'home' && <HomeView events={events} todos={todos} user={user} onNotify={notify} onRefresh={refreshData} />}
+        {view === 'notes' && <NotesView notes={notes} user={user} onNotify={notify} onRefresh={refreshData} />}
+        {(view === 'month' || view === 'week') && <Calendar view={view} events={events} user={user} onNotify={notify} onRefresh={refreshData} />}
       </div>
       {isImportExportOpen && (
-        <ImportExportPanel events={events} todos={todos} notes={notes} user={user} onNotify={notify} onClose={() => setIsImportExportOpen(false)} />
+        <ImportExportPanel events={events} todos={todos} notes={notes} user={user} onNotify={notify} onRefresh={refreshData} onClose={() => setIsImportExportOpen(false)} />
       )}
       {toast && (
         <div

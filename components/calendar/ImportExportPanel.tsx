@@ -1,12 +1,11 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { db } from '../../lib/firebase';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { api } from '../../lib/api-client';
 import { Download, Upload, X, FileJson, CalendarDays } from 'lucide-react';
 import { eventsToICS, downloadTextFile, parseICS, type ParsedICSEvent } from '../../lib/ics';
 
-export default function ImportExportPanel({ events, todos, notes, user, onNotify, onClose }: any) {
+export default function ImportExportPanel({ events, todos, notes, user, onNotify, onRefresh, onClose }: any) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingImport, setPendingImport] = useState<ParsedICSEvent[] | null>(null);
   const [importing, setImporting] = useState(false);
@@ -55,18 +54,15 @@ export default function ImportExportPanel({ events, todos, notes, user, onNotify
     let success = 0;
     for (const ev of pendingImport) {
       try {
-        await addDoc(collection(db, 'events'), {
+        await api.events.create({
           title: ev.title,
-          userId: user.uid,
-          start: Timestamp.fromDate(ev.start),
-          end: Timestamp.fromDate(ev.end),
+          start: ev.start.toISOString(),
+          end: ev.end.toISOString(),
           endDate: null,
           location: ev.location || '',
           description: ev.description || '',
           color: 'blue',
           recurrenceType: ev.recurrenceType,
-          recurring: ev.recurrenceType === 'yearly',
-          updatedAt: Timestamp.now(),
         });
         success++;
       } catch (err) {
@@ -76,6 +72,7 @@ export default function ImportExportPanel({ events, todos, notes, user, onNotify
     setImporting(false);
     setPendingImport(null);
     notify(`${success}개의 일정을 가져왔어요.${success < pendingImport.length ? ` (${pendingImport.length - success}개 실패)` : ''}`);
+    onRefresh?.();
   };
 
   return (

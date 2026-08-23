@@ -1,14 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { db } from '../../lib/firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { api } from '../../lib/api-client';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Plus, Trash2, StickyNote, X } from 'lucide-react';
-import { withTimeout } from '../../lib/withTimeout';
 
-export default function NotesView({ notes, user, onNotify }: any) {
+export default function NotesView({ notes, user, onNotify, onRefresh }: any) {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<any>(null);
   const [title, setTitle] = useState('');
@@ -42,34 +40,26 @@ export default function NotesView({ notes, user, onNotify }: any) {
     if (!title.trim() && !content.trim()) return;
     const targetId = editingNote?.id;
     const isEdit = !!editingNote;
-    const noteData = {
-      title: title.trim() || '(제목 없음)',
-      content,
-      userId: user.uid,
-      updatedAt: Timestamp.now(),
-      ...(isEdit ? {} : { createdAt: Timestamp.now() }),
-    };
+    const noteData = { title: title.trim() || '(제목 없음)', content };
     close();
 
-    const task: Promise<any> = isEdit
-      ? updateDoc(doc(db, 'notes', targetId), noteData)
-      : addDoc(collection(db, 'notes'), noteData);
+    const task = isEdit ? api.notes.update(targetId, noteData) : api.notes.create(noteData);
 
-    withTimeout(task)
-      .then(() => notify(isEdit ? '메모가 수정되었습니다.' : '메모가 추가되었습니다.'))
+    task
+      .then(() => { notify(isEdit ? '메모가 수정되었습니다.' : '메모가 추가되었습니다.'); onRefresh?.(); })
       .catch((err: any) => {
         console.error(err);
-        notify(`저장 실패: ${err.isTimeout ? err.message : (err.code || err.message || err)}`, 'error');
+        notify(`저장 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
       });
   };
 
   const remove = (id: string) => {
     if (!confirm('메모를 삭제할까요?')) return;
-    withTimeout(deleteDoc(doc(db, 'notes', id)))
-      .then(() => notify('메모가 삭제되었습니다.'))
+    api.notes.remove(id)
+      .then(() => { notify('메모가 삭제되었습니다.'); onRefresh?.(); })
       .catch((err: any) => {
         console.error(err);
-        notify(`삭제 실패: ${err.isTimeout ? err.message : (err.code || err.message || err)}`, 'error');
+        notify(`삭제 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
       });
   };
 

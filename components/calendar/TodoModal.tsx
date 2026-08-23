@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { db } from '../../lib/firebase';
-import { updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { api } from '../../lib/api-client';
 import { Calendar as CalIcon, Trash2, X, AlignLeft } from 'lucide-react';
-import { withTimeout } from '../../lib/withTimeout';
 
-export default function TodoModal({ todo, notify, onClose }: any) {
+export default function TodoModal({ todo, notify, onClose, onRefresh }: any) {
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [memo, setMemo] = useState('');
@@ -31,15 +29,15 @@ export default function TodoModal({ todo, notify, onClose }: any) {
     const m = memo;
     onClose();
 
-    withTimeout(updateDoc(doc(db, 'todos', id), {
+    api.todos.update(id, {
       title: t,
-      dueDate: d ? Timestamp.fromDate(new Date(d)) : null,
+      dueDate: d ? new Date(d).toISOString() : null,
       memo: m,
-    }))
-      .then(() => notifyFn('할 일이 수정되었습니다.'))
+    })
+      .then(() => { notifyFn('할 일이 수정되었습니다.'); onRefresh?.(); })
       .catch((err: any) => {
         console.error(err);
-        notifyFn(`수정 실패: ${err.isTimeout ? err.message : (err.code || err.message || err)}`, 'error');
+        notifyFn(`수정 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
       });
   };
 
@@ -48,11 +46,11 @@ export default function TodoModal({ todo, notify, onClose }: any) {
     const id = todo.id;
     onClose();
 
-    withTimeout(deleteDoc(doc(db, 'todos', id)))
-      .then(() => notifyFn('할 일이 삭제되었습니다.'))
+    api.todos.remove(id)
+      .then(() => { notifyFn('할 일이 삭제되었습니다.'); onRefresh?.(); })
       .catch((err: any) => {
         console.error(err);
-        notifyFn(`삭제 실패: ${err.isTimeout ? err.message : (err.code || err.message || err)}`, 'error');
+        notifyFn(`삭제 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
       });
   };
 

@@ -20,7 +20,7 @@ function getLunarLabel(date: Date) {
   return `${lunar.intercalation ? '윤' : ''}${lunar.month}.${lunar.day}`;
 }
 
-export default function Calendar({ view, events, user, onNotify }: any) {
+export default function Calendar({ view, events, user, onNotify, onRefresh }: any) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -140,7 +140,7 @@ export default function Calendar({ view, events, user, onNotify }: any) {
       </div>
 
       {isModalOpen && (
-        <EventModal date={selectedDate} editingEvent={editingEvent} user={user} notify={notify} onClose={closeModal} />
+        <EventModal date={selectedDate} editingEvent={editingEvent} user={user} notify={notify} onClose={closeModal} onRefresh={onRefresh} />
       )}
     </div>
   );

@@ -2,15 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { db } from '../../lib/firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { api } from '../../lib/api-client';
 import { MapPin, AlignLeft, Trash2, X, Repeat, CalendarRange } from 'lucide-react';
-import { withTimeout } from '../../lib/withTimeout';
 import { getRecurrenceType } from '../../lib/recurrence';
 
 type RecurrenceType = 'none' | 'weekly' | 'monthly' | 'yearly';
 
-export default function EventModal({ date, editingEvent, user, notify, onClose }: any) {
+export default function EventModal({ date, editingEvent, user, notify, onClose, onRefresh }: any) {
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('09:00');
@@ -64,31 +62,26 @@ export default function EventModal({ date, editingEvent, user, notify, onClose }
 
     const eventData: any = {
       title: title.trim(),
-      userId: user.uid,
-      start: Timestamp.fromDate(start),
-      end: Timestamp.fromDate(end),
-      endDate: multiDay && recurrenceType === 'none' ? Timestamp.fromDate(new Date(`${endDate}T${endTime}`)) : null,
+      start: start.toISOString(),
+      end: end.toISOString(),
+      endDate: multiDay && recurrenceType === 'none' ? new Date(`${endDate}T${endTime}`).toISOString() : null,
       location,
       description,
       color,
       recurrenceType,
-      recurring: recurrenceType === 'yearly', // 레거시 필드 호환 유지
-      updatedAt: Timestamp.now(),
     };
 
     const targetId = editingEvent?.id;
     const isEdit = !!editingEvent;
     onClose();
 
-    const task: Promise<any> = isEdit
-      ? updateDoc(doc(db, 'events', targetId), eventData)
-      : addDoc(collection(db, 'events'), eventData);
+    const task = isEdit ? api.events.update(targetId, eventData) : api.events.create(eventData);
 
-    withTimeout(task)
-      .then(() => notifyFn(isEdit ? '일정이 수정되었습니다.' : '일정이 추가되었습니다.'))
+    task
+      .then(() => { notifyFn(isEdit ? '일정이 수정되었습니다.' : '일정이 추가되었습니다.'); onRefresh?.(); })
       .catch((e: any) => {
         console.error(e);
-        notifyFn(`저장 실패: ${e.isTimeout ? e.message : (e.code || e.message || e)}`, 'error');
+        notifyFn(`저장 실패: ${e.isTimeout ? e.message : (e.message || e)}`, 'error');
       });
   };
 
@@ -97,11 +90,11 @@ export default function EventModal({ date, editingEvent, user, notify, onClose }
     const id = editingEvent.id;
     onClose();
 
-    withTimeout(deleteDoc(doc(db, 'events', id)))
-      .then(() => notifyFn('일정이 삭제되었습니다.'))
+    api.events.remove(id)
+      .then(() => { notifyFn('일정이 삭제되었습니다.'); onRefresh?.(); })
       .catch((e: any) => {
         console.error(e);
-        notifyFn(`삭제 실패: ${e.isTimeout ? e.message : (e.code || e.message || e)}`, 'error');
+        notifyFn(`삭제 실패: ${e.isTimeout ? e.message : (e.message || e)}`, 'error');
       });
   };
 

@@ -1,14 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { db } from '../../lib/firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { api } from '../../lib/api-client';
 import { format, isToday } from 'date-fns';
 import { Plus, Trash2, CheckCircle2, Circle, Calendar as CalIcon } from 'lucide-react';
-import { withTimeout } from '../../lib/withTimeout';
 import TodoModal from './TodoModal';
 
-export default function TodoView({ todos, user, onNotify }: any) {
+export default function TodoView({ todos, user, onNotify, onRefresh }: any) {
   const [newTodo, setNewTodo] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [editingTodo, setEditingTodo] = useState<any>(null);
@@ -26,36 +24,35 @@ export default function TodoView({ todos, user, onNotify }: any) {
     setDueDate('');
 
     try {
-      await withTimeout(addDoc(collection(db, "todos"), {
+      await api.todos.create({
         title,
-        userId: user.uid,
         completed: false,
-        dueDate: savedDueDate ? Timestamp.fromDate(new Date(savedDueDate)) : null,
+        dueDate: savedDueDate ? new Date(savedDueDate).toISOString() : null,
         memo: '',
-        createdAt: Timestamp.now()
-      }));
+      });
       notify('할 일이 추가되었습니다.');
+      onRefresh?.();
     } catch (err: any) {
       console.error(err);
-      // 타임아웃/실패해도 입력창을 다시 채우지 않음 - 그 사이 사용자가 이미
-      // 다른 내용을 입력했을 수 있어, 덮어쓰면 오히려 데이터가 뒤섞이는 버그가 됨.
-      notify(`추가 확인 필요: ${err.isTimeout ? err.message : (err.code || err.message || err)}`, 'error');
+      // 실패해도 입력창을 다시 채우지 않음 - 그 사이 사용자가 이미 다른 내용을
+      // 입력했을 수 있어, 덮어쓰면 오히려 데이터가 뒤섞이는 버그가 됨.
+      notify(`추가 확인 필요: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
     }
   };
 
   const toggleTodo = (id: string, completed: boolean) => {
-    withTimeout(updateDoc(doc(db, "todos", id), { completed })).catch((err: any) => {
+    api.todos.update(id, { completed }).then(() => onRefresh?.()).catch((err: any) => {
       console.error(err);
-      notify(`업데이트 실패: ${err.isTimeout ? err.message : (err.code || err.message || err)}`, 'error');
+      notify(`업데이트 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
     });
   };
 
   const removeTodo = (id: string) => {
-    withTimeout(deleteDoc(doc(db, "todos", id)))
-      .then(() => notify('할 일이 삭제되었습니다.'))
+    api.todos.remove(id)
+      .then(() => { notify('할 일이 삭제되었습니다.'); onRefresh?.(); })
       .catch((err: any) => {
         console.error(err);
-        notify(`삭제 실패: ${err.isTimeout ? err.message : (err.code || err.message || err)}`, 'error');
+        notify(`삭제 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
       });
   };
 
@@ -118,7 +115,7 @@ export default function TodoView({ todos, user, onNotify }: any) {
         )}
       </div>
 
-      {editingTodo && <TodoModal todo={editingTodo} notify={notify} onClose={() => setEditingTodo(null)} />}
+      {editingTodo && <TodoModal todo={editingTodo} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={onRefresh} />}
     </div>
   );
 }
