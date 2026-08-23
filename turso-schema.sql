@@ -6,23 +6,26 @@ CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   title TEXT NOT NULL,
-  start INTEGER NOT NULL,        -- unix ms
-  end_time INTEGER NOT NULL,     -- unix ms ('end'은 SQL 예약어라 end_time으로 명명)
-  end_date INTEGER,              -- 다중일 일정의 마지막 날짜 (unix ms, nullable)
+  start INTEGER NOT NULL,
+  end_time INTEGER NOT NULL,
+  end_date INTEGER,
   location TEXT DEFAULT '',
   description TEXT DEFAULT '',
   color TEXT DEFAULT 'blue',
-  recurrence_type TEXT DEFAULT 'none',  -- none | weekly | monthly | yearly
-  updated_at INTEGER NOT NULL
+  recurrence_type TEXT DEFAULT 'none',
+  updated_at INTEGER NOT NULL,
+  source TEXT DEFAULT 'manual',
+  external_uid TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id);
+CREATE INDEX IF NOT EXISTS idx_events_external ON events(user_id, source, external_uid);
 
 CREATE TABLE IF NOT EXISTS todos (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   title TEXT NOT NULL,
   completed INTEGER NOT NULL DEFAULT 0,
-  due_date INTEGER,              -- unix ms, nullable
+  due_date INTEGER,
   memo TEXT DEFAULT '',
   created_at INTEGER NOT NULL
 );
