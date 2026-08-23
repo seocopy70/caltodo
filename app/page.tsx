@@ -12,7 +12,7 @@ import EventListView from '../components/calendar/EventListView';
 import GlobalSearch from '../components/calendar/GlobalSearch';
 import ImportExportPanel from '../components/calendar/ImportExportPanel';
 import TodoModal from '../components/calendar/TodoModal';
-import { LogOut, LogIn, Sun, Moon, Upload, Menu, X, Search, Download } from 'lucide-react';
+import { LogIn, Menu, Search } from 'lucide-react';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -61,7 +61,7 @@ export default function Home() {
   };
 
   if (loading) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center text-white"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"/><p className="text-slate-400">안전하게 연결 중입니다...</p></div>;
-  if (!user) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center safe-top"><h1 className="text-5xl font-black mb-4 text-white tracking-tighter italic">CalTodo</h1><p className="text-slate-400 mb-10 max-w-xs">기기를 접거나 꺼도 데이터가 안전하게 보관됩니다.</p><button onClick={handleLogin} className="flex items-center gap-4 bg-white text-black px-10 py-5 rounded-2xl font-black shadow-2xl"><LogIn className="w-6 h-6"/> 구글로 시작하기</button>{authError && <p className="mt-6 max-w-xs text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 break-words">로그인 실패: {authError}</p>}</div>;
+  if (!user) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center safe-top"><h1 className="text-5xl font-black mb-4 text-white tracking-tighter italic">Cal2do</h1><p className="text-slate-400 mb-10 max-w-xs">기기를 접거나 꺼도 데이터가 안전하게 보관됩니다.</p><button onClick={handleLogin} className="flex items-center gap-4 bg-white text-black px-10 py-5 rounded-2xl font-black shadow-2xl"><LogIn className="w-6 h-6"/> 구글로 시작하기</button>{authError && <p className="mt-6 max-w-xs text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 break-words">로그인 실패: {authError}</p>}</div>;
 
   const go = (next: typeof view) => { setView(next); setMenuOpen(false); };
   const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['month', '월'], ['week', '주'], ['list', '목록'], ['todo', '할일'], ['notes', '메모']];
@@ -80,7 +80,7 @@ export default function Home() {
       <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">{isDarkMode ? '밝은 모드' : '다크 모드'}</button>
       <button onClick={() => signOut(auth)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">로그아웃</button>
     </div>}
-    <main className="max-w-7xl mx-auto p-3 sm:p-5">{search.trim() ? <GlobalSearch query={search} events={events} todos={todos} notes={notes} onEditTodo={setEditingTodo} /> : view === 'today' ? <HomeView events={events} todos={todos} user={user} onNotify={notify} onRefresh={refreshData} /> : view === 'month' ? <Calendar events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'week' ? <Calendar events={events} user={user} onRefresh={refreshData} onNotify={notify} weekView /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} onRefresh={refreshData} /> : <NotesView notes={notes} user={user} onNotify={notify} onRefresh={refreshData} />}</main>
+    <main className="max-w-7xl mx-auto p-3 sm:p-5">{search.trim() ? <GlobalSearch query={search} events={events} todos={todos} notes={notes} onEditTodo={setEditingTodo} /> : view === 'today' ? <HomeView events={events} todos={todos} user={user} onNotify={notify} onRefresh={refreshData} /> : view === 'month' ? <Calendar view="month" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'week' ? <Calendar view="week" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} onRefresh={refreshData} /> : <NotesView notes={notes} user={user} onNotify={notify} onRefresh={refreshData} />}</main>
     {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={notes} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {editingTodo && <TodoModal todo={editingTodo} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
     {toast && <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold ${toast.type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>{toast.message}</div>}
