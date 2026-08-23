@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { format, isToday } from 'date-fns';
 import { Plus, Trash2, CheckCircle2, Circle, GripVertical, Calendar as CalIcon, ChevronDown, ChevronRight } from 'lucide-react';
+import { api } from '../../lib/api-client';
 import TodoModal from './TodoModal';
 
 export default function TodoView({ todos, user, onNotify, onRefresh }: any) {
