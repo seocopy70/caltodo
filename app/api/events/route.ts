@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
     description: row.description,
     color: row.color,
     recurrenceType: row.recurrence_type,
+    source: row.source || 'manual',
+    externalUid: row.external_uid || null,
     updatedAt: new Date(Number(row.updated_at)).toISOString(),
   }));
 
@@ -36,10 +38,22 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const id = randomUUID();
     const now = Date.now();
+    const source = body.source || 'manual';
+    const externalUid = body.externalUid || null;
+
+    if (source !== 'manual' && externalUid) {
+      const existing = await turso.execute({
+        sql: 'SELECT id FROM events WHERE user_id = ? AND source = ? AND external_uid = ? LIMIT 1',
+        args: [uid, source, externalUid],
+      });
+      if (existing.rows.length > 0) {
+        return NextResponse.json({ id: existing.rows[0].id, skipped: true });
+      }
+    }
 
     await turso.execute({
-      sql: `INSERT INTO events (id, user_id, title, start, end_time, end_date, location, description, color, recurrence_type, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO events (id, user_id, title, start, end_time, end_date, location, description, color, recurrence_type, updated_at, source, external_uid)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
         uid,
@@ -52,10 +66,12 @@ export async function POST(req: NextRequest) {
         body.color || 'blue',
         body.recurrenceType || 'none',
         now,
+        source,
+        externalUid,
       ],
     });
 
-    return NextResponse.json({ id });
+    return NextResponse.json({ id, skipped: false });
   } catch (error: any) {
     console.error('[POST /api/events]', error);
     return NextResponse.json(
