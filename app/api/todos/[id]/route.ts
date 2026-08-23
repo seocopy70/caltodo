@@ -21,6 +21,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (body.completed !== undefined) { sets.push('completed = ?'); args.push(body.completed ? 1 : 0); }
   if (body.dueDate !== undefined) { sets.push('due_date = ?'); args.push(body.dueDate ? new Date(body.dueDate).getTime() : null); }
   if (body.memo !== undefined) { sets.push('memo = ?'); args.push(body.memo); }
+  if (body.orderIndex !== undefined) { sets.push('order_index = ?'); args.push(Number(body.orderIndex)); }
 
   if (sets.length === 0) return NextResponse.json({ ok: true });
 
