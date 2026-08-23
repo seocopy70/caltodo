@@ -39,9 +39,11 @@ export const api = {
     remove: (id: string) => request(`/api/todos/${id}`, { method: 'DELETE' }),
   },
   notes: {
-    list: () => request('/api/notes'),
+    list: (includeDeleted = false) => request(`/api/notes${includeDeleted ? '?includeDeleted=true' : ''}`),
     create: (data: any) => request('/api/notes', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => request(`/api/notes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     remove: (id: string) => request(`/api/notes/${id}`, { method: 'DELETE' }),
+    restore: (id: string) => request(`/api/notes/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'restore' }) }),
+    purge: (id: string) => request(`/api/notes/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'purge' }) }),
   },
 };
