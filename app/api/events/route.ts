@@ -29,7 +29,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const uid = await verifyRequestUser(req);
+  try {
+    const uid = await verifyRequestUser(req);
   if (!uid) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const body = await req.json();
@@ -54,5 +55,16 @@ export async function POST(req: NextRequest) {
     ],
   });
 
-  return NextResponse.json({ id });
+      return NextResponse.json({ id });
+  } catch (error: any) {
+    console.error('[POST /api/events] ERROR:', error);
+
+    return NextResponse.json(
+      {
+        error: '일정 저장 실패',
+        detail: error?.message || String(error),
+      },
+      { status: 500 }
+    );
+  }
 }
