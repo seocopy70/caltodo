@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { turso } from '../../../lib/turso';
-import { verifyRequestUser } from '../../../lib/auth-server';
-import { randomUUID } from 'crypto';
+// import { turso } from '../../../lib/turso';
+// import { verifyRequestUser } from '../../../lib/auth-server';
+// import { randomUUID } from 'crypto';
 
 export async function GET(req: NextRequest) {
-  const uid = await verifyRequestUser(req);
-  if (!uid) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-
-  const result = await turso.execute({
-    sql: 'SELECT * FROM events WHERE user_id = ? ORDER BY start ASC',
-    args: [uid],
-  });
+  return NextResponse.json({ test: 'events route works' });
+}
 
   const events = result.rows.map((row: any) => ({
     id: row.id,
