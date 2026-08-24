@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS events (
   recurrence_type TEXT DEFAULT 'none',
   updated_at INTEGER NOT NULL,
   source TEXT DEFAULT 'manual',
-  external_uid TEXT
+  external_uid TEXT,
+  linked_todo_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id);
 CREATE INDEX IF NOT EXISTS idx_events_external ON events(user_id, source, external_uid);
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS todos (
   order_index REAL DEFAULT 0,
   priority TEXT,
   completed_at INTEGER,
+  linked_event_id TEXT,
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_todos_user ON todos(user_id);

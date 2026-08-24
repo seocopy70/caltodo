@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     recurrenceType: row.recurrence_type,
     source: row.source || 'manual',
     externalUid: row.external_uid || null,
+    linkedTodoId: row.linked_todo_id || null,
     updatedAt: new Date(Number(row.updated_at)).toISOString(),
   }));
 
@@ -36,12 +37,13 @@ export async function POST(req: NextRequest) {
     if (!uid) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const id = randomUUID();
+    // 백업 복원 시엔 원래 id를 그대로 유지 (재가져오기해도 중복되지 않도록)
+    const id = body.id || randomUUID();
     const now = Date.now();
     const source = body.source || 'manual';
     const externalUid = body.externalUid || null;
 
-    if (source !== 'manual' && externalUid) {
+    if (!body.id && source !== 'manual' && externalUid) {
       const existing = await turso.execute({
         sql: 'SELECT id FROM events WHERE user_id = ? AND source = ? AND external_uid = ? LIMIT 1',
         args: [uid, source, externalUid],
@@ -52,8 +54,8 @@ export async function POST(req: NextRequest) {
     }
 
     await turso.execute({
-      sql: `INSERT INTO events (id, user_id, title, start, end_time, end_date, location, description, color, recurrence_type, updated_at, source, external_uid)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT OR REPLACE INTO events (id, user_id, title, start, end_time, end_date, location, description, color, recurrence_type, updated_at, source, external_uid, linked_todo_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
         uid,
@@ -68,6 +70,7 @@ export async function POST(req: NextRequest) {
         now,
         source,
         externalUid,
+        body.linkedTodoId || null,
       ],
     });
 

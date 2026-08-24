@@ -1,40 +1,53 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { format, getYear } from 'date-fns';
-import { ChevronDown, ChevronRight, Repeat, CalendarRange } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { format, getYear, isToday } from 'date-fns';
+import { ChevronDown, ChevronRight, Repeat, CalendarRange, ListCollapse, ListTree, Locate } from 'lucide-react';
 import EventModal from './EventModal';
 import { getRecurrenceType } from '../../lib/recurrence';
 
 export default function EventListView({ events, user, onNotify, onRefresh }: any) {
   const currentYear = new Date().getFullYear();
   const [openYears, setOpenYears] = useState<Record<string, boolean>>({ [String(currentYear)]: true });
-  const [ascending, setAscending] = useState(true);
+  const [ascending, setAscending] = useState(false); // 기본 정렬: 최신순
+  const [allExpanded, setAllExpanded] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
+  const todayRef = useRef<HTMLButtonElement>(null);
 
   const years = useMemo(() => {
     const map = new Map<number, any[]>();
     [...events]
-      .sort((a, b) => ascending ? a.start.getTime() - b.start.getTime() : b.start.getTime() - a.start.getTime())
+      .sort((a, b) => (ascending ? a.start.getTime() - b.start.getTime() : b.start.getTime() - a.start.getTime()))
       .forEach((e) => {
         const y = getYear(e.start);
         if (!map.has(y)) map.set(y, []);
         map.get(y)!.push(e);
       });
-    return Array.from(map.entries()).sort((a, b) => ascending ? a[0] - b[0] : b[0] - a[0]);
+    return Array.from(map.entries()).sort((a, b) => (ascending ? a[0] - b[0] : b[0] - a[0]));
   }, [events, ascending]);
 
   const toggleYear = (year: number) => setOpenYears((prev) => ({ ...prev, [String(year)]: !prev[String(year)] }));
-  const expandAll = () => setOpenYears(Object.fromEntries(years.map(([y]) => [String(y), true])));
-  const collapseAll = () => setOpenYears(Object.fromEntries(years.map(([y]) => [String(y), false])));
+
+  const toggleAll = () => {
+    const next = !allExpanded;
+    setAllExpanded(next);
+    setOpenYears(Object.fromEntries(years.map(([y]) => [String(y), next])));
+  };
+
+  const jumpToToday = () => {
+    setOpenYears((prev) => ({ ...prev, [String(currentYear)]: true }));
+    setTimeout(() => todayRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+  };
 
   return (
     <div className="max-w-3xl mx-auto space-y-4 p-2">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-2xl font-black">일정 목록</h2>
         <div className="flex items-center gap-2">
-          <button onClick={expandAll} className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-800/60 text-xs font-bold">전체 펼치기</button>
-          <button onClick={collapseAll} className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-800/60 text-xs font-bold">전체 닫기</button>
+          <button onClick={jumpToToday} className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-800/60 text-xs font-bold flex items-center gap-1"><Locate className="w-3.5 h-3.5" /> 오늘</button>
+          <button onClick={toggleAll} className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-800/60 text-xs font-bold flex items-center gap-1">
+            {allExpanded ? <><ListCollapse className="w-3.5 h-3.5" /> 전체 닫기</> : <><ListTree className="w-3.5 h-3.5" /> 전체 펼치기</>}
+          </button>
           <button onClick={() => setAscending((v) => !v)} className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-800/60 text-xs font-bold">
             {ascending ? '시간순 ↑' : '최신순 ↓'}
           </button>
@@ -56,8 +69,9 @@ export default function EventListView({ events, user, onNotify, onRefresh }: any
               <div className="space-y-2 pl-1">
                 {yearEvents.map((event: any) => {
                   const repeated = getRecurrenceType(event) !== 'none';
+                  const todayMarker = isToday(event.start);
                   return (
-                    <button key={event.id} onClick={() => setEditingEvent(event)} className={`w-full text-left flex items-center gap-3 p-3 rounded-xl border transition ${repeated ? 'bg-violet-500/10 border-violet-500/35' : 'bg-blue-500/5 border-slate-700/50 hover:border-blue-500/40'}`}>
+                    <button key={event.id} ref={todayMarker ? todayRef : undefined} onClick={() => setEditingEvent(event)} className={`w-full text-left flex items-center gap-3 p-3 rounded-xl border transition ${todayMarker ? 'ring-2 ring-blue-500' : ''} ${repeated ? 'bg-violet-500/10 border-violet-500/35' : 'bg-blue-500/5 border-slate-700/50 hover:border-blue-500/40'}`}>
                       <div className="w-20 shrink-0 text-xs font-bold text-slate-400">{format(event.start, 'yyyy.MM.dd')}</div>
                       <div className="w-14 shrink-0 text-xs font-bold text-slate-500">{format(event.start, 'HH:mm')}</div>
                       <div className="flex-1 min-w-0">

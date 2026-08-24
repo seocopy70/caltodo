@@ -33,12 +33,16 @@ export async function POST(req: NextRequest) {
   if (!uid) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const id = randomUUID();
+  // 백업 복원 시엔 원래 id를 그대로 유지 (재가져오기해도 중복되지 않도록)
+  const id = body.id || randomUUID();
   const now = Date.now();
+  const createdAt = body.createdAt ? new Date(body.createdAt).getTime() : now;
+  const updatedAt = body.updatedAt ? new Date(body.updatedAt).getTime() : now;
+  const deletedAt = body.deletedAt ? new Date(body.deletedAt).getTime() : null;
 
   await turso.execute({
-    sql: `INSERT INTO notes (id, user_id, title, content, created_at, updated_at, deleted_at, show_today) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)`,
-    args: [id, uid, body.title || '(제목 없음)', body.content || '', now, now, body.showToday ? 1 : 0],
+    sql: `INSERT OR REPLACE INTO notes (id, user_id, title, content, created_at, updated_at, deleted_at, show_today) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, uid, body.title || '(제목 없음)', body.content || '', createdAt, updatedAt, deletedAt, body.showToday ? 1 : 0],
   });
 
   return NextResponse.json({ id });

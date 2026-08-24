@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     recurrenceType: row.recurrence_type,
     source: row.source || 'manual',
     externalUid: row.external_uid || null,
+    linkedTodoId: row.linked_todo_id || null,
     updatedAt: new Date(Number(row.updated_at)).toISOString(),
   }));
 
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
     orderIndex: Number(row.order_index || 0),
     priority: row.priority || null,
     completedAt: row.completed_at ? new Date(Number(row.completed_at)).toISOString() : null,
+    linkedEventId: row.linked_event_id || null,
     createdAt: new Date(Number(row.created_at)).toISOString(),
   }));
 

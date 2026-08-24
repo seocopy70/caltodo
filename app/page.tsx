@@ -13,6 +13,9 @@ import GlobalSearch from '../components/calendar/GlobalSearch';
 import ImportExportPanel from '../components/calendar/ImportExportPanel';
 import DataManagementPanel from '../components/calendar/DataManagementPanel';
 import TodoModal from '../components/calendar/TodoModal';
+import NoteModal from '../components/calendar/NoteModal';
+import VersionModal from '../components/calendar/VersionModal';
+import HelpModal from '../components/calendar/HelpModal';
 import { LogIn, Menu, Search } from 'lucide-react';
 
 export default function Home() {
@@ -27,9 +30,13 @@ export default function Home() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
+  const [isVersionOpen, setIsVersionOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [editingTodo, setEditingTodo] = useState<any>(null);
+  const [editingNote, setEditingNote] = useState<any>(null);
+  const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartX = useRef<number | null>(null);
 
@@ -51,6 +58,11 @@ export default function Home() {
     } catch (err) { console.error('데이터 조회 실패:', err); }
   }, []);
 
+  // 낙관적 로컬 업데이트: 서버 응답을 기다리지 않고 화면에 즉시 반영해 체감 반응속도를 높임
+  const patchTodoLocal = useCallback((id: string, patch: any) => setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t))), []);
+  const removeTodoLocal = useCallback((id: string) => setTodos((prev) => prev.filter((t) => t.id !== id)), []);
+  const patchNoteLocal = useCallback((id: string, patch: any) => setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n))), []);
+
   useEffect(() => { if (!user) return; refreshData(); const interval = setInterval(refreshData, 30000); return () => clearInterval(interval); }, [user, refreshData]);
   useEffect(() => { document.documentElement.classList.toggle('dark', isDarkMode); }, [isDarkMode]);
 
@@ -67,22 +79,26 @@ export default function Home() {
   if (!user) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center safe-top"><h1 className="text-5xl font-black mb-4 text-white tracking-tighter italic">Cal2do</h1><p className="text-slate-400 mb-10 max-w-xs">기기를 접거나 꺼도 데이터가 안전하게 보관됩니다.</p><button onClick={handleLogin} className="flex items-center gap-4 bg-white text-black px-10 py-5 rounded-2xl font-black shadow-2xl"><LogIn className="w-6 h-6"/> 구글로 시작하기</button>{authError && <p className="mt-6 max-w-xs text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 break-words">로그인 실패: {authError}</p>}</div>;
 
   const go = (next: typeof view) => { setView(next); setMenuOpen(false); };
-  const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['month', '월'], ['week', '주'], ['list', '목록'], ['todo', '할일'], ['notes', '메모']];
+  // 목록 탭은 메인메뉴로 이동했으므로 탭바/스와이프 순환에서는 제외 (view 상태 자체는 유지)
+  const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['month', '월'], ['week', '주'], ['todo', '할일'], ['notes', '메모']];
   const activeNotes = notes.filter((n: any) => !n.deletedAt);
   const todayNotes = activeNotes.filter((n: any) => n.showToday);
+  const anyOverlayOpen = menuOpen || isImportExportOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim();
 
   const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null || search.trim()) return;
+    if (touchStartX.current === null || anyOverlayOpen) return;
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     touchStartX.current = null;
     if (Math.abs(deltaX) < 60) return;
     const idx = tabs.findIndex(([key]) => key === view);
-    const nextIdx = deltaX < 0 ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
+    if (idx === -1) return;
+    // 왼쪽으로 밀면 이전 탭, 오른쪽으로 밀면 다음 탭
+    const nextIdx = deltaX < 0 ? (idx - 1 + tabs.length) % tabs.length : (idx + 1) % tabs.length;
     setView(tabs[nextIdx][0]);
   };
 
-  return <div className="min-h-screen bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100">
+  return <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="min-h-screen bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100">
     <header className="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur">
       <div className="max-w-7xl mx-auto px-3 py-2 flex items-center gap-2">
         <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="메뉴"><Menu className="w-5 h-5" /></button>
@@ -91,20 +107,31 @@ export default function Home() {
         <div className="relative w-32 sm:w-48 md:w-64 shrink-0">
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400"/>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="검색" className="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
-          {search.trim() && <GlobalSearch query={search} events={events} todos={todos} notes={activeNotes} onClose={() => setSearch('')} onEvent={() => { setSearch(''); setView('list'); }} onTodo={(t: any) => { setSearch(''); setEditingTodo(t); }} onNote={() => { setSearch(''); setView('notes'); }} onRefresh={refreshData} onNotify={notify} />}
+          {search.trim() && <GlobalSearch query={search} events={events} todos={todos} notes={activeNotes} onClose={() => setSearch('')} onEvent={() => { setSearch(''); setView('list'); }} onTodo={(t: any) => { setSearch(''); setEditingTodo(t); }} onNote={(n: any) => { setSearch(''); setEditingNote(n); }} onRefresh={refreshData} onNotify={notify} />}
         </div>
       </div>
     </header>
-    {menuOpen && <div className="absolute top-14 left-2 z-50 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-2">
-      <button onClick={() => { setIsImportExportOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">가져오기 / 내보내기</button>
-      <button onClick={() => { setIsDataManagementOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">데이터 관리</button>
-      <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">{isDarkMode ? '밝은 모드' : '다크 모드'}</button>
-      <button onClick={() => signOut(auth)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">로그아웃</button>
-    </div>}
-    <main onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="max-w-7xl mx-auto p-3 sm:p-5">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} user={user} onNotify={notify} onRefresh={refreshData} /> : view === 'month' ? <Calendar key="month-view" view="month" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'week' ? <Calendar key="week-view" view="week" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} onRefresh={refreshData} /> : <NotesView notes={notes} user={user} onNotify={notify} onRefresh={refreshData} />}</main>
+    {menuOpen && <>
+      <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+      <div className="absolute top-14 left-2 z-50 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-2">
+        <button onClick={() => go('list')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">일정 목록 보기</button>
+        <button onClick={() => { setIsImportExportOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">가져오기 / 내보내기</button>
+        <button onClick={() => { setIsDataManagementOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">데이터 관리</button>
+        <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">{isDarkMode ? '밝은 모드' : '다크 모드'}</button>
+        <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
+        <button onClick={() => { setIsHelpOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">도움말</button>
+        <button onClick={() => { setIsVersionOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">버전 정보</button>
+        <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
+        <button onClick={() => signOut(auth)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">로그아웃</button>
+      </div>
+    </>}
+    <main className="max-w-7xl mx-auto p-3 sm:p-5">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any) => setEditingNote(n)} /> : view === 'month' ? <Calendar key="month-view" view="month" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'week' ? <Calendar key="week-view" view="week" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} /> : <NotesView notes={notes} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any) => setEditingNote(n)} onPatchNote={patchNoteLocal} />}</main>
     {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {isDataManagementOpen && <DataManagementPanel events={events} user={user} onClose={() => setIsDataManagementOpen(false)} onRefresh={refreshData} onNotify={notify} />}
+    {isVersionOpen && <VersionModal onClose={() => setIsVersionOpen(false)} />}
+    {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
     {editingTodo && <TodoModal todo={editingTodo} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
+    {(editingNote || isNewNoteOpen) && <NoteModal note={editingNote} onClose={() => { setEditingNote(null); setIsNewNoteOpen(false); }} onRefresh={refreshData} onNotify={notify} />}
     {toast && <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold ${toast.type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>{toast.message}</div>}
   </div>;
 }

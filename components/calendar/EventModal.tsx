@@ -15,6 +15,7 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
   const [endDate, setEndDate] = useState('');
   const [endTime, setEndTime] = useState('10:00');
   const [multiDay, setMultiDay] = useState(false);
+  const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState('blue');
@@ -30,6 +31,7 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       setEndDate(format(eDate, 'yyyy-MM-dd'));
       setEndTime(format(editingEvent.end as Date, 'HH:mm'));
       setMultiDay(!!editingEvent.endDate && format(eDate, 'yyyy-MM-dd') !== format(sDate, 'yyyy-MM-dd'));
+      setAllDay(format(sDate, 'HH:mm') === '00:00' && format(editingEvent.end as Date, 'HH:mm') === '23:59');
       setLocation(editingEvent.location || '');
       setDescription(editingEvent.description || '');
       setColor(editingEvent.color || 'blue');
@@ -45,6 +47,7 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       setEndDate(format(base, 'yyyy-MM-dd'));
       setEndTime(hasTime ? format(defaultEndBase, 'HH:mm') : '10:00');
       setMultiDay(false);
+      setAllDay(false);
       setLocation('');
       setDescription('');
       setColor('blue');
@@ -57,8 +60,10 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
   const save = () => {
     if (!title.trim() || !user) return;
 
-    const start = new Date(`${startDate}T${startTime}`);
-    const end = new Date(`${multiDay ? endDate : startDate}T${endTime}`);
+    const effectiveStartTime = allDay ? '00:00' : startTime;
+    const effectiveEndTime = allDay ? '23:59' : endTime;
+    const start = new Date(`${startDate}T${effectiveStartTime}`);
+    const end = new Date(`${multiDay ? endDate : startDate}T${effectiveEndTime}`);
 
     // 반복 일정은 항상 통일된 보라색으로 표시합니다.
     const effectiveColor = recurrenceType !== 'none' ? 'violet' : color;
@@ -116,11 +121,16 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
               <label className="text-[9px] text-slate-500 font-bold block mb-1">시작 날짜</label>
               <input type="date" className="bg-transparent w-full outline-none text-sm" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
-            <div className="flex-1 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
+            {!allDay && <div className="flex-1 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
               <label className="text-[9px] text-slate-500 font-bold block mb-1">시작 시간</label>
               <input type="time" className="bg-transparent w-full outline-none" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-            </div>
+            </div>}
           </div>
+
+          <label className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer">
+            <span className="flex-1 text-sm">하루 종일</span>
+            <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
+          </label>
 
           {recurrenceType === 'none' && (
             <label className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer">
@@ -137,10 +147,10 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
                 <input type="date" className="bg-transparent w-full outline-none text-sm" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
             )}
-            <div className="flex-1 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
+            {!allDay && <div className="flex-1 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
               <label className="text-[9px] text-slate-500 font-bold block mb-1">종료 시간</label>
               <input type="time" className="bg-transparent w-full outline-none" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-            </div>
+            </div>}
           </div>
 
           <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">

@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { format, isToday } from 'date-fns';
-import { CalendarDays, CheckCircle2, Circle, ChevronDown, ChevronRight, GripVertical, Trash2 } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Circle, ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api-client';
 import TodoModal from './TodoModal';
 
@@ -42,6 +42,8 @@ export default function TodoListPanel({
   user,
   onNotify,
   onRefresh,
+  onPatchTodo,
+  onRemoveTodo,
   maxVisible,
   compact = false,
 }: any) {
@@ -49,13 +51,18 @@ export default function TodoListPanel({
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<string | null>(null);
   const [editingTodo, setEditingTodo] = useState<any>(null);
-  const [showMore, setShowMore] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
   const dateRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const notify = onNotify || (() => {});
 
-  const activeTodos = todos.filter((t: any) => !t.completed).sort(sortActive);
+  const activeTodosSorted = todos.filter((t: any) => !t.completed).sort(sortActive);
+  const activeTodos = previewOrder
+    ? (previewOrder.map((id) => activeTodosSorted.find((t: any) => t.id === id)).filter(Boolean) as any[])
+    : activeTodosSorted;
   const completedTodos = todos
     .filter((t: any) => t.completed)
     .sort((a: any, b: any) => {
@@ -64,7 +71,7 @@ export default function TodoListPanel({
       return bt - at;
     });
 
-  const visibleTodos = maxVisible && !showMore ? activeTodos.slice(0, maxVisible) : activeTodos;
+  const visibleTodos = maxVisible && !expanded ? activeTodos.slice(0, maxVisible) : activeTodos;
 
   const resetComposer = () => { setNewTodo(''); setDueDate(''); setPriority(null); };
 
@@ -91,7 +98,6 @@ export default function TodoListPanel({
 
   const addTodo = async (e: React.FormEvent) => { e.preventDefault(); await createTodo(); };
 
-  // 제목이 입력된 상태에서 날짜를 고르거나 색깔원을 누르면 즉시 저장한다.
   const handleDueDateChange = (value: string) => {
     setDueDate(value);
     if (newTodo.trim()) createTodo({ dueDate: value });
@@ -103,41 +109,77 @@ export default function TodoListPanel({
   };
 
   const toggleTodo = (id: string, completed: boolean) => {
+    onPatchTodo?.(id, { completed, completedAt: completed ? new Date() : null });
     api.todos.update(id, { completed })
       .then(() => onRefresh?.())
-      .catch((err: any) => notify(`업데이트 실패: ${err.message || err}`, 'error'));
+      .catch((err: any) => { notify(`업데이트 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 
   const removeTodo = (id: string) => {
     if (!confirm('삭제할까요?')) return;
+    onRemoveTodo?.(id);
     api.todos.remove(id)
-      .then(() => { notify('할 일이 삭제되었습니다.'); onRefresh?.(); })
-      .catch((err: any) => notify(`삭제 실패: ${err.message || err}`, 'error'));
+      .then(() => notify('할 일이 삭제되었습니다.'))
+      .catch((err: any) => { notify(`삭제 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 
-  const dropOn = async (targetId: string) => {
-    if (!dragId || dragId === targetId) return;
-    const ordered = [...activeTodos];
-    const from = ordered.findIndex((t) => t.id === dragId);
-    const to = ordered.findIndex((t) => t.id === targetId);
-    if (from < 0 || to < 0) return;
-    const [moved] = ordered.splice(from, 1);
-    ordered.splice(to, 0, moved);
-    try {
-      await Promise.all(ordered.map((t, i) => api.todos.update(t.id, { orderIndex: i })));
-      onRefresh?.();
-    } finally {
-      setDragId(null);
-    }
+  // 포인터(터치+마우스 공용) 기반 드래그 재정렬
+  const startDrag = (id: string) => {
+    setDragId(id);
+    setPreviewOrder(activeTodosSorted.map((t: any) => t.id));
   };
+
+  useEffect(() => {
+    if (!dragId) return;
+    const handleMove = (e: PointerEvent) => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const row = el?.closest?.('[data-todo-id]') as HTMLElement | null;
+      if (!row) return;
+      const overId = row.getAttribute('data-todo-id');
+      if (!overId || overId === dragId) return;
+      setPreviewOrder((prev) => {
+        if (!prev) return prev;
+        const from = prev.indexOf(dragId);
+        const to = prev.indexOf(overId);
+        if (from < 0 || to < 0 || from === to) return prev;
+        const next = [...prev];
+        next.splice(from, 1);
+        next.splice(to, 0, dragId);
+        return next;
+      });
+    };
+    const handleUp = async () => {
+      const finalOrder = previewOrder;
+      setDragId(null);
+      if (!finalOrder) return;
+      finalOrder.forEach((id, i) => onPatchTodo?.(id, { orderIndex: i }));
+      try {
+        await Promise.all(finalOrder.map((id, i) => api.todos.update(id, { orderIndex: i })));
+      } catch {
+        onRefresh?.();
+      } finally {
+        setPreviewOrder(null);
+      }
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    return () => { window.removeEventListener('pointermove', handleMove); window.removeEventListener('pointerup', handleUp); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragId]);
 
   return (
     <section className={`rounded-2xl border border-slate-700/50 bg-slate-900/30 overflow-hidden ${compact ? '' : 'shadow-xl'}`}>
+      {maxVisible && activeTodos.length > 0 && (
+        <button onClick={() => setExpanded((v) => !v)} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-400 transition">
+          {expanded ? <><ChevronUp className="w-3.5 h-3.5" /> 접기</> : <><ChevronDown className="w-3.5 h-3.5" /> 펼치기 ({activeTodos.length})</>}
+        </button>
+      )}
+
       <form onSubmit={addTodo} className="flex items-center gap-2 px-4 py-3 border-b border-slate-700/40">
         <Circle className="w-5 h-5 text-slate-500 shrink-0" />
         <input
-          className="flex-1 min-w-0 bg-transparent outline-none text-sm"
-          placeholder="＿＿＿"
+          className="flex-1 min-w-0 bg-transparent outline-none text-sm placeholder:text-slate-500"
+          placeholder="새 할일"
           value={newTodo}
           onChange={(e) => setNewTodo(e.target.value)}
         />
@@ -169,17 +211,13 @@ export default function TodoListPanel({
         />
       </form>
 
-      <div className="divide-y divide-slate-700/30">
+      <div ref={listRef} className={`divide-y divide-slate-700/30 ${maxVisible && expanded ? 'max-h-[50vh] overflow-y-auto' : ''}`}>
         {visibleTodos.map((todo: any) => (
           <div
             key={todo.id}
-            draggable
-            onDragStart={() => setDragId(todo.id)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => dropOn(todo.id)}
-            className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-800/20 transition"
+            data-todo-id={todo.id}
+            className={`group flex items-center gap-3 px-4 py-3 hover:bg-slate-800/20 transition ${dragId === todo.id ? 'opacity-40' : ''}`}
           >
-            <GripVertical className="w-4 h-4 text-slate-600 cursor-grab shrink-0" />
             <CheckButton priority={todo.priority} onClick={() => toggleTodo(todo.id, true)} />
             <div onClick={() => setEditingTodo(todo)} className="flex-1 min-w-0 cursor-pointer flex items-center gap-3">
               <span className="text-sm font-medium truncate">{todo.title}</span>
@@ -188,22 +226,22 @@ export default function TodoListPanel({
             <button onClick={() => removeTodo(todo.id)} className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-rose-500 transition shrink-0">
               <Trash2 className="w-4 h-4" />
             </button>
+            <button
+              onPointerDown={(e) => { e.preventDefault(); startDrag(todo.id); }}
+              className="shrink-0 touch-none cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300"
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
           </div>
         ))}
       </div>
 
       {activeTodos.length === 0 && <div className="px-4 py-6 text-center text-sm text-slate-600">할 일이 없습니다.</div>}
 
-      {maxVisible && activeTodos.length > maxVisible && (
-        <button onClick={() => setShowMore((v) => !v)} className="w-full px-4 py-2.5 border-t border-slate-700/30 text-xs font-bold text-slate-500 hover:text-blue-400 transition">
-          {showMore ? '접기' : `더 보기 (${activeTodos.length - maxVisible}개)`}
-        </button>
-      )}
-
       {completedTodos.length > 0 && (
         <div className="border-t border-slate-700/40">
           <button onClick={() => setShowCompleted((v) => !v)} className="w-full flex items-center gap-2 px-4 py-3 text-xs font-bold text-slate-500 hover:text-slate-300">
-            {showCompleted ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            {showCompleted ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4 rotate-90" />}
             완료됨 <span className="bg-slate-700 px-1.5 rounded">{completedTodos.length}</span>
           </button>
           {showCompleted && (

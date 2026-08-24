@@ -68,26 +68,35 @@ export default function Calendar({ view, events, user, onNotify, onRefresh }: an
       ) : (
         <>
           <div className="grid grid-cols-7 mb-4 text-center text-xs font-black text-slate-500">{['일', '월', '화', '수', '목', '금', '토'].map((d, i) => <div key={d} className={i === 0 ? 'text-rose-500 dark:text-rose-400' : i === 6 ? 'text-blue-500 dark:text-blue-400' : ''}>{d}</div>)}</div>
-          <div className="grid grid-cols-7 flex-1 border border-slate-300 dark:border-slate-700 rounded-2xl overflow-hidden shadow-2xl bg-white/70 dark:bg-slate-900/20">
-            {days.map((day, i) => {
-              const dayEvents = events.filter((e: any) => eventOccursOnDay(e, day));
-              const isToday = isSameDay(day, new Date());
-              const dow = day.getDay();
-              const holidayName = holidayMap[format(day, 'yyyy-MM-dd')];
-              const lunarLabel = getLunarLabel(day);
-              const dateColorClass = isToday ? '' : holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400';
-              return <div key={i} onClick={() => handleDayClick(day)} className={`min-h-[120px] p-2 border-r border-b border-slate-200 dark:border-slate-700/30 transition-all cursor-pointer hover:bg-blue-500/5 ${!isSameMonth(day, monthStart) ? 'opacity-40 dark:opacity-10' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
-                <div className="flex items-center justify-center gap-1 mb-1">
-                  <div className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center' : dateColorClass}`}>{format(day, 'd')}</div>
-                  <div className="text-[9px] text-slate-400 dark:text-slate-600 leading-tight">{lunarLabel}</div>
+          <div className="overflow-x-auto rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl bg-white/70 dark:bg-slate-900/20">
+            {Array.from({ length: days.length / 7 }, (_, weekIdx) => {
+              const week = days.slice(weekIdx * 7, weekIdx * 7 + 7);
+              const maxCount = Math.max(0, ...week.map((d) => events.filter((e: any) => eventOccursOnDay(e, d)).length));
+              const cellMinWidth = Math.min(96 + maxCount * 14, 220);
+              return (
+                <div key={weekIdx} className="grid border-b border-slate-200 dark:border-slate-700/30 last:border-b-0" style={{ gridTemplateColumns: `repeat(7, minmax(${cellMinWidth}px, 1fr))` }}>
+                  {week.map((day, i) => {
+                    const dayEvents = events.filter((e: any) => eventOccursOnDay(e, day));
+                    const isToday = isSameDay(day, new Date());
+                    const dow = day.getDay();
+                    const holidayName = holidayMap[format(day, 'yyyy-MM-dd')];
+                    const lunarLabel = getLunarLabel(day);
+                    const dateColorClass = isToday ? '' : holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400';
+                    return <div key={i} onClick={() => handleDayClick(day)} className={`min-h-[120px] p-2 border-r border-slate-200 dark:border-slate-700/30 last:border-r-0 transition-all cursor-pointer hover:bg-blue-500/5 ${!isSameMonth(day, monthStart) ? 'opacity-40 dark:opacity-10' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
+                      <div className="flex items-center justify-center gap-1 mb-1">
+                        <div className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center' : dateColorClass}`}>{format(day, 'd')}</div>
+                        <div className="text-[9px] text-slate-400 dark:text-slate-600 leading-tight">{lunarLabel}</div>
+                      </div>
+                      {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate leading-tight text-center mb-1">{holidayName}</div>}
+                      <div className="space-y-1.5">{dayEvents.map((event: any, idx: number) => {
+                        const isRecurring = getRecurrenceType(event) !== 'none';
+                        const isMultiDay = !!event.endDate;
+                        return <div key={idx} onClick={(e) => { e.stopPropagation(); openEditEvent(event); }} className={`p-1.5 rounded-md text-xs font-bold border-l-4 truncate flex items-center gap-1 min-w-0 ${isRecurring ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-400 dark:text-violet-100' : event.color === 'green' ? 'bg-emerald-50 border-emerald-600 text-emerald-900 dark:bg-emerald-500/20 dark:border-emerald-500 dark:text-emerald-100' : event.color === 'rose' ? 'bg-rose-50 border-rose-600 text-rose-900 dark:bg-rose-500/20 dark:border-rose-500 dark:text-rose-100' : event.color === 'amber' ? 'bg-amber-50 border-amber-600 text-amber-900 dark:bg-amber-500/20 dark:border-amber-500 dark:text-amber-100' : event.color === 'violet' ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-500 dark:text-violet-100' : 'bg-blue-50 border-blue-600 text-blue-900 dark:bg-blue-500/20 dark:border-blue-500 dark:text-blue-100'}`}>{isRecurring && <Repeat className="w-2.5 h-2.5 shrink-0"/>}{isMultiDay && <CalendarRange className="w-2.5 h-2.5 shrink-0"/>}<span className="truncate">{event.title}</span></div>;
+                      })}</div>
+                    </div>;
+                  })}
                 </div>
-                {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate leading-tight text-center mb-1">{holidayName}</div>}
-                <div className="space-y-1.5">{dayEvents.map((event: any, idx: number) => {
-                  const isRecurring = getRecurrenceType(event) !== 'none';
-                  const isMultiDay = !!event.endDate;
-                  return <div key={idx} onClick={(e) => { e.stopPropagation(); openEditEvent(event); }} className={`p-1.5 rounded-md text-[10px] font-bold border-l-4 truncate flex items-center gap-1 min-w-0 ${isRecurring ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-400 dark:text-violet-100' : event.color === 'green' ? 'bg-emerald-50 border-emerald-600 text-emerald-900 dark:bg-emerald-500/20 dark:border-emerald-500 dark:text-emerald-100' : event.color === 'rose' ? 'bg-rose-50 border-rose-600 text-rose-900 dark:bg-rose-500/20 dark:border-rose-500 dark:text-rose-100' : event.color === 'amber' ? 'bg-amber-50 border-amber-600 text-amber-900 dark:bg-amber-500/20 dark:border-amber-500 dark:text-amber-100' : event.color === 'violet' ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-500 dark:text-violet-100' : 'bg-blue-50 border-blue-600 text-blue-900 dark:bg-blue-500/20 dark:border-blue-500 dark:text-blue-100'}`}>{isRecurring && <Repeat className="w-2.5 h-2.5 shrink-0"/>}{isMultiDay && <CalendarRange className="w-2.5 h-2.5 shrink-0"/>}<span className="truncate">{event.title}</span></div>;
-                })}</div>
-              </div>;
+              );
             })}
           </div>
         </>
