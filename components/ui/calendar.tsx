@@ -12,6 +12,8 @@ import { getKoreanHolidaysForYears } from '../../lib/holidays';
 import { eventOccursOnDay, getRecurrenceType } from '../../lib/recurrence';
 import KoreanLunarCalendar from 'korean-lunar-calendar';
 import EventModal from '../calendar/EventModal';
+import DayViewModal from '../calendar/DayViewModal';
+import TimeGrid from '../calendar/TimeGrid';
 
 function getLunarLabel(date: Date) {
   const cal = new KoreanLunarCalendar();
@@ -28,6 +30,7 @@ export default function Calendar({ view, events, user, onNotify, onRefresh }: an
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [dayViewDate, setDayViewDate] = useState<Date | null>(null);
   const monthStart = startOfMonth(currentDate);
   const weekStart = startOfWeek(currentDate);
   const days = eachDayOfInterval({ start: view === 'month' ? startOfWeek(monthStart) : weekStart, end: view === 'month' ? endOfWeek(endOfMonth(monthStart)) : endOfWeek(currentDate) });
@@ -41,6 +44,16 @@ export default function Calendar({ view, events, user, onNotify, onRefresh }: an
   const openEditEvent = (event: any) => { setEditingEvent(event); setSelectedDate(event.start); setIsModalOpen(true); };
   const jumpTo = (year: number, month: number) => { setCurrentDate(new Date(year, month, 1)); setIsDatePickerOpen(false); };
 
+  const handleDayClick = (day: Date) => {
+    const hasEvents = events.some((e: any) => eventOccursOnDay(e, day));
+    if (hasEvents) setDayViewDate(day);
+    else openNewEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0));
+  };
+
+  const handleSlotClick = (day: Date, hour: number) => {
+    openNewEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, 0));
+  };
+
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-500">
       <div className="flex items-center justify-between mb-6">
@@ -50,27 +63,38 @@ export default function Calendar({ view, events, user, onNotify, onRefresh }: an
 
       {isDatePickerOpen && <div className="mb-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4"><div className="flex items-center justify-between mb-3"><div className="text-sm font-bold text-slate-700 dark:text-slate-200">연월로 바로 이동</div><button onClick={() => setIsDatePickerOpen(false)} className="text-xs text-slate-500">닫기</button></div><div className="flex gap-3 mb-3"><select value={currentDate.getFullYear()} onChange={(e) => jumpTo(Number(e.target.value), currentDate.getMonth())} className="flex-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-bold outline-none">{years.map((year) => <option key={year} value={year}>{year}년</option>)}</select><div className="flex-[2] grid grid-cols-6 gap-1.5">{Array.from({ length: 12 }, (_, month) => <button key={month} onClick={() => jumpTo(currentDate.getFullYear(), month)} className={`rounded-lg px-2 py-2 text-xs font-bold ${month === currentDate.getMonth() ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-blue-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}>{month + 1}월</button>)}</div></div></div>}
 
-      <div className="grid grid-cols-7 mb-4 text-center text-xs font-black text-slate-500">{['일', '월', '화', '수', '목', '금', '토'].map((d, i) => <div key={d} className={i === 0 ? 'text-rose-500 dark:text-rose-400' : i === 6 ? 'text-blue-500 dark:text-blue-400' : ''}>{d}</div>)}</div>
-      <div className="grid grid-cols-7 flex-1 border border-slate-300 dark:border-slate-700 rounded-2xl overflow-hidden shadow-2xl bg-white/70 dark:bg-slate-900/20">
-        {days.map((day, i) => {
-          const dayEvents = events.filter((e: any) => eventOccursOnDay(e, day));
-          const isToday = isSameDay(day, new Date());
-          const dow = day.getDay();
-          const holidayName = holidayMap[format(day, 'yyyy-MM-dd')];
-          const lunarLabel = getLunarLabel(day);
-          const dateColorClass = isToday ? '' : holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400';
-          return <div key={i} onClick={() => openNewEvent(day)} className={`min-h-[120px] p-2 border-r border-b border-slate-200 dark:border-slate-700/30 transition-all cursor-pointer hover:bg-blue-500/5 ${view === 'month' && !isSameMonth(day, monthStart) ? 'opacity-40 dark:opacity-10' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-500/10' : ''} ${view === 'week' ? 'min-h-[400px]' : ''}`}>
-            <div className="text-center mb-1"><div className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center mx-auto' : dateColorClass}`}>{format(day, 'd')}</div><div className="text-[9px] text-slate-400 dark:text-slate-600 leading-tight">{lunarLabel}</div>{holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate leading-tight">{holidayName}</div>}</div>
-            <div className="space-y-1.5">{dayEvents.map((event: any, idx: number) => {
-              const isRecurring = getRecurrenceType(event) !== 'none';
-              const isMultiDay = !!event.endDate;
-              const timeLabel = format(event.start, 'HH:mm');
-              return <div key={idx} onClick={(e) => { e.stopPropagation(); openEditEvent(event); }} className={`p-1.5 rounded-md text-[10px] font-bold border-l-4 truncate flex items-center gap-1 min-w-0 ${isRecurring ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-400 dark:text-violet-100' : event.color === 'green' ? 'bg-emerald-50 border-emerald-600 text-emerald-900 dark:bg-emerald-500/20 dark:border-emerald-500 dark:text-emerald-100' : event.color === 'rose' ? 'bg-rose-50 border-rose-600 text-rose-900 dark:bg-rose-500/20 dark:border-rose-500 dark:text-rose-100' : event.color === 'amber' ? 'bg-amber-50 border-amber-600 text-amber-900 dark:bg-amber-500/20 dark:border-amber-500 dark:text-amber-100' : event.color === 'violet' ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-500 dark:text-violet-100' : 'bg-blue-50 border-blue-600 text-blue-900 dark:bg-blue-500/20 dark:border-blue-500 dark:text-blue-100'}`}>{isRecurring && <Repeat className="w-2.5 h-2.5 shrink-0"/>}{isMultiDay && <CalendarRange className="w-2.5 h-2.5 shrink-0"/>}<span className="truncate">{event.title}</span><span className="shrink-0 font-semibold opacity-75">{timeLabel}</span></div>;
-            })}</div>
-          </div>;
-        })}
-      </div>
+      {view === 'week' ? (
+        <TimeGrid days={days} events={events} holidayMap={holidayMap} onSlotClick={handleSlotClick} onEventClick={openEditEvent} />
+      ) : (
+        <>
+          <div className="grid grid-cols-7 mb-4 text-center text-xs font-black text-slate-500">{['일', '월', '화', '수', '목', '금', '토'].map((d, i) => <div key={d} className={i === 0 ? 'text-rose-500 dark:text-rose-400' : i === 6 ? 'text-blue-500 dark:text-blue-400' : ''}>{d}</div>)}</div>
+          <div className="grid grid-cols-7 flex-1 border border-slate-300 dark:border-slate-700 rounded-2xl overflow-hidden shadow-2xl bg-white/70 dark:bg-slate-900/20">
+            {days.map((day, i) => {
+              const dayEvents = events.filter((e: any) => eventOccursOnDay(e, day));
+              const isToday = isSameDay(day, new Date());
+              const dow = day.getDay();
+              const holidayName = holidayMap[format(day, 'yyyy-MM-dd')];
+              const lunarLabel = getLunarLabel(day);
+              const dateColorClass = isToday ? '' : holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400';
+              return <div key={i} onClick={() => handleDayClick(day)} className={`min-h-[120px] p-2 border-r border-b border-slate-200 dark:border-slate-700/30 transition-all cursor-pointer hover:bg-blue-500/5 ${!isSameMonth(day, monthStart) ? 'opacity-40 dark:opacity-10' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <div className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center' : dateColorClass}`}>{format(day, 'd')}</div>
+                  <div className="text-[9px] text-slate-400 dark:text-slate-600 leading-tight">{lunarLabel}</div>
+                </div>
+                {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate leading-tight text-center mb-1">{holidayName}</div>}
+                <div className="space-y-1.5">{dayEvents.map((event: any, idx: number) => {
+                  const isRecurring = getRecurrenceType(event) !== 'none';
+                  const isMultiDay = !!event.endDate;
+                  return <div key={idx} onClick={(e) => { e.stopPropagation(); openEditEvent(event); }} className={`p-1.5 rounded-md text-[10px] font-bold border-l-4 truncate flex items-center gap-1 min-w-0 ${isRecurring ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-400 dark:text-violet-100' : event.color === 'green' ? 'bg-emerald-50 border-emerald-600 text-emerald-900 dark:bg-emerald-500/20 dark:border-emerald-500 dark:text-emerald-100' : event.color === 'rose' ? 'bg-rose-50 border-rose-600 text-rose-900 dark:bg-rose-500/20 dark:border-rose-500 dark:text-rose-100' : event.color === 'amber' ? 'bg-amber-50 border-amber-600 text-amber-900 dark:bg-amber-500/20 dark:border-amber-500 dark:text-amber-100' : event.color === 'violet' ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-500 dark:text-violet-100' : 'bg-blue-50 border-blue-600 text-blue-900 dark:bg-blue-500/20 dark:border-blue-500 dark:text-blue-100'}`}>{isRecurring && <Repeat className="w-2.5 h-2.5 shrink-0"/>}{isMultiDay && <CalendarRange className="w-2.5 h-2.5 shrink-0"/>}<span className="truncate">{event.title}</span></div>;
+                })}</div>
+              </div>;
+            })}
+          </div>
+        </>
+      )}
+
       {isModalOpen && <EventModal date={selectedDate} editingEvent={editingEvent} user={user} notify={onNotify} onClose={closeModal} onRefresh={onRefresh} />}
+      {dayViewDate && <DayViewModal date={dayViewDate} events={events} holidayMap={holidayMap} user={user} onNotify={onNotify} onRefresh={onRefresh} onClose={() => setDayViewDate(null)} />}
     </div>
   );
 }

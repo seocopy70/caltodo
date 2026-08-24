@@ -36,11 +36,14 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       setRecurrenceType(getRecurrenceType(editingEvent));
     } else {
       const base = date || new Date();
+      const hasTime = base.getHours() !== 0 || base.getMinutes() !== 0;
+      const defaultStart = hasTime ? format(base, 'HH:mm') : '09:00';
+      const defaultEndBase = new Date(base.getTime() + 60 * 60 * 1000);
       setTitle('');
       setStartDate(format(base, 'yyyy-MM-dd'));
-      setStartTime('09:00');
+      setStartTime(defaultStart);
       setEndDate(format(base, 'yyyy-MM-dd'));
-      setEndTime('10:00');
+      setEndTime(hasTime ? format(defaultEndBase, 'HH:mm') : '10:00');
       setMultiDay(false);
       setLocation('');
       setDescription('');

@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
     dueDate: row.due_date ? new Date(Number(row.due_date)).toISOString() : null,
     memo: row.memo,
     orderIndex: Number(row.order_index || 0),
+    priority: row.priority || null,
+    completedAt: row.completed_at ? new Date(Number(row.completed_at)).toISOString() : null,
     createdAt: new Date(Number(row.created_at)).toISOString(),
   }));
 
@@ -31,12 +33,12 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const id = randomUUID();
-  const maxResult = await turso.execute({ sql: 'SELECT COALESCE(MAX(order_index), -1) AS max_order FROM todos WHERE user_id = ?', args: [uid] });
-  const orderIndex = Number(maxResult.rows[0]?.max_order ?? -1) + 1;
+  const minResult = await turso.execute({ sql: 'SELECT COALESCE(MIN(order_index), 1) AS min_order FROM todos WHERE user_id = ?', args: [uid] });
+  const orderIndex = Number(minResult.rows[0]?.min_order ?? 1) - 1;
 
   await turso.execute({
-    sql: `INSERT INTO todos (id, user_id, title, completed, due_date, memo, order_index, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, uid, body.title, body.completed ? 1 : 0, body.dueDate ? new Date(body.dueDate).getTime() : null, body.memo || '', orderIndex, Date.now()],
+    sql: `INSERT INTO todos (id, user_id, title, completed, due_date, memo, order_index, priority, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, uid, body.title, body.completed ? 1 : 0, body.dueDate ? new Date(body.dueDate).getTime() : null, body.memo || '', orderIndex, body.priority || null, Date.now()],
   });
 
   return NextResponse.json({ id });

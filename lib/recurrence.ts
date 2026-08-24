@@ -92,3 +92,16 @@ export const RECURRENCE_LABELS: Record<string, string> = {
   monthly: '매월 반복',
   yearly: '매년 반복',
 };
+
+/**
+ * 특정 날짜(day)에 실제로 표시될 이 일정의 시작/종료 시각을 계산.
+ * 반복 일정은 매 회차 시:분(시간)이 원본 event.start/end와 동일하다고 가정.
+ * 주별/일별 시간표(TimeGrid)에서 이벤트 블록의 위치·높이를 계산할 때 사용.
+ */
+export function getOccurrenceTimes(event: EventLike, day: Date): { start: Date; end: Date } {
+  const d = startOfDay(day);
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), event.start.getHours(), event.start.getMinutes(), 0, 0);
+  let end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), event.end.getHours(), event.end.getMinutes(), 0, 0);
+  if (end.getTime() <= start.getTime()) end = new Date(start.getTime() + 30 * 60 * 1000);
+  return { start, end };
+}

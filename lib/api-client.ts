@@ -25,6 +25,7 @@ async function request(path: string, options: RequestInit = {}) {
 }
 
 export const api = {
+  bootstrap: () => request('/api/bootstrap'),
   events: {
     list: () => request('/api/events'),
     create: (data: any) => request('/api/events', { method: 'POST', body: JSON.stringify(data) }),

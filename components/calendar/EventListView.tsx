@@ -25,14 +25,20 @@ export default function EventListView({ events, user, onNotify, onRefresh }: any
   }, [events, ascending]);
 
   const toggleYear = (year: number) => setOpenYears((prev) => ({ ...prev, [String(year)]: !prev[String(year)] }));
+  const expandAll = () => setOpenYears(Object.fromEntries(years.map(([y]) => [String(y), true])));
+  const collapseAll = () => setOpenYears(Object.fromEntries(years.map(([y]) => [String(y), false])));
 
   return (
     <div className="max-w-3xl mx-auto space-y-4 p-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-2xl font-black">일정 목록</h2>
-        <button onClick={() => setAscending((v) => !v)} className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-800/60 text-xs font-bold">
-          {ascending ? '시간순 ↑' : '최신순 ↓'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={expandAll} className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-800/60 text-xs font-bold">전체 펼치기</button>
+          <button onClick={collapseAll} className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-800/60 text-xs font-bold">전체 닫기</button>
+          <button onClick={() => setAscending((v) => !v)} className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-800/60 text-xs font-bold">
+            {ascending ? '시간순 ↑' : '최신순 ↓'}
+          </button>
+        </div>
       </div>
 
       {years.length === 0 && <div className="text-center text-slate-500 py-16">등록된 일정이 없습니다.</div>}

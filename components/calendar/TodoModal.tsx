@@ -5,16 +5,24 @@ import { format } from 'date-fns';
 import { api } from '../../lib/api-client';
 import { Calendar as CalIcon, Trash2, X, AlignLeft } from 'lucide-react';
 
+const PRIORITIES = [
+  { key: 'red', dot: 'bg-rose-500', ring: 'ring-rose-500' },
+  { key: 'yellow', dot: 'bg-amber-400', ring: 'ring-amber-400' },
+  { key: 'green', dot: 'bg-emerald-500', ring: 'ring-emerald-500' },
+];
+
 export default function TodoModal({ todo, notify, onClose, onRefresh }: any) {
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [memo, setMemo] = useState('');
+  const [priority, setPriority] = useState<string | null>(null);
 
   useEffect(() => {
     if (!todo) return;
     setTitle(todo.title || '');
     setDueDate(todo.dueDate ? format(todo.dueDate, 'yyyy-MM-dd') : '');
     setMemo(todo.memo || '');
+    setPriority(todo.priority || null);
   }, [todo]);
 
   const notifyFn = notify || (() => {});
@@ -27,12 +35,16 @@ export default function TodoModal({ todo, notify, onClose, onRefresh }: any) {
     const t = title.trim();
     const d = dueDate;
     const m = memo;
+    const p = priority;
+    const priorityChanged = p !== (todo.priority || null);
     onClose();
 
     api.todos.update(id, {
       title: t,
       dueDate: d ? new Date(d).toISOString() : null,
       memo: m,
+      priority: p,
+      bumpToTop: priorityChanged && !!p,
     })
       .then(() => { notifyFn('할 일이 수정되었습니다.'); onRefresh?.(); })
       .catch((err: any) => {
@@ -63,6 +75,19 @@ export default function TodoModal({ todo, notify, onClose, onRefresh }: any) {
             <button onClick={onClose} className="p-1 hover:bg-slate-800 rounded-full"><X/></button>
           </div>
           <input autoFocus className="w-full bg-transparent text-xl font-bold focus:outline-none border-b border-slate-700 pb-2" placeholder="할 일 내용" value={title} onChange={(e) => setTitle(e.target.value)} />
+
+          <div className="flex items-center justify-center gap-4 py-1">
+            {PRIORITIES.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => setPriority(priority === p.key ? null : p.key)}
+                title={p.key === 'red' ? '긴급' : p.key === 'yellow' ? '보통' : '여유'}
+                className={`w-7 h-7 rounded-full ${p.dot} transition ${priority === p.key ? `ring-4 ring-offset-2 ring-offset-slate-900 ${p.ring} scale-110` : 'opacity-40 hover:opacity-80'}`}
+              />
+            ))}
+          </div>
+
           <div className="flex items-center gap-3 bg-slate-800 p-3 rounded-2xl">
             <CalIcon className="w-4 h-4 text-slate-500" />
             <input type="date" className="bg-transparent flex-1 outline-none text-sm" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
