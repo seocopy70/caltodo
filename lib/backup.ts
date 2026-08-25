@@ -1,5 +1,14 @@
 import { turso } from './turso';
 
+// 값이 없거나 잘못된 타임스탬프여도 죽지 않도록 안전하게 ISO 문자열로 변환 (실패 시 null)
+function safeIso(value: any): string | null {
+  if (value == null) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const d = new Date(n);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 /** bootstrap API와 동일한 형태로 한 사용자의 events/todos/notes를 모두 모아 백업 JSON 문자열로 만든다. */
 export async function buildUserBackupJson(uid: string): Promise<string> {
   const [eventsResult, todosResult, notesResult] = await Promise.all([
@@ -11,9 +20,9 @@ export async function buildUserBackupJson(uid: string): Promise<string> {
   const events = eventsResult.rows.map((row: any) => ({
     id: row.id,
     title: row.title,
-    start: new Date(Number(row.start)).toISOString(),
-    end: new Date(Number(row.end)).toISOString(),
-    endDate: row.end_date == null ? null : new Date(Number(row.end_date)).toISOString(),
+    start: safeIso(row.start),
+    end: safeIso(row.end_time),
+    endDate: safeIso(row.end_date),
     location: row.location || '',
     description: row.description || '',
     color: row.color || 'blue',
@@ -27,9 +36,9 @@ export async function buildUserBackupJson(uid: string): Promise<string> {
     title: row.title,
     completed: !!row.completed,
     priority: row.priority || null,
-    dueDate: row.due_date ? new Date(Number(row.due_date)).toISOString() : null,
-    completedAt: row.completed_at ? new Date(Number(row.completed_at)).toISOString() : null,
-    createdAt: new Date(Number(row.created_at)).toISOString(),
+    dueDate: safeIso(row.due_date),
+    completedAt: safeIso(row.completed_at),
+    createdAt: safeIso(row.created_at),
     memo: row.memo || '',
   }));
 
@@ -39,8 +48,8 @@ export async function buildUserBackupJson(uid: string): Promise<string> {
     content: row.content || '',
     showToday: Number(row.show_today || 0) === 1,
     folderId: row.folder_id || null,
-    createdAt: new Date(Number(row.created_at)).toISOString(),
-    updatedAt: new Date(Number(row.updated_at)).toISOString(),
+    createdAt: safeIso(row.created_at),
+    updatedAt: safeIso(row.updated_at),
     deletedAt: null,
   }));
 
