@@ -47,4 +47,15 @@ export const api = {
     restore: (id: string) => request(`/api/notes/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'restore' }) }),
     purge: (id: string) => request(`/api/notes/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'purge' }) }),
   },
+  noteFolders: {
+    list: () => request('/api/note-folders'),
+    create: (name: string) => request('/api/note-folders', { method: 'POST', body: JSON.stringify({ name }) }),
+    rename: (id: string, name: string) => request(`/api/note-folders/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+    remove: (id: string) => request(`/api/note-folders/${id}`, { method: 'DELETE' }),
+  },
+  backup: {
+    getSettings: () => request('/api/backup/settings'),
+    updateSettings: (frequency: string) => request('/api/backup/settings', { method: 'PUT', body: JSON.stringify({ frequency }) }),
+    sendNow: () => request('/api/backup/send', { method: 'POST' }),
+  },
 };

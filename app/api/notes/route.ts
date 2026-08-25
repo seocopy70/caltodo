@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     updatedAt: new Date(Number(row.updated_at)).toISOString(),
     deletedAt: row.deleted_at == null ? null : new Date(Number(row.deleted_at)).toISOString(),
     showToday: Number(row.show_today || 0) === 1,
+    folderId: row.folder_id || null,
   }));
 
   return NextResponse.json({ notes });
@@ -41,8 +42,8 @@ export async function POST(req: NextRequest) {
   const deletedAt = body.deletedAt ? new Date(body.deletedAt).getTime() : null;
 
   await turso.execute({
-    sql: `INSERT OR REPLACE INTO notes (id, user_id, title, content, created_at, updated_at, deleted_at, show_today) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, uid, body.title || '(제목 없음)', body.content || '', createdAt, updatedAt, deletedAt, body.showToday ? 1 : 0],
+    sql: `INSERT OR REPLACE INTO notes (id, user_id, title, content, created_at, updated_at, deleted_at, show_today, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, uid, body.title || '(제목 없음)', body.content || '', createdAt, updatedAt, deletedAt, body.showToday ? 1 : 0, body.folderId || null],
   });
 
   return NextResponse.json({ id });

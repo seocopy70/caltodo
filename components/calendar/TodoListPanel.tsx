@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { format, isToday } from 'date-fns';
-import { CalendarDays, CheckCircle2, Circle, ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Circle, ChevronDown, ChevronUp, GripVertical, Trash2, Plus } from 'lucide-react';
 import { api } from '../../lib/api-client';
 import TodoModal from './TodoModal';
 
@@ -46,6 +46,8 @@ export default function TodoListPanel({
   onRemoveTodo,
   maxVisible,
   compact = false,
+  hideCompleted = false,
+  largePlaceholder = false,
 }: any) {
   const [newTodo, setNewTodo] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -176,9 +178,9 @@ export default function TodoListPanel({
       )}
 
       <form onSubmit={addTodo} className="flex items-center gap-2 px-4 py-3 border-b border-slate-700/40">
-        <Circle className="w-5 h-5 text-slate-500 shrink-0" />
+        <Plus className="w-5 h-5 text-slate-500 shrink-0" />
         <input
-          className="flex-1 min-w-0 bg-transparent outline-none text-sm placeholder:text-slate-500"
+          className={`flex-1 min-w-0 bg-transparent outline-none placeholder:text-slate-500 ${largePlaceholder ? 'text-base' : 'text-sm'}`}
           placeholder="새 할일"
           value={newTodo}
           onChange={(e) => setNewTodo(e.target.value)}
@@ -230,7 +232,7 @@ export default function TodoListPanel({
               onPointerDown={(e) => { e.preventDefault(); startDrag(todo.id); }}
               className="shrink-0 touch-none cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300"
             >
-              <GripVertical className="w-4 h-4" />
+              <GripVertical className="w-6 h-6" />
             </button>
           </div>
         ))}
@@ -238,7 +240,7 @@ export default function TodoListPanel({
 
       {activeTodos.length === 0 && <div className="px-4 py-6 text-center text-sm text-slate-600">할 일이 없습니다.</div>}
 
-      {completedTodos.length > 0 && (
+      {!hideCompleted && completedTodos.length > 0 && (
         <div className="border-t border-slate-700/40">
           <button onClick={() => setShowCompleted((v) => !v)} className="w-full flex items-center gap-2 px-4 py-3 text-xs font-bold text-slate-500 hover:text-slate-300">
             {showCompleted ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4 rotate-90" />}

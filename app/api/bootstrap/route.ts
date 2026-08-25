@@ -9,10 +9,11 @@ export async function GET(req: NextRequest) {
   const uid = await verifyRequestUser(req);
   if (!uid) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const [eventsResult, todosResult, notesResult] = await Promise.all([
+  const [eventsResult, todosResult, notesResult, foldersResult] = await Promise.all([
     turso.execute({ sql: 'SELECT * FROM events WHERE user_id = ? ORDER BY start ASC', args: [uid] }),
     turso.execute({ sql: 'SELECT * FROM todos WHERE user_id = ? ORDER BY completed ASC, order_index ASC, created_at ASC', args: [uid] }),
     turso.execute({ sql: 'SELECT * FROM notes WHERE user_id = ? ORDER BY deleted_at IS NOT NULL, updated_at DESC', args: [uid] }),
+    turso.execute({ sql: 'SELECT * FROM note_folders WHERE user_id = ? ORDER BY order_index ASC, created_at ASC', args: [uid] }).catch(() => ({ rows: [] as any[] })),
   ]);
 
   const events = eventsResult.rows.map((row: any) => ({
@@ -52,7 +53,15 @@ export async function GET(req: NextRequest) {
     updatedAt: new Date(Number(row.updated_at)).toISOString(),
     deletedAt: row.deleted_at == null ? null : new Date(Number(row.deleted_at)).toISOString(),
     showToday: Number(row.show_today || 0) === 1,
+    folderId: row.folder_id || null,
   }));
 
-  return NextResponse.json({ events, todos, notes });
+  const noteFolders = foldersResult.rows.map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    orderIndex: Number(row.order_index || 0),
+    createdAt: new Date(Number(row.created_at)).toISOString(),
+  }));
+
+  return NextResponse.json({ events, todos, notes, noteFolders });
 }

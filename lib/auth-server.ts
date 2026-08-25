@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server';
 // JSON 파일 내용을 그대로 한 줄 문자열로 Vercel 환경변수에 등록해야 함.
 let app: App;
 
-function getAdminApp() {
+export function getAdminApp() {
   if (getApps().length > 0) return getApps()[0];
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (!raw) {
@@ -29,6 +29,17 @@ export async function verifyRequestUser(req: NextRequest): Promise<string | null
     return decoded.uid;
   } catch (err) {
     console.error('토큰 검증 실패:', err);
+    return null;
+  }
+}
+
+/** 구글 로그인 시 등록된 사용자 이메일 조회 (백업 이메일 발송용) */
+export async function getUserEmail(uid: string): Promise<string | null> {
+  try {
+    const userRecord = await getAuth(getAdminApp()).getUser(uid);
+    return userRecord.email || null;
+  } catch (err) {
+    console.error('사용자 이메일 조회 실패:', err);
     return null;
   }
 }
