@@ -14,7 +14,7 @@ export default function GlobalSearch({ query, events, todos, notes, onClose, onE
     return {
       events: events.filter((e: any) => `${e.title} ${e.location || ''} ${e.description || ''}`.toLowerCase().includes(q)).slice(0, 20),
       todos: todos.filter((t: any) => `${t.title} ${t.memo || ''}`.toLowerCase().includes(q)).slice(0, 20),
-      notes: notes.filter((n: any) => `${n.title} ${n.content || ''}`.toLowerCase().includes(q)).slice(0, 20),
+      notes: notes.filter((n: any) => (n.locked ? n.title : `${n.title} ${n.content || ''}`).toLowerCase().includes(q)).slice(0, 20),
     };
   }, [q, events, todos, notes]);
 
@@ -89,7 +89,7 @@ export default function GlobalSearch({ query, events, todos, notes, onClose, onE
           </section>}
           {results.notes.length > 0 && <section>
             <h4 className="text-xs font-black text-amber-500 dark:text-amber-400 mb-2 flex items-center gap-1.5"><FileText className="w-4 h-4" />메모</h4>
-            <div className="space-y-1.5">{results.notes.map((n: any) => <button key={n.id} onClick={() => onNote(n)} className="w-full text-left p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800"><span className="font-bold text-sm">{n.title}</span><span className="block text-[11px] text-slate-500 line-clamp-1">{n.content}</span></button>)}</div>
+            <div className="space-y-1.5">{results.notes.map((n: any) => <button key={n.id} onClick={() => onNote(n)} className="w-full text-left p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800"><span className="font-bold text-sm">{n.locked ? '비밀 메모' : n.title}</span>{!n.locked && <span className="block text-[11px] text-slate-500 line-clamp-1">{n.content}</span>}</button>)}</div>
           </section>}
         </div>
       )}

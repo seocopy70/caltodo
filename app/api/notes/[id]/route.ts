@@ -14,17 +14,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!(await assertOwnership(params.id, uid))) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   const body = await req.json();
-  // folderId를 명시적으로 안 보낸 요청(예: 오늘탭 인라인 저장)은 기존 폴더 배정을 유지
-  let folderId: string | null = null;
-  if (body.folderId !== undefined) {
-    folderId = body.folderId || null;
-  } else {
-    const existing = await turso.execute({ sql: 'SELECT folder_id FROM notes WHERE id = ?', args: [params.id] });
-    folderId = (existing.rows[0]?.folder_id as string) || null;
-  }
+  const existing = await turso.execute({ sql: 'SELECT folder_id, format, locked, lock_type, lock_hash FROM notes WHERE id = ?', args: [params.id] });
+  const existingRow: any = existing.rows[0] || {};
+  // 명시적으로 안 보낸 필드(예: 오늘탭 인라인 저장)는 기존 값을 그대로 유지
+  const folderId = body.folderId !== undefined ? (body.folderId || null) : (existingRow.folder_id || null);
+  const format = body.format !== undefined ? (body.format || 'plain') : (existingRow.format || 'plain');
+  const locked = body.locked !== undefined ? (body.locked ? 1 : 0) : Number(existingRow.locked || 0);
+  const lockType = body.locked !== undefined ? (body.locked ? (body.lockType || null) : null) : (existingRow.lock_type || null);
+  const lockHash = body.locked !== undefined ? (body.locked ? (body.lockHash || null) : null) : (existingRow.lock_hash || null);
+
   await turso.execute({
-    sql: 'UPDATE notes SET title = ?, content = ?, updated_at = ?, show_today = ?, folder_id = ? WHERE id = ? AND deleted_at IS NULL',
-    args: [body.title || '(제목 없음)', body.content || '', Date.now(), body.showToday ? 1 : 0, folderId, params.id],
+    sql: 'UPDATE notes SET title = ?, content = ?, updated_at = ?, show_today = ?, folder_id = ?, format = ?, locked = ?, lock_type = ?, lock_hash = ? WHERE id = ? AND deleted_at IS NULL',
+    args: [body.title || '(제목 없음)', body.content || '', Date.now(), body.showToday ? 1 : 0, folderId, format, locked, lockType, lockHash, params.id],
   });
 
   return NextResponse.json({ ok: true });

@@ -1,3 +1,5 @@
+import { lunarToSolarDate } from './holidays';
+
 // 일정의 "다중일" / "반복" 규칙을 한 곳에서 계산하는 헬퍼.
 //
 // 데이터 모델 요약 (Firestore `events` 컬렉션):
@@ -6,6 +8,9 @@
 // - endDate: 다중일 일정일 때만 존재. 마지막 날짜(그 날의 종료시간은 end의 시간을 사용)
 // - recurrenceType: 'none' | 'weekly' | 'monthly' | 'yearly'
 //   (레거시 문서는 recurrenceType이 없고 recurring: true 만 있을 수 있음 -> 'yearly'로 취급)
+// - recurrenceCount: 반복 총 횟수(선택). 비어있으면 무한 반복.
+// - isLunar/lunarMonth/lunarDay: 매년 반복(yearly) + 음력 생일/기념일일 때, 매년 해당 음력 날짜를
+//   양력으로 환산해서 표시하기 위한 필드.
 //
 // 단순화를 위해 "다중일"과 "반복"은 동시에 쓰지 않는다 (반복 일정은 항상 하루짜리).
 
@@ -15,6 +20,10 @@ export type EventLike = {
   endDate?: Date | null;
   recurrenceType?: 'none' | 'weekly' | 'monthly' | 'yearly';
   recurring?: boolean; // 레거시 필드
+  recurrenceCount?: number | null; // 반복 총 횟수 (없으면 무한)
+  isLunar?: boolean;
+  lunarMonth?: number | null;
+  lunarDay?: number | null;
 };
 
 function startOfDay(d: Date) {
@@ -31,6 +40,24 @@ export function getRecurrenceType(event: EventLike): 'none' | 'weekly' | 'monthl
   return 'none';
 }
 
+/** 반복 횟수 제한 확인. recurrenceCount가 없으면(0 이하 포함) 무한 반복. */
+function withinRecurrenceCount(event: EventLike, occurrenceIndex: number): boolean {
+  const count = event.recurrenceCount;
+  if (!count || count <= 0) return true;
+  return occurrenceIndex < count;
+}
+
+/** 음력 생일/기념일: 주어진 연도의 해당 양력 날짜(월/일)를 계산 */
+function lunarYearlyOccurrence(event: EventLike, targetYear: number): { month: number; date: number } | null {
+  if (event.lunarMonth == null || event.lunarDay == null) return null;
+  try {
+    const solar = lunarToSolarDate(targetYear, event.lunarMonth, event.lunarDay);
+    return { month: solar.getMonth(), date: solar.getDate() };
+  } catch {
+    return null;
+  }
+}
+
 /** 특정 날짜(day)에 이 일정이 표시되어야 하는지 여부 */
 export function eventOccursOnDay(event: EventLike, day: Date): boolean {
   const recurrenceType = getRecurrenceType(event);
@@ -45,17 +72,28 @@ export function eventOccursOnDay(event: EventLike, day: Date): boolean {
   if (dayStart.getTime() < eventStart.getTime()) return false;
 
   if (recurrenceType === 'yearly') {
-    return dayStart.getMonth() === eventStart.getMonth() && dayStart.getDate() === eventStart.getDate();
+    if (event.isLunar && event.lunarMonth != null && event.lunarDay != null) {
+      const occ = lunarYearlyOccurrence(event, dayStart.getFullYear());
+      if (!occ || dayStart.getMonth() !== occ.month || dayStart.getDate() !== occ.date) return false;
+    } else if (dayStart.getMonth() !== eventStart.getMonth() || dayStart.getDate() !== eventStart.getDate()) {
+      return false;
+    }
+    const occurrenceIndex = dayStart.getFullYear() - eventStart.getFullYear();
+    return withinRecurrenceCount(event, occurrenceIndex);
   }
 
   if (recurrenceType === 'monthly') {
     const dim = daysInMonth(dayStart.getFullYear(), dayStart.getMonth());
     const targetDay = Math.min(eventStart.getDate(), dim);
-    return dayStart.getDate() === targetDay;
+    if (dayStart.getDate() !== targetDay) return false;
+    const occurrenceIndex = (dayStart.getFullYear() - eventStart.getFullYear()) * 12 + (dayStart.getMonth() - eventStart.getMonth());
+    return withinRecurrenceCount(event, occurrenceIndex);
   }
 
   if (recurrenceType === 'weekly') {
-    return dayStart.getDay() === eventStart.getDay();
+    if (dayStart.getDay() !== eventStart.getDay()) return false;
+    const occurrenceIndex = Math.round((dayStart.getTime() - eventStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+    return withinRecurrenceCount(event, occurrenceIndex);
   }
 
   return false;

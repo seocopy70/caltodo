@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '../../lib/api-client';
-import { Upload, X, FileJson, CalendarDays, DatabaseBackup, Mail, Send } from 'lucide-react';
+import { Upload, X, FileJson, CalendarDays, DatabaseBackup } from 'lucide-react';
 import { eventsToICS, downloadTextFile, parseICS, type ParsedICSEvent } from '../../lib/ics';
-
-const FREQUENCY_LABEL: Record<string, string> = { off: '사용 안 함', daily: '매일', weekly: '매주', monthly: '매월' };
 
 export default function ImportExportPanel({ events, todos, notes, user, onNotify, onRefresh, onClose }: any) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -13,34 +11,7 @@ export default function ImportExportPanel({ events, todos, notes, user, onNotify
   const [pendingImport, setPendingImport] = useState<ParsedICSEvent[] | null>(null);
   const [pendingJsonImport, setPendingJsonImport] = useState<{ events: any[]; todos: any[]; notes: any[] } | null>(null);
   const [importing, setImporting] = useState(false);
-  const [frequency, setFrequency] = useState('off');
-  const [lastSentAt, setLastSentAt] = useState<string | null>(null);
-  const [sendingNow, setSendingNow] = useState(false);
   const notify = onNotify || (() => {});
-
-  useEffect(() => {
-    api.backup.getSettings().then((res: any) => { setFrequency(res.frequency || 'off'); setLastSentAt(res.lastSentAt); }).catch(() => {});
-  }, []);
-
-  const changeFrequency = (value: string) => {
-    setFrequency(value);
-    api.backup.updateSettings(value)
-      .then(() => notify(value === 'off' ? '자동 백업을 껐어요.' : `${FREQUENCY_LABEL[value]} 자동으로 이메일 백업을 보낼게요.`))
-      .catch((err: any) => notify(`설정 저장 실패: ${err.message || err}`, 'error'));
-  };
-
-  const sendBackupEmailNow = async () => {
-    setSendingNow(true);
-    try {
-      const res = await api.backup.sendNow();
-      notify(`${res.sentTo}로 백업을 보냈어요.`);
-      setLastSentAt(new Date().toISOString());
-    } catch (err: any) {
-      notify(`이메일 발송 실패: ${err.message || err}`, 'error');
-    } finally {
-      setSendingNow(false);
-    }
-  };
 
   const exportICS = () => { const ics = eventsToICS(events); downloadTextFile(`cal2do-events-${Date.now()}.ics`, ics); notify('일정을 .ics 파일로 내보냈어요.'); };
   const exportTodosTxt = () => {
@@ -140,21 +111,6 @@ export default function ImportExportPanel({ events, todos, notes, user, onNotify
       </div>
       <div className="h-px bg-slate-200 dark:bg-slate-800" />
       <div className="space-y-2"><button onClick={exportICS} className="w-full flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl"><CalendarDays className="w-5 h-5 text-emerald-500 dark:text-emerald-400" /><span className="font-bold text-sm text-slate-900 dark:text-white">일정 내보내기 (.ics)</span></button><button onClick={exportTodosTxt} className="w-full flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl"><FileJson className="w-5 h-5 text-blue-500 dark:text-blue-400" /><span className="font-bold text-sm text-slate-900 dark:text-white">할 일 내보내기 (.txt)</span></button><button onClick={exportNotesTxt} className="w-full flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl"><FileJson className="w-5 h-5 text-amber-500 dark:text-amber-400" /><span className="font-bold text-sm text-slate-900 dark:text-white">메모 내보내기 (.txt)</span></button><button onClick={exportJSON} className="w-full flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl"><FileJson className="w-5 h-5 text-violet-500 dark:text-violet-400" /><span className="font-bold text-sm text-slate-900 dark:text-white">전체 백업 (JSON, 일정+할일+메모)</span></button></div>
-      <div className="h-px bg-slate-200 dark:bg-slate-800" />
-      <div className="space-y-3">
-        <p className="text-xs font-bold text-slate-500 flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> 이메일로 백업 보내기</p>
-        <p className="text-[11px] text-slate-500">로그인에 사용한 구글 이메일({user?.email || '로그인 계정'})로 전체 백업(.json)을 보내드려요.</p>
-        <button onClick={sendBackupEmailNow} disabled={sendingNow} className="w-full flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl disabled:opacity-60"><Send className="w-5 h-5 text-blue-500 dark:text-blue-400" /><div className="text-left"><p className="font-bold text-sm text-slate-900 dark:text-white">{sendingNow ? '보내는 중...' : '지금 이메일로 백업 보내기'}</p>{lastSentAt && <p className="text-[11px] text-slate-500">마지막 발송: {new Date(lastSentAt).toLocaleString('ko-KR')}</p>}</div></button>
-        <div>
-          <p className="text-xs font-bold text-slate-500 mb-1.5">자동 백업 주기</p>
-          <div className="grid grid-cols-4 gap-1.5">
-            {(['off', 'daily', 'weekly', 'monthly'] as const).map((f) => (
-              <button key={f} onClick={() => changeFrequency(f)} className={`py-2 rounded-xl text-xs font-bold ${frequency === f ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>{FREQUENCY_LABEL[f]}</button>
-            ))}
-          </div>
-          <p className="text-[10px] text-slate-500 mt-1.5">구글 계정 용량 등 문제로 이메일 발송이 실패하면 다음 접속 시 알려드릴게요.</p>
-        </div>
-      </div>
     </> : <div className="space-y-4"><p className="text-sm text-slate-700 dark:text-slate-200">총 <span className="font-bold text-blue-500 dark:text-blue-400">{pendingImport.length}개</span>의 일정을 찾았어요. 캘린더에 추가할까요?</p><div className="max-h-48 overflow-y-auto space-y-1.5 bg-slate-100 dark:bg-slate-800/50 rounded-xl p-3">{pendingImport.slice(0, 20).map((ev, i) => <p key={i} className="text-xs text-slate-500 dark:text-slate-400 truncate">• {ev.title} ({ev.start.toLocaleDateString('ko-KR')})</p>)}</div><div className="flex gap-3"><button onClick={() => setPendingImport(null)} className="flex-1 py-3 font-bold text-slate-500 dark:text-slate-400">취소</button><button disabled={importing} onClick={confirmImport} className="flex-[2] py-3 bg-blue-600 text-white rounded-2xl font-bold">{importing ? '가져오는 중...' : '가져오기'}</button></div></div>}
   </div></div></div>;
 }

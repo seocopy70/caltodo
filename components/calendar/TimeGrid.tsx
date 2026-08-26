@@ -10,6 +10,7 @@ const HOUR_HEIGHT = 42; // px per hour (기존 48 대비 살짝 축소)
 const ALL_HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SCROLL_TO_HOUR = 6; // 탭 진입 시 06시 위치로 스크롤 (위아래로 스크롤하면 00~24시 전체 확인 가능)
 const WEEK_VISIBLE_HOURS = 15; // 주별보기에서 스크롤 없이 기본으로 보여줄 시간 범위(06~20시)
+const WEEK_DAY_COL_WIDTH = 92; // 주별보기에서 좁은 화면일 때 한 칸의 최소 폭(가로 스크롤로 전체 확인 가능)
 
 function isAllDayConvention(start: Date, end: Date) {
   return start.getHours() === 0 && start.getMinutes() === 0 && end.getHours() === 23 && end.getMinutes() === 59;
@@ -62,8 +63,10 @@ function layoutColumns(items: { event: any; start: Date; end: Date }[]) {
 export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEventClick, onDayHeaderClick }: any) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const HOURS: number[] = ALL_HOURS;
-  const firstHour = 0;
   const isWeekView = days.length > 1;
+  // 주별보기는 좁은 화면에서 칸이 눌리지 않도록 최소 폭을 두고, 넘치면 좌우로 스크롤해서 전체를 볼 수 있게 함
+  const colStyle = isWeekView ? { minWidth: WEEK_DAY_COL_WIDTH } : undefined;
+  const innerMinWidth = isWeekView ? 36 + days.length * WEEK_DAY_COL_WIDTH : undefined;
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = SCROLL_TO_HOUR * HOUR_HEIGHT;
@@ -77,91 +80,101 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
 
   return (
     <div className="flex flex-col border border-slate-300 dark:border-slate-700 rounded-2xl overflow-hidden shadow-2xl bg-white/70 dark:bg-slate-900/20">
-      {/* 헤더: 요일+날짜 한 줄 */}
-      <div className="flex border-b border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60">
-        <div className="w-9 shrink-0" />
-        {days.map((day: Date, i: number) => {
-          const isToday = isSameDay(day, new Date());
-          const dow = day.getDay();
-          const holidayName = holidayMap?.[format(day, 'yyyy-MM-dd')];
-          const dateColorClass = isToday ? 'text-blue-600 dark:text-blue-400' : holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-600 dark:text-slate-300';
-          return (
-            <div
-              key={i}
-              onClick={isWeekView ? () => onDayHeaderClick?.(day) : undefined}
-              className={`flex-1 min-w-0 text-center py-2 border-l border-slate-200 dark:border-slate-800 first:border-l-0 ${isWeekView ? 'cursor-pointer hover:bg-blue-500/5' : ''}`}
-            >
-              <div className={`text-sm font-black flex items-center justify-center gap-1 ${dateColorClass}`}><span>{format(day, 'd')}</span><span className="text-[10px] font-bold text-slate-400">({format(day, 'EEE', { locale: ko })})</span></div>
-              {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate px-1">{holidayName}</div>}
-            </div>
-          );
-        })}
-      </div>
+      {/* data-hscroll: 이 영역 안에서 좌우로 밀면 그리드 자체가 스크롤되고(탭 순환 아님), 영역 밖에서 밀면 탭이 순환됨 */}
+      <div data-hscroll className="overflow-x-auto">
+        <div style={innerMinWidth ? { minWidth: innerMinWidth } : undefined}>
+          {/* 헤더: 요일+날짜 한 줄 */}
+          <div className="flex border-b border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60">
+            <div className="w-9 shrink-0" />
+            {days.map((day: Date, i: number) => {
+              const isToday = isSameDay(day, new Date());
+              const dow = day.getDay();
+              const holidayName = holidayMap?.[format(day, 'yyyy-MM-dd')];
+              const dateColorClass = isToday ? 'text-blue-600 dark:text-blue-400' : holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-600 dark:text-slate-300';
+              return (
+                <div
+                  key={i}
+                  style={colStyle}
+                  onClick={isWeekView ? () => onDayHeaderClick?.(day) : undefined}
+                  className={`flex-1 min-w-0 text-center py-2 border-l border-slate-200 dark:border-slate-800 first:border-l-0 ${isWeekView ? 'cursor-pointer hover:bg-blue-500/5' : ''}`}
+                >
+                  <div className={`text-sm font-black flex items-center justify-center gap-1 ${dateColorClass}`}><span>{format(day, 'd')}</span><span className="text-[10px] font-bold text-slate-400">({format(day, 'EEE', { locale: ko })})</span></div>
+                  {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate px-1">{holidayName}</div>}
+                </div>
+              );
+            })}
+          </div>
 
-      {/* 종일 일정 */}
-      {allDayEvents.length > 0 && (
-        <div className="flex border-b border-slate-200 dark:border-slate-800">
-          <div className="w-9 shrink-0 text-[9px] text-slate-400 flex items-center justify-center">종일</div>
-          {days.map((day: Date, i: number) => (
-            <div key={i} className="flex-1 min-w-0 border-l border-slate-100 dark:border-slate-800/60 first:border-l-0 p-1 space-y-1">
-              {allDayEvents.filter((e: any) => eventOccursOnDay(e, day)).map((e: any, idx: number) => (
-                <div key={idx} onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }} className={`px-1.5 py-0.5 rounded text-xs font-bold truncate border-l-4 flex items-center gap-1 cursor-pointer ${colorClasses(e)}`}>
-                  <CalendarRange className="w-2.5 h-2.5 shrink-0" /><span className="truncate">{e.title}</span>
+          {/* 종일 일정: 기본 높이를 시간 그리드 한 칸과 동일하게 맞춤 */}
+          {allDayEvents.length > 0 && (
+            <div className="flex border-b border-slate-200 dark:border-slate-800">
+              <div style={{ minHeight: HOUR_HEIGHT }} className="w-9 shrink-0 text-[9px] text-slate-400 flex items-center justify-center">종일</div>
+              {days.map((day: Date, i: number) => (
+                <div key={i} style={{ minHeight: HOUR_HEIGHT, ...colStyle }} className="flex-1 min-w-0 border-l border-slate-100 dark:border-slate-800/60 first:border-l-0 p-1 space-y-1">
+                  {allDayEvents.filter((e: any) => eventOccursOnDay(e, day)).map((e: any, idx: number) => (
+                    <div key={idx} onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }} className={`px-1.5 py-0.5 rounded text-xs font-bold truncate border-l-4 flex items-center gap-1 cursor-pointer ${colorClasses(e)}`}>
+                      <CalendarRange className="w-2.5 h-2.5 shrink-0" /><span className="truncate">{e.title}</span>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* 시간표 본문: 주별보기는 기본으로 06~20시 정도만 보이는 높이로 제한하고(스크롤 시 00~24시 전체 확인 가능), 일별보기는 화면 비율 기준 */}
-      <div ref={scrollRef} className="flex overflow-y-auto" style={{ maxHeight: isWeekView ? WEEK_VISIBLE_HOURS * HOUR_HEIGHT : '65vh' }}>
-        <div className="w-9 shrink-0">
-          {HOURS.map((h) => (
-            <div key={h} style={{ height: HOUR_HEIGHT }} className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-right pr-1 -translate-y-1.5 border-t border-slate-100 dark:border-slate-800/60">{h === 0 ? '' : `${h}시`}</div>
-          ))}
-        </div>
-        {days.map((day: Date, i: number) => {
-          const dayItems = timedEvents
-            .filter((e: any) => eventOccursOnDay(e, day))
-            .map((e: any) => ({ event: e, ...getOccurrenceTimes(e, day) }));
-          const layout = layoutColumns(dayItems);
-          return (
-            <div key={i} className="flex-1 min-w-0 relative border-l border-slate-100 dark:border-slate-800/60 first:border-l-0">
+          {/* 시간표 본문: 주별보기는 기본으로 06~20시 정도만 보이는 높이로 제한하고(스크롤 시 00~24시 전체 확인 가능), 일별보기는 화면 비율 기준 */}
+          <div ref={scrollRef} className="flex overflow-y-auto" style={{ maxHeight: isWeekView ? WEEK_VISIBLE_HOURS * HOUR_HEIGHT : '65vh' }}>
+            <div className="w-9 shrink-0">
               {HOURS.map((h) => (
-                <div
-                  key={h}
-                  style={{ height: HOUR_HEIGHT }}
-                  onClick={() => onSlotClick?.(day, h)}
-                  className="border-t border-slate-100 dark:border-slate-800/60 hover:bg-blue-500/5 cursor-pointer"
-                />
+                <div key={h} style={{ height: HOUR_HEIGHT }} className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-right pr-1 -translate-y-1.5 border-t border-slate-100 dark:border-slate-800/60">{h === 0 ? '' : `${h}시`}</div>
               ))}
-              {dayItems.map((item: any, idx: number) => {
-                const { event: e, start, end } = item;
-                const top = ((start.getHours() * 60 + start.getMinutes()) / 60 - firstHour) * HOUR_HEIGHT;
-                const durationMin = Math.max((end.getTime() - start.getTime()) / 60000, 20);
-                // 배경색 박스 높이를 폰트보다 살짝만 크게 축소
-                const height = Math.max((durationMin / 60) * HOUR_HEIGHT, 15);
-                const pos = layout.get(e) || { widthPct: 100, leftPct: 0 };
-                // 박스가 충분히 넓고/높을 때만 장소·메모 등 추가정보를 제목 옆에 보여줌
-                const hasRoom = pos.widthPct >= 45 && height >= 26;
-                return (
-                  <div
-                    key={idx}
-                    onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }}
-                    style={{ position: 'absolute', top, height, width: `calc(${pos.widthPct}% - 2px)`, left: `${pos.leftPct}%` }}
-                    className={`px-1.5 py-0.5 rounded-md text-xs font-bold truncate border-l-4 cursor-pointer overflow-hidden flex items-center gap-1.5 ${colorClasses(e)}`}
-                  >
-                    {getRecurrenceType(e) !== 'none' && <Repeat className="w-2.5 h-2.5 shrink-0" />}
-                    <span className="truncate">{e.title}</span>
-                    {hasRoom && e.location && <span className="text-[11px] font-medium opacity-70 truncate">· {e.location}</span>}
-                    {hasRoom && !e.location && e.description && <span className="text-[11px] font-medium opacity-70 truncate">· {e.description}</span>}
-                  </div>
-                );
-              })}
             </div>
-          );
-        })}
+            {days.map((day: Date, i: number) => {
+              const dayItems = timedEvents
+                .filter((e: any) => eventOccursOnDay(e, day))
+                .map((e: any) => ({ event: e, ...getOccurrenceTimes(e, day) }));
+              const layout = layoutColumns(dayItems);
+              return (
+                <div key={i} style={colStyle} className="flex-1 min-w-0 relative border-l border-slate-100 dark:border-slate-800/60 first:border-l-0">
+                  {HOURS.map((h) => (
+                    <div
+                      key={h}
+                      style={{ height: HOUR_HEIGHT }}
+                      onClick={() => onSlotClick?.(day, h)}
+                      className="border-t border-slate-100 dark:border-slate-800/60 hover:bg-blue-500/5 cursor-pointer"
+                    />
+                  ))}
+                  {dayItems.map((item: any, idx: number) => {
+                    const { event: e, start, end } = item;
+                    const top = (start.getHours() * 60 + start.getMinutes()) / 60 * HOUR_HEIGHT;
+                    const durationMin = Math.max((end.getTime() - start.getTime()) / 60000, 20);
+                    // 배경색 박스 높이를 폰트보다 살짝만 크게 축소
+                    const height = Math.max((durationMin / 60) * HOUR_HEIGHT, 15);
+                    const pos = layout.get(e) || { widthPct: 100, leftPct: 0 };
+                    const extraInfo = e.location || e.description || '';
+                    // 일별보기: 옆으로(같은 줄), 주별보기: 박스가 기본 그리드 높이보다 클 때만 아래쪽에
+                    const showBeside = !isWeekView && pos.widthPct >= 45 && !!extraInfo;
+                    const showBelow = isWeekView && height > HOUR_HEIGHT && pos.widthPct >= 45 && !!extraInfo;
+                    return (
+                      <div
+                        key={idx}
+                        onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }}
+                        style={{ position: 'absolute', top, height, width: `calc(${pos.widthPct}% - 2px)`, left: `${pos.leftPct}%` }}
+                        className={`px-1.5 py-0.5 rounded-md text-xs font-bold cursor-pointer overflow-hidden flex flex-col justify-center border-l-4 ${colorClasses(e)}`}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {getRecurrenceType(e) !== 'none' && <Repeat className="w-2.5 h-2.5 shrink-0" />}
+                          <span className="truncate">{e.title}</span>
+                          {showBeside && <span className="text-xs font-medium opacity-70 truncate">· {extraInfo}</span>}
+                        </div>
+                        {showBelow && <div className="text-[11px] font-medium opacity-70 truncate">{extraInfo}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

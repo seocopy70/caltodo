@@ -26,6 +26,10 @@ export async function GET(req: NextRequest) {
     description: row.description,
     color: row.color,
     recurrenceType: row.recurrence_type,
+    recurrenceCount: row.recurrence_count == null ? null : Number(row.recurrence_count),
+    isLunar: Number(row.is_lunar || 0) === 1,
+    lunarMonth: row.lunar_month == null ? null : Number(row.lunar_month),
+    lunarDay: row.lunar_day == null ? null : Number(row.lunar_day),
     source: row.source || 'manual',
     externalUid: row.external_uid || null,
     linkedTodoId: row.linked_todo_id || null,
@@ -54,6 +58,10 @@ export async function GET(req: NextRequest) {
     deletedAt: row.deleted_at == null ? null : new Date(Number(row.deleted_at)).toISOString(),
     showToday: Number(row.show_today || 0) === 1,
     folderId: row.folder_id || null,
+    format: row.format || 'plain',
+    locked: Number(row.locked || 0) === 1,
+    lockType: row.lock_type || null,
+    lockHash: row.lock_hash || null,
   }));
 
   const noteFolders = foldersResult.rows.map((row: any) => ({

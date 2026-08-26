@@ -60,7 +60,7 @@ export default function DataManagementPanel({ events, onNotify, onRefresh, onClo
   return <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
     <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
       <div className="p-6 space-y-5">
-        <div className="flex justify-between items-center"><h3 className="font-bold text-xl text-white">데이터 관리</h3><button onClick={onClose} className="p-1 hover:bg-slate-800 rounded-full"><X /></button></div>
+        <div className="flex justify-between items-center"><h3 className="font-bold text-xl text-white">일정데이터 관리</h3><button onClick={onClose} className="p-1 hover:bg-slate-800 rounded-full"><X /></button></div>
         <div className="space-y-3">
           <div className="flex items-center gap-2"><Search className="w-4 h-4 text-slate-400" /><h4 className="font-bold">일정 검색 / 삭제</h4></div>
           <div className="flex gap-2"><input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchEvents()} placeholder="제목, 장소, 내용 검색" className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm outline-none" /><button onClick={searchEvents} disabled={searching} className="px-4 py-2 bg-blue-600 rounded-xl font-bold text-sm">{searching ? '...' : '검색'}</button></div>

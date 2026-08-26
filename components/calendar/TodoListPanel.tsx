@@ -171,12 +171,6 @@ export default function TodoListPanel({
 
   return (
     <section className={`rounded-2xl border border-slate-700/50 bg-slate-900/30 overflow-hidden ${compact ? '' : 'shadow-xl'}`}>
-      {maxVisible && activeTodos.length > 0 && (
-        <button onClick={() => setExpanded((v) => !v)} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-400 transition">
-          {expanded ? <><ChevronUp className="w-3.5 h-3.5" /> 접기</> : <><ChevronDown className="w-3.5 h-3.5" /> 펼치기 ({activeTodos.length})</>}
-        </button>
-      )}
-
       <form onSubmit={addTodo} className="flex items-center gap-2 px-4 py-3 border-b border-slate-700/40">
         <Plus className="w-5 h-5 text-slate-500 shrink-0" />
         <input
@@ -212,6 +206,12 @@ export default function TodoListPanel({
           className="sr-only"
         />
       </form>
+
+      {maxVisible && activeTodos.length > 0 && (
+        <button onClick={() => setExpanded((v) => !v)} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-400 transition">
+          {expanded ? <><ChevronUp className="w-3.5 h-3.5" /> 접기</> : <><ChevronDown className="w-3.5 h-3.5" /> 펼치기 ({activeTodos.length})</>}
+        </button>
+      )}
 
       <div ref={listRef} className={`divide-y divide-slate-700/30 ${maxVisible && expanded ? 'max-h-[50vh] overflow-y-auto' : ''}`}>
         {visibleTodos.map((todo: any) => (

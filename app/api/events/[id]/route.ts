@@ -36,7 +36,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   await turso.execute({
-    sql: `UPDATE events SET title=?, start=?, end_time=?, end_date=?, location=?, description=?, color=?, recurrence_type=?, updated_at=?${clearLink ? ', linked_todo_id=NULL' : ''} WHERE id=?`,
+    sql: `UPDATE events SET title=?, start=?, end_time=?, end_date=?, location=?, description=?, color=?, recurrence_type=?, recurrence_count=?, is_lunar=?, lunar_month=?, lunar_day=?, updated_at=?${clearLink ? ', linked_todo_id=NULL' : ''} WHERE id=?`,
     args: [
       body.title,
       newStart,
@@ -46,6 +46,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       body.description || '',
       body.color || 'blue',
       body.recurrenceType || 'none',
+      body.recurrenceCount || null,
+      body.isLunar ? 1 : 0,
+      body.lunarMonth ?? null,
+      body.lunarDay ?? null,
       Date.now(),
       params.id,
     ],

@@ -3,11 +3,19 @@ import KoreanLunarCalendar from 'korean-lunar-calendar';
 const pad = (n: number) => String(n).padStart(2, '0');
 const toKey = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`;
 
-function lunarToSolarDate(year: number, month: number, day: number): Date {
+export function lunarToSolarDate(year: number, month: number, day: number, isLeapMonth = false): Date {
   const cal = new KoreanLunarCalendar();
-  cal.setLunarDate(year, month, day, false);
+  cal.setLunarDate(year, month, day, isLeapMonth);
   const s = cal.getSolarCalendar();
   return new Date(s.year, s.month - 1, s.day);
+}
+
+/** 양력 날짜를 음력 (년,월,일)로 변환. 생일/기념일을 음력으로 저장할 때 사용. */
+export function solarToLunar(date: Date): { year: number; month: number; day: number; isLeapMonth: boolean } {
+  const cal = new KoreanLunarCalendar();
+  cal.setSolarDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
+  const l = cal.getLunarCalendar();
+  return { year: l.year, month: l.month, day: l.day, isLeapMonth: !!l.intercalation };
 }
 
 function addDaysDate(d: Date, n: number): Date {

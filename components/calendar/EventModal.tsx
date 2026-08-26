@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { api } from '../../lib/api-client';
-import { MapPin, AlignLeft, Trash2, X, Repeat, CalendarRange } from 'lucide-react';
+import { MapPin, AlignLeft, Trash2, X, Repeat, CalendarRange, Cake, Moon } from 'lucide-react';
 import { getRecurrenceType } from '../../lib/recurrence';
+import { solarToLunar } from '../../lib/holidays';
 
 type RecurrenceType = 'none' | 'weekly' | 'monthly' | 'yearly';
 
@@ -20,6 +21,9 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
   const [description, setDescription] = useState('');
   const [color, setColor] = useState('blue');
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>('none');
+  const [recurrenceCount, setRecurrenceCount] = useState(''); // 빈 값 = 계속 반복
+  const [isAnniversary, setIsAnniversary] = useState(false); // 생일 등 기념일 (매년 반복 + 하루종일 편의 토글)
+  const [isLunar, setIsLunar] = useState(false);
 
   useEffect(() => {
     if (editingEvent) {
@@ -31,11 +35,16 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       setEndDate(format(eDate, 'yyyy-MM-dd'));
       setEndTime(format(editingEvent.end as Date, 'HH:mm'));
       setMultiDay(!!editingEvent.endDate && format(eDate, 'yyyy-MM-dd') !== format(sDate, 'yyyy-MM-dd'));
-      setAllDay(format(sDate, 'HH:mm') === '00:00' && format(editingEvent.end as Date, 'HH:mm') === '23:59');
+      const allDayFlag = format(sDate, 'HH:mm') === '00:00' && format(editingEvent.end as Date, 'HH:mm') === '23:59';
+      setAllDay(allDayFlag);
       setLocation(editingEvent.location || '');
       setDescription(editingEvent.description || '');
       setColor(editingEvent.color || 'blue');
-      setRecurrenceType(getRecurrenceType(editingEvent));
+      const rt = getRecurrenceType(editingEvent);
+      setRecurrenceType(rt);
+      setRecurrenceCount(editingEvent.recurrenceCount ? String(editingEvent.recurrenceCount) : '');
+      setIsLunar(!!editingEvent.isLunar);
+      setIsAnniversary(rt === 'yearly' && (allDayFlag || !!editingEvent.isLunar));
     } else {
       const base = date || new Date();
       const hasTime = base.getHours() !== 0 || base.getMinutes() !== 0;
@@ -52,10 +61,25 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       setDescription('');
       setColor('blue');
       setRecurrenceType('none');
+      setRecurrenceCount('');
+      setIsAnniversary(false);
+      setIsLunar(false);
     }
   }, [editingEvent, date]);
 
   const notifyFn = notify || (() => {});
+
+  const toggleAnniversary = (checked: boolean) => {
+    setIsAnniversary(checked);
+    if (checked) {
+      setRecurrenceType('yearly');
+      setAllDay(true);
+      setMultiDay(false);
+      setColor('rose');
+    } else {
+      setIsLunar(false);
+    }
+  };
 
   const save = () => {
     if (!title.trim() || !user) return;
@@ -65,8 +89,17 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
     const start = new Date(`${startDate}T${effectiveStartTime}`);
     const end = new Date(`${multiDay ? endDate : startDate}T${effectiveEndTime}`);
 
-    // 반복 일정은 항상 통일된 보라색으로 표시합니다.
-    const effectiveColor = recurrenceType !== 'none' ? 'violet' : color;
+    // 반복 일정은 항상 통일된 보라색으로 표시합니다 (기념일은 예외로 지정한 색 유지).
+    const effectiveColor = recurrenceType !== 'none' && !isAnniversary ? 'violet' : color;
+
+    // 음력 기념일이면 시작일(양력)을 음력 월/일로 변환해서 저장 -> 매년 그 음력 날짜의 양력 환산일에 반복
+    let lunarMonth: number | null = null;
+    let lunarDay: number | null = null;
+    if (isAnniversary && isLunar) {
+      const lunar = solarToLunar(start);
+      lunarMonth = lunar.month;
+      lunarDay = lunar.day;
+    }
 
     const eventData: any = {
       title: title.trim(),
@@ -77,6 +110,10 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       description,
       color: effectiveColor,
       recurrenceType,
+      recurrenceCount: recurrenceType !== 'none' && recurrenceCount.trim() ? Number(recurrenceCount) : null,
+      isLunar: isAnniversary && isLunar,
+      lunarMonth,
+      lunarDay,
     };
 
     const targetId = editingEvent?.id;
@@ -129,10 +166,23 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
 
           <label className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer">
             <span className="flex-1 text-sm">하루 종일</span>
-            <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
+            <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={allDay} disabled={isAnniversary} onChange={(e) => setAllDay(e.target.checked)} />
           </label>
 
-          {recurrenceType === 'none' && (
+          <label className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer">
+            <Cake className="w-4 h-4 text-rose-500 shrink-0" />
+            <span className="flex-1 text-sm">생일 등 기념일 (매년 반복)</span>
+            <input type="checkbox" className="w-4 h-4 accent-rose-500" checked={isAnniversary} onChange={(e) => toggleAnniversary(e.target.checked)} />
+          </label>
+          {isAnniversary && (
+            <label className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer -mt-2">
+              <Moon className="w-4 h-4 text-slate-500 shrink-0" />
+              <span className="flex-1 text-sm">음력 날짜 기준으로 매년 반복</span>
+              <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={isLunar} onChange={(e) => setIsLunar(e.target.checked)} />
+            </label>
+          )}
+
+          {recurrenceType === 'none' && !isAnniversary && (
             <label className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer">
               <CalendarRange className="w-4 h-4 text-slate-500" />
               <span className="flex-1 text-sm">며칠간 이어지는 일정</span>
@@ -168,8 +218,8 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
             <select
               className="bg-white dark:bg-slate-900 text-sm rounded-lg px-2 py-1.5 outline-none border border-slate-300 dark:border-slate-700"
               value={recurrenceType}
-              onChange={(e) => { const v = e.target.value as RecurrenceType; setRecurrenceType(v); if (v !== 'none') setMultiDay(false); }}
-              disabled={multiDay}
+              onChange={(e) => { const v = e.target.value as RecurrenceType; setRecurrenceType(v); if (v !== 'none') setMultiDay(false); if (v === 'none') setIsAnniversary(false); }}
+              disabled={multiDay || isAnniversary}
             >
               <option value="none">안 함</option>
               <option value="weekly">매주</option>
@@ -178,6 +228,22 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
             </select>
           </div>
           {multiDay && <p className="text-[11px] text-slate-500 -mt-3">며칠간 이어지는 일정은 반복을 설정할 수 없어요.</p>}
+
+          {recurrenceType !== 'none' && (
+            <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
+              <span className="flex-1 text-sm">반복 횟수</span>
+              <input
+                type="number"
+                min={1}
+                placeholder="계속 반복"
+                value={recurrenceCount}
+                onChange={(e) => setRecurrenceCount(e.target.value)}
+                className="w-24 bg-white dark:bg-slate-900 text-sm text-right rounded-lg px-2 py-1.5 outline-none border border-slate-300 dark:border-slate-700"
+              />
+              <span className="text-xs text-slate-500 shrink-0">회</span>
+            </div>
+          )}
+          {recurrenceType !== 'none' && !recurrenceCount.trim() && <p className="text-[11px] text-slate-500 -mt-3">비워두면 계속 반복돼요.</p>}
 
           <div className="flex justify-center gap-3">
             {['blue', 'green', 'amber', 'rose', 'violet'].map((c) => (

@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { api } from '../../lib/api-client';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { Plus, Trash2, StickyNote, Archive, RotateCcw, Star, LayoutGrid, List, Folder, FolderPlus, Pencil, X } from 'lucide-react';
+import { Plus, Trash2, StickyNote, Archive, RotateCcw, Star, LayoutGrid, List, Folder, FolderPlus, Pencil, X, Lock } from 'lucide-react';
 import NoteViewModal from './NoteViewModal';
+import NoteContent, { toggleChecklistLine } from './NoteContent';
 
 export default function NotesView({ notes, folders = [], user, onNotify, onRefresh, onNewNote, onEditNote, onPatchNote }: any) {
   const [showTrash, setShowTrash] = useState(false);
@@ -36,6 +37,11 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const assignFolder = (note: any, folderId: string | null) => {
     onPatchNote?.(note.id, { folderId });
     api.notes.update(note.id, { title: note.title, content: note.content, showToday: note.showToday, folderId }).then(() => onRefresh?.());
+  };
+  const toggleLine = (note: any, idx: number) => {
+    const newContent = toggleChecklistLine(note.content, idx);
+    onPatchNote?.(note.id, { content: newContent });
+    api.notes.update(note.id, { title: note.title, content: newContent, showToday: note.showToday, folderId: note.folderId || null, format: note.format, locked: note.locked, lockType: note.lockType, lockHash: note.lockHash }).then(() => onRefresh?.());
   };
 
   const addFolder = () => {
@@ -84,13 +90,19 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
         {activeNotes.map((note: any) => (
           <div key={note.id} onClick={() => setViewingNote(note)} className="break-inside-avoid mb-3 group relative bg-white dark:bg-slate-800/30 p-4 rounded-xl border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none hover:border-blue-500/50 transition cursor-pointer">
             <div className="flex items-start justify-between gap-2 mb-1.5">
-              <h4 className="font-bold text-base truncate flex items-center gap-1.5 text-slate-900 dark:text-white"><StickyNote className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />{note.title}</h4>
+              <h4 className="font-bold text-base truncate flex items-center gap-1.5 text-slate-900 dark:text-white">{note.locked ? <Lock className="w-4 h-4 text-slate-400 shrink-0" /> : <StickyNote className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />}{note.locked ? '비밀 메모' : note.title}</h4>
               <div className="flex items-center gap-1 shrink-0">
                 <button title={note.showToday ? '오늘 탭에서 숨기기' : '오늘 탭에 표시'} onClick={(e) => { e.stopPropagation(); toggleStar(note); }} className={`p-1 ${note.showToday ? 'text-amber-400' : 'text-slate-400 dark:text-slate-600 hover:text-amber-400'}`}><Star className="w-3.5 h-3.5" fill={note.showToday ? 'currentColor' : 'none'} /></button>
                 <button title="보관함으로 이동" onClick={(e) => { e.stopPropagation(); remove(note.id); }} className="text-slate-400 dark:text-slate-600 hover:text-rose-500 transition"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             </div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-8 whitespace-pre-wrap leading-relaxed">{note.content}</p>
+            {note.locked ? (
+              <p className="text-sm text-slate-400 dark:text-slate-600 italic">잠긴 메모예요. 탭해서 잠금을 해제하세요.</p>
+            ) : (
+              <div className="text-sm text-slate-600 dark:text-slate-400 line-clamp-8 leading-relaxed">
+                <NoteContent content={note.content} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} />
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2 mt-2">
               {note.updatedAt && <p className="text-[10px] text-slate-400 dark:text-slate-600">{format(note.updatedAt, 'M월 d일 HH:mm', { locale: ko })}</p>}
               {folders.length > 0 && (
@@ -112,8 +124,8 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
       <div className="rounded-2xl border border-slate-200 dark:border-slate-700/40 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-transparent">
         {activeNotes.map((note: any) => (
           <button key={note.id} onClick={() => setViewingNote(note)} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-left">
-            <StickyNote className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
-            <span className="flex-1 min-w-0 font-bold text-sm truncate text-slate-900 dark:text-white">{note.title}</span>
+            {note.locked ? <Lock className="w-4 h-4 text-slate-400 shrink-0" /> : <StickyNote className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />}
+            <span className="flex-1 min-w-0 font-bold text-sm truncate text-slate-900 dark:text-white">{note.locked ? '비밀 메모' : note.title}</span>
             {note.showToday && <Star className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="currentColor" />}
             <button title="보관함으로 이동" onClick={(e) => { e.stopPropagation(); remove(note.id); }} className="text-slate-400 dark:text-slate-600 hover:text-rose-500 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
           </button>
@@ -140,7 +152,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
       </div>}
     </section>
 
-    {viewingNote && <NoteViewModal note={viewingNote} editable onClose={() => setViewingNote(null)} onEdit={(n: any) => { setViewingNote(null); onEditNote?.(n); }} />}
+    {viewingNote && <NoteViewModal note={viewingNote} editable onClose={() => setViewingNote(null)} onEdit={(n: any) => { setViewingNote(null); onEditNote?.(n); }} onToggleLine={toggleLine} />}
     {viewingDeletedNote && <NoteViewModal note={viewingDeletedNote} editable={false} onClose={() => setViewingDeletedNote(null)} />}
   </div>;
 }
