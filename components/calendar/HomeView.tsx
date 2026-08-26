@@ -1,13 +1,14 @@
 'use client';
 
-import { useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, format, isToday } from 'date-fns';
-import { Plus, MapPin, Repeat, CalendarRange, StickyNote, Lock } from 'lucide-react';
+import { Plus, MapPin, Repeat, CalendarRange, StickyNote, Lock, Star, Trash2 } from 'lucide-react';
 import { eventOccursOnDay, getRecurrenceType } from '../../lib/recurrence';
 import { api } from '../../lib/api-client';
 import { hashCode } from '../../lib/noteLock';
 import { PinInput, PatternInput } from './NoteLockPad';
 import NoteContent, { toggleChecklistLine } from './NoteContent';
+import { getFolderColor } from '../../lib/folderColor';
 import EventModal from './EventModal';
 import TodoListPanel from './TodoListPanel';
 
@@ -58,7 +59,7 @@ export default function HomeView({ events, todos, notes = [], user, onNotify, on
     </section>
 
     {notes.length > 0 && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
         {notes.map((note: any) => <TodayNoteCard key={note.id} note={note} onRefresh={onRefresh} onNotify={notify} />)}
       </div>
     )}
@@ -83,7 +84,8 @@ function EventRow({ event, onEdit }: any) {
   </div>;
 }
 
-// 오늘 탭의 메모 카드: 별도 창을 띄우지 않고 카드 안에서 바로 수정. 내용 길이에 따라 textarea 높이가 자동으로 늘어남.
+// 오늘 탭의 메모 카드: 별도 창을 띄우지 않고 카드 안에서 바로 수정. 내용 길이에 따라 카드 크기가 자연스럽게 늘어남.
+// 카드 바깥을 탭해야 수정이 종료되도록 해서, 안쪽을 탭하거나 줄바꿈해도 실수로 닫히지 않게 함.
 function TodayNoteCard({ note, onRefresh, onNotify }: any) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(note.title);
@@ -91,7 +93,12 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
   const [unlocked, setUnlocked] = useState(false);
   const [unlockError, setUnlockError] = useState(false);
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const isLocked = !!note.locked && !unlocked;
+  const folderColor = note.folderId ? getFolderColor(note.folderId) : null;
+  const iconColorClass = note.locked ? 'text-slate-400' : (folderColor ? folderColor.text : 'text-amber-500 dark:text-amber-400');
+
+  useEffect(() => { setTitle(note.title); setContent(note.content); }, [note.title, note.content]);
 
   const autoGrow = (el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -99,20 +106,46 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
     el.style.height = `${el.scrollHeight}px`;
   };
 
-  const save = () => {
-    setEditing(false);
+  useEffect(() => {
+    if (editing) requestAnimationFrame(() => autoGrow(contentRef.current));
+  }, [editing]);
+
+  const persist = (extra?: any) => {
     const trimmedTitle = title.trim() || '(제목 없음)';
-    if (trimmedTitle === note.title && content === note.content) return;
-    api.notes.update(note.id, { title: trimmedTitle, content, showToday: note.showToday })
+    if (!extra && trimmedTitle === note.title && content === note.content) return;
+    api.notes.update(note.id, { title: trimmedTitle, content, showToday: note.showToday, folderId: note.folderId || null, format: note.format, locked: note.locked, lockType: note.lockType, lockHash: note.lockHash, ...extra })
       .then(() => onRefresh?.())
       .catch((err: any) => onNotify?.(`저장 실패: ${err.message || err}`, 'error'));
+  };
+
+  // 카드 바깥을 탭했을 때만 수정을 종료(+ 저장)하도록 함
+  useEffect(() => {
+    if (!editing) return;
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        persist();
+        setEditing(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, title, content]);
+
+  const toggleStar = () => persist({ showToday: !note.showToday });
+  const remove = () => {
+    if (!confirm('메모를 삭제하면 보관함으로 이동합니다. 계속할까요?')) return;
+    api.notes.remove(note.id).then(() => { onNotify?.('메모를 보관함으로 옮겼습니다.'); onRefresh?.(); }).catch((err: any) => onNotify?.(`삭제 실패: ${err.message || err}`, 'error'));
   };
 
   const toggleLine = (idx: number) => {
     const newContent = toggleChecklistLine(content, idx);
     setContent(newContent);
-    api.notes.update(note.id, { title: note.title, content: newContent, showToday: note.showToday, format: note.format, locked: note.locked, lockType: note.lockType, lockHash: note.lockHash })
-      .then(() => onRefresh?.());
+    persist({ content: newContent });
   };
 
   const tryUnlock = async (code: string) => {
@@ -120,6 +153,10 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
     if (hash === note.lockHash) { setUnlocked(true); setUnlockError(false); }
     else setUnlockError(true);
   };
+
+  // 탭한 위치에 그대로 커서가 놓이도록, 보기/수정 모드에서 같은 textarea를 유지하고 readOnly만 바꿈
+  // (일반 형식일 때만; 체크리스트/번호매김은 보기모드에서 예쁘게 렌더링하고, 탭하면 원문 편집 모드로 전환)
+  const isPlain = (note.format || 'plain') === 'plain';
 
   if (isLocked) {
     return (
@@ -133,35 +170,56 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
     );
   }
 
-  if (editing) {
-    return (
-      <div className="rounded-xl border border-amber-400/50 bg-white dark:bg-slate-900/40 p-4 shadow-sm">
-        <input
-          autoFocus
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={save}
-          className="w-full bg-transparent font-bold text-base outline-none mb-1.5 text-slate-900 dark:text-white"
-        />
+  return (
+    <div ref={wrapperRef} className={`rounded-xl border p-4 transition ${editing ? 'border-amber-400/60 bg-white dark:bg-slate-900/40 shadow-sm' : 'border-amber-200 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/5 hover:bg-amber-100/60 dark:hover:bg-amber-500/10 cursor-text'}`}>
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        {editing ? (
+          <input
+            autoFocus={!isPlain}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="flex-1 min-w-0 bg-transparent font-bold text-base outline-none text-slate-900 dark:text-white"
+          />
+        ) : (
+          <div onClick={() => setEditing(true)} className="flex-1 min-w-0 flex items-center gap-1.5 cursor-text">
+            <StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} />
+            <span className="font-bold text-base truncate text-slate-900 dark:text-white">{title}</span>
+          </div>
+        )}
+        {editing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button title={note.showToday ? '오늘 탭에서 숨기기' : '오늘 탭에 표시'} onClick={toggleStar} className={`p-1 ${note.showToday ? 'text-amber-400' : 'text-slate-400 dark:text-slate-600 hover:text-amber-400'}`}><Star className="w-3.5 h-3.5" fill={note.showToday ? 'currentColor' : 'none'} /></button>
+            <button title="보관함으로 이동" onClick={remove} className="p-1 text-slate-400 dark:text-slate-600 hover:text-rose-500 transition"><Trash2 className="w-3.5 h-3.5" /></button>
+          </div>
+        )}
+      </div>
+
+      {isPlain ? (
         <textarea
           ref={contentRef}
           value={content}
+          readOnly={!editing}
+          onClick={() => !editing && setEditing(true)}
           onChange={(e) => { setContent(e.target.value); autoGrow(e.target); }}
           onFocus={(e) => autoGrow(e.target)}
-          onBlur={save}
-          rows={3}
-          className="w-full bg-transparent text-sm leading-relaxed outline-none resize-none text-slate-700 dark:text-slate-300"
+          rows={2}
+          className={`w-full bg-transparent text-sm leading-relaxed outline-none resize-none [overflow-wrap:anywhere] ${editing ? 'text-slate-700 dark:text-slate-300 cursor-text' : 'text-slate-600 dark:text-slate-400 cursor-text'}`}
         />
-      </div>
-    );
-  }
-
-  return (
-    <button onClick={() => setEditing(true)} className="text-left rounded-xl border border-amber-200 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/5 hover:bg-amber-100/60 dark:hover:bg-amber-500/10 transition p-4">
-      <div className="flex items-center gap-1.5 mb-1"><StickyNote className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" /><span className="font-bold text-base truncate text-slate-900 dark:text-white">{note.title}</span></div>
-      <div className="text-sm text-slate-600 dark:text-slate-400 line-clamp-4 leading-relaxed">
-        <NoteContent content={note.content} format={note.format} onToggleLine={toggleLine} />
-      </div>
-    </button>
+      ) : editing ? (
+        <textarea
+          ref={contentRef}
+          autoFocus
+          value={content}
+          onChange={(e) => { setContent(e.target.value); autoGrow(e.target); }}
+          onFocus={(e) => autoGrow(e.target)}
+          rows={3}
+          className="w-full bg-transparent text-sm leading-relaxed outline-none resize-none [overflow-wrap:anywhere] text-slate-700 dark:text-slate-300"
+        />
+      ) : (
+        <div onClick={() => setEditing(true)} className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed cursor-text">
+          <NoteContent content={content} format={note.format} onToggleLine={toggleLine} />
+        </div>
+      )}
+    </div>
   );
 }

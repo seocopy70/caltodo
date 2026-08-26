@@ -4,19 +4,24 @@ import { useMemo, useState } from 'react';
 import { CalendarDays, CheckSquare, FileText, X, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api-client';
 
-export default function GlobalSearch({ query, events, todos, notes, onClose, onEvent, onTodo, onNote, onRefresh, onNotify }: any) {
+export default function GlobalSearch({ query, events, todos, notes, folders = [], onClose, onEvent, onTodo, onNote, onRefresh, onNotify }: any) {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const notify = onNotify || (() => {});
   const q = query.trim().toLowerCase();
+  const folderNameById = useMemo(() => Object.fromEntries(folders.map((f: any) => [f.id, f.name])), [folders]);
   const results = useMemo(() => {
     if (!q) return { events: [], todos: [], notes: [] };
     return {
       events: events.filter((e: any) => `${e.title} ${e.location || ''} ${e.description || ''}`.toLowerCase().includes(q)).slice(0, 20),
       todos: todos.filter((t: any) => `${t.title} ${t.memo || ''}`.toLowerCase().includes(q)).slice(0, 20),
-      notes: notes.filter((n: any) => (n.locked ? n.title : `${n.title} ${n.content || ''}`).toLowerCase().includes(q)).slice(0, 20),
+      notes: notes.filter((n: any) => {
+        const folderName = n.folderId ? (folderNameById[n.folderId] || '') : '';
+        const haystack = n.locked ? `${n.title} ${folderName}` : `${n.title} ${n.content || ''} ${folderName}`;
+        return haystack.toLowerCase().includes(q);
+      }).slice(0, 20),
     };
-  }, [q, events, todos, notes]);
+  }, [q, events, todos, notes, folderNameById]);
 
   const total = results.events.length + results.todos.length + results.notes.length;
   if (!q) return null;

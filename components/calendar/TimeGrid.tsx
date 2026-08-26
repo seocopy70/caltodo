@@ -81,7 +81,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
   return (
     <div className="flex flex-col border border-slate-300 dark:border-slate-700 rounded-2xl overflow-hidden shadow-2xl bg-white/70 dark:bg-slate-900/20">
       {/* data-hscroll: 이 영역 안에서 좌우로 밀면 그리드 자체가 스크롤되고(탭 순환 아님), 영역 밖에서 밀면 탭이 순환됨 */}
-      <div data-hscroll className="overflow-x-auto">
+      <div data-hscroll className="overflow-x-auto overscroll-x-contain">
         <div style={innerMinWidth ? { minWidth: innerMinWidth } : undefined}>
           {/* 헤더: 요일+날짜 한 줄 */}
           <div className="flex border-b border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60">

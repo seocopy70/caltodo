@@ -67,7 +67,7 @@ export default function Calendar({ view, events, user, onNotify, onRefresh }: an
         <TimeGrid days={days} events={events} holidayMap={holidayMap} onSlotClick={handleSlotClick} onEventClick={openEditEvent} onDayHeaderClick={(day: Date) => setDayViewDate(day)} />
       ) : (
         <>
-          <div data-hscroll className="overflow-x-auto rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl bg-white/70 dark:bg-slate-900/20">
+          <div data-hscroll className="overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl bg-white/70 dark:bg-slate-900/20">
             <div style={{ minWidth: 7 * 96 }}>
             <div className="grid grid-cols-7 text-center text-xs font-black text-slate-500 border-b border-slate-200 dark:border-slate-700/30 py-1.5">{['일', '월', '화', '수', '목', '금', '토'].map((d, i) => <div key={d} className={i === 0 ? 'text-rose-500 dark:text-rose-400' : i === 6 ? 'text-blue-500 dark:text-blue-400' : ''}>{d}</div>)}</div>
             {Array.from({ length: days.length / 7 }, (_, weekIdx) => {

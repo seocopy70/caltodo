@@ -174,7 +174,7 @@ export default function TodoListPanel({
       <form onSubmit={addTodo} className="flex items-center gap-2 px-4 py-3 border-b border-slate-700/40">
         <Plus className="w-5 h-5 text-slate-500 shrink-0" />
         <input
-          className={`flex-1 min-w-0 bg-transparent outline-none placeholder:text-slate-500 ${largePlaceholder ? 'text-base' : 'text-sm'}`}
+          className="flex-1 min-w-0 bg-transparent outline-none placeholder:text-slate-500 text-base"
           placeholder="새 할일"
           value={newTodo}
           onChange={(e) => setNewTodo(e.target.value)}

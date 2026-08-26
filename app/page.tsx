@@ -42,7 +42,8 @@ export default function Home() {
   const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartX = useRef<number | null>(null);
-  const ignoreSwipeRef = useRef(false);
+  const touchStartY = useRef<number | null>(null);
+  const hscrollElRef = useRef<HTMLElement | null>(null);
 
   const notify = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -92,15 +93,35 @@ export default function Home() {
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
-    // 일정표(월/주/일별보기) 안에서는 좌우로 밀면 그리드 자체가 스크롤되도록 하고, 탭 순환은 그 영역 밖에서만 동작
-    ignoreSwipeRef.current = !!(e.target as HTMLElement).closest('[data-hscroll]');
+    touchStartY.current = e.touches[0].clientY;
+    // 일정표(월/주별보기) 영역 안이면 해당 스크롤 요소를 기억해뒀다가, 끝에 도달한 상태에서
+    // 그 방향으로 더 밀었을 때만 탭 순환으로 이어지도록 함
+    hscrollElRef.current = (e.target as HTMLElement).closest('[data-hscroll]') as HTMLElement | null;
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null || anyOverlayOpen || ignoreSwipeRef.current) { touchStartX.current = null; return; }
+    if (touchStartX.current === null || touchStartY.current === null || anyOverlayOpen) { touchStartX.current = null; touchStartY.current = null; return; }
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
     touchStartX.current = null;
-    // 화면 폭의 1/3 이상 밀었을 때만 탭 순환 (짧은 밀기는 무시)
-    const threshold = window.innerWidth / 3;
+    touchStartY.current = null;
+
+    // 위아래로 스크롤하려던 움직임이 옆으로 살짝 밀렸다고 탭이 바뀌지 않도록,
+    // 가로로 움직인 거리가 세로보다 뚜렷하게 클 때만(가로가 세로의 1.5배 이상) 스와이프로 인정
+    if (Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
+
+    const grid = hscrollElRef.current;
+    hscrollElRef.current = null;
+    if (grid) {
+      // 왼쪽으로 밀 때(다음 탭 방향)는 그리드가 이미 오른쪽 끝까지 스크롤된 상태여야 하고,
+      // 오른쪽으로 밀 때(이전 탭 방향)는 이미 왼쪽 끝(scrollLeft 0)이어야 함
+      const atRightEdge = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 1;
+      const atLeftEdge = grid.scrollLeft <= 1;
+      const atRelevantEdge = deltaX < 0 ? atRightEdge : atLeftEdge;
+      if (!atRelevantEdge) return; // 아직 스크롤할 여지가 있으면 탭 순환은 무시하고 그리드 스크롤만
+    }
+
+    // 화면 폭의 1/4 이상 밀었을 때만 탭 순환 (짧은 밀기는 무시)
+    const threshold = window.innerWidth / 4;
     if (Math.abs(deltaX) < threshold) return;
     const idx = tabs.findIndex(([key]) => key === view);
     if (idx === -1) return;
@@ -120,7 +141,7 @@ export default function Home() {
         <div className="relative w-full sm:w-48 md:w-64 shrink-0">
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400"/>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="검색" className="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
-          {search.trim() && <GlobalSearch query={search} events={events} todos={todos} notes={activeNotes} onClose={() => setSearch('')} onEvent={() => { setSearch(''); setView('list'); }} onTodo={(t: any) => { setSearch(''); setEditingTodo(t); }} onNote={(n: any) => { setSearch(''); setEditingNote(n); }} onRefresh={refreshData} onNotify={notify} />}
+          {search.trim() && <GlobalSearch query={search} events={events} todos={todos} notes={activeNotes} folders={noteFolders} onClose={() => setSearch('')} onEvent={() => { setSearch(''); setView('list'); }} onTodo={(t: any) => { setSearch(''); setEditingTodo(t); }} onNote={(n: any) => { setSearch(''); setEditingNote(n); }} onRefresh={refreshData} onNotify={notify} />}
         </div>
       </div>
     </header>

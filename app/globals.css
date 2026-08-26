@@ -23,8 +23,10 @@
   * {
     @apply border-border;
   }
-  body {
+  html, body {
     @apply bg-background text-foreground;
+    /* 아래로 당겼을 때 브라우저가 페이지를 새로고침(pull-to-refresh)하는 것을 방지 */
+    overscroll-behavior-y: contain;
   }
 
   /* Custom scrollbar for dark mode */

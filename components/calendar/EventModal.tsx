@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { api } from '../../lib/api-client';
-import { MapPin, AlignLeft, Trash2, X, Repeat, CalendarRange, Cake, Moon } from 'lucide-react';
+import { MapPin, AlignLeft, Trash2, X, Repeat, Cake, Moon } from 'lucide-react';
 import { getRecurrenceType } from '../../lib/recurrence';
 import { solarToLunar } from '../../lib/holidays';
 
@@ -24,6 +24,7 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
   const [recurrenceCount, setRecurrenceCount] = useState(''); // 빈 값 = 계속 반복
   const [isAnniversary, setIsAnniversary] = useState(false); // 생일 등 기념일 (매년 반복 + 하루종일 편의 토글)
   const [isLunar, setIsLunar] = useState(false);
+  const endTouchedRef = useRef(false); // 사용자가 종료시간을 직접 만졌는지 (만지면 자동 동기화 중단)
 
   useEffect(() => {
     if (editingEvent) {
@@ -45,6 +46,7 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       setRecurrenceCount(editingEvent.recurrenceCount ? String(editingEvent.recurrenceCount) : '');
       setIsLunar(!!editingEvent.isLunar);
       setIsAnniversary(rt === 'yearly' && (allDayFlag || !!editingEvent.isLunar));
+      endTouchedRef.current = true; // 기존 일정은 저장된 종료시간을 그대로 존중 (자동 동기화 안 함)
     } else {
       const base = date || new Date();
       const hasTime = base.getHours() !== 0 || base.getMinutes() !== 0;
@@ -64,10 +66,25 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       setRecurrenceCount('');
       setIsAnniversary(false);
       setIsLunar(false);
+      endTouchedRef.current = false; // 새 일정은 시작시간 바꾸면 종료시간이 자동으로 1시간 뒤를 따라감
     }
   }, [editingEvent, date]);
 
   const notifyFn = notify || (() => {});
+
+  // 종료시간을 직접 건드리기 전까지는, 시작시간이 바뀌면 항상 시작시간 + 1시간으로 맞춰줌
+  const handleStartTimeChange = (value: string) => {
+    setStartTime(value);
+    if (!endTouchedRef.current) {
+      const [h, m] = value.split(':').map(Number);
+      const total = (h * 60 + m + 60) % (24 * 60);
+      setEndTime(`${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`);
+    }
+  };
+  const handleEndTimeChange = (value: string) => {
+    endTouchedRef.current = true;
+    setEndTime(value);
+  };
 
   const toggleAnniversary = (checked: boolean) => {
     setIsAnniversary(checked);
@@ -160,35 +177,37 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
             </div>
             {!allDay && <div className="flex-1 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
               <label className="text-[9px] text-slate-500 font-bold block mb-1">시작 시간</label>
-              <input type="time" className="bg-transparent w-full outline-none" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              <input type="time" className="bg-transparent w-full outline-none" value={startTime} onChange={(e) => handleStartTimeChange(e.target.value)} />
             </div>}
           </div>
 
-          <label className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer">
-            <span className="flex-1 text-sm">하루 종일</span>
-            <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={allDay} disabled={isAnniversary} onChange={(e) => setAllDay(e.target.checked)} />
-          </label>
+          {/* 하루종일 / 며칠간 이어지는 일정을 한 줄로 */}
+          <div className="flex gap-2">
+            <label className="flex-1 flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer">
+              <span className="flex-1 text-sm">하루 종일</span>
+              <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={allDay} disabled={isAnniversary} onChange={(e) => setAllDay(e.target.checked)} />
+            </label>
+            {recurrenceType === 'none' && !isAnniversary && (
+              <label className="flex-1 flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer">
+                <span className="flex-1 text-sm">여러 날</span>
+                <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={multiDay} onChange={(e) => { setMultiDay(e.target.checked); if (!e.target.checked) setEndDate(startDate); }} />
+              </label>
+            )}
+          </div>
 
-          <label className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer">
-            <Cake className="w-4 h-4 text-rose-500 shrink-0" />
-            <span className="flex-1 text-sm">생일 등 기념일 (매년 반복)</span>
-            <input type="checkbox" className="w-4 h-4 accent-rose-500" checked={isAnniversary} onChange={(e) => toggleAnniversary(e.target.checked)} />
-          </label>
-          {isAnniversary && (
-            <label className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer -mt-2">
+          {/* 기념일 / 음력을 한 줄로 */}
+          <div className="flex gap-2">
+            <label className="flex-1 flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer">
+              <Cake className="w-4 h-4 text-rose-500 shrink-0" />
+              <span className="flex-1 text-sm">기념일</span>
+              <input type="checkbox" className="w-4 h-4 accent-rose-500" checked={isAnniversary} onChange={(e) => toggleAnniversary(e.target.checked)} />
+            </label>
+            <label className={`flex-1 flex items-center gap-2 p-3 rounded-2xl ${isAnniversary ? 'bg-slate-100 dark:bg-slate-800 cursor-pointer' : 'bg-slate-50 dark:bg-slate-800/40 opacity-50'}`}>
               <Moon className="w-4 h-4 text-slate-500 shrink-0" />
-              <span className="flex-1 text-sm">음력 날짜 기준으로 매년 반복</span>
-              <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={isLunar} onChange={(e) => setIsLunar(e.target.checked)} />
+              <span className="flex-1 text-sm">음력</span>
+              <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={isLunar} disabled={!isAnniversary} onChange={(e) => setIsLunar(e.target.checked)} />
             </label>
-          )}
-
-          {recurrenceType === 'none' && !isAnniversary && (
-            <label className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl cursor-pointer">
-              <CalendarRange className="w-4 h-4 text-slate-500" />
-              <span className="flex-1 text-sm">며칠간 이어지는 일정</span>
-              <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={multiDay} onChange={(e) => { setMultiDay(e.target.checked); if (!e.target.checked) setEndDate(startDate); }} />
-            </label>
-          )}
+          </div>
 
           <div className="flex gap-3">
             {multiDay && recurrenceType === 'none' && (
@@ -199,7 +218,7 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
             )}
             {!allDay && <div className="flex-1 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
               <label className="text-[9px] text-slate-500 font-bold block mb-1">종료 시간</label>
-              <input type="time" className="bg-transparent w-full outline-none" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+              <input type="time" className="bg-transparent w-full outline-none" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} />
             </div>}
           </div>
 
@@ -212,38 +231,36 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
             <textarea className="bg-transparent flex-1 outline-none text-sm h-20 resize-none" placeholder="메모" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
 
-          <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
+          {/* 반복 종류 + 반복 횟수를 한 줄로 */}
+          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
             <Repeat className="w-4 h-4 text-slate-500 shrink-0" />
-            <span className="flex-1 text-sm">반복</span>
             <select
-              className="bg-white dark:bg-slate-900 text-sm rounded-lg px-2 py-1.5 outline-none border border-slate-300 dark:border-slate-700"
+              className="flex-1 min-w-0 bg-white dark:bg-slate-900 text-sm rounded-lg px-2 py-1.5 outline-none border border-slate-300 dark:border-slate-700"
               value={recurrenceType}
               onChange={(e) => { const v = e.target.value as RecurrenceType; setRecurrenceType(v); if (v !== 'none') setMultiDay(false); if (v === 'none') setIsAnniversary(false); }}
               disabled={multiDay || isAnniversary}
             >
-              <option value="none">안 함</option>
+              <option value="none">반복 안 함</option>
               <option value="weekly">매주</option>
               <option value="monthly">매월</option>
               <option value="yearly">매년</option>
             </select>
+            {recurrenceType !== 'none' && (
+              <>
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="계속"
+                  value={recurrenceCount}
+                  onChange={(e) => setRecurrenceCount(e.target.value)}
+                  className="w-16 shrink-0 bg-white dark:bg-slate-900 text-sm text-right rounded-lg px-2 py-1.5 outline-none border border-slate-300 dark:border-slate-700"
+                />
+                <span className="text-xs text-slate-500 shrink-0">회</span>
+              </>
+            )}
           </div>
           {multiDay && <p className="text-[11px] text-slate-500 -mt-3">며칠간 이어지는 일정은 반복을 설정할 수 없어요.</p>}
-
-          {recurrenceType !== 'none' && (
-            <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
-              <span className="flex-1 text-sm">반복 횟수</span>
-              <input
-                type="number"
-                min={1}
-                placeholder="계속 반복"
-                value={recurrenceCount}
-                onChange={(e) => setRecurrenceCount(e.target.value)}
-                className="w-24 bg-white dark:bg-slate-900 text-sm text-right rounded-lg px-2 py-1.5 outline-none border border-slate-300 dark:border-slate-700"
-              />
-              <span className="text-xs text-slate-500 shrink-0">회</span>
-            </div>
-          )}
-          {recurrenceType !== 'none' && !recurrenceCount.trim() && <p className="text-[11px] text-slate-500 -mt-3">비워두면 계속 반복돼요.</p>}
+          {recurrenceType !== 'none' && !recurrenceCount.trim() && <p className="text-[11px] text-slate-500 -mt-3">횟수를 비워두면 계속 반복돼요.</p>}
 
           <div className="flex justify-center gap-3">
             {['blue', 'green', 'amber', 'rose', 'violet'].map((c) => (
