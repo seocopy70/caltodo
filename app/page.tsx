@@ -42,6 +42,7 @@ export default function Home() {
   const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartX = useRef<number | null>(null);
+  const ignoreSwipeRef = useRef(false);
 
   const notify = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -89,7 +90,6 @@ export default function Home() {
   const todayNotes = activeNotes.filter((n: any) => n.showToday);
   const anyOverlayOpen = menuOpen || isImportExportOpen || isEmailBackupOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim();
 
-  const ignoreSwipeRef = useRef(false);
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     // 일정표(월/주/일별보기) 안에서는 좌우로 밀면 그리드 자체가 스크롤되도록 하고, 탭 순환은 그 영역 밖에서만 동작
