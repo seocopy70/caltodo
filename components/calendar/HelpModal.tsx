@@ -1,6 +1,7 @@
 'use client';
 
 import { X } from 'lucide-react';
+import { useModalBackClose } from '../../lib/useModalBackClose';
 
 const SECTIONS = [
   {
@@ -10,7 +11,7 @@ const SECTIONS = [
       '주별보기: 진입하면 06~20시가 먼저 보이고, 위아래로 스크롤하면 00~24시 전체를 볼 수 있어요. 날짜를 누르면 일별보기로 이동해요.',
       '일정을 새로 만들 때 "종일"을 체크하면 시간 없이 하루 종일 일정으로 등록돼요.',
       '반복 일정은 반복 횟수를 정할 수 있어요. 비워두면 계속 반복돼요.',
-      '"생일 등 기념일"을 체크하면 매년 반복되는 일정으로 등록되고, 음력 기준으로 반복하도록 설정할 수도 있어요.',
+      '"기념일" 등록은 메뉴 → 기념일 관리에서 따로 할 수 있어요. 최초 연월일을 입력하면 매년 반복되고, 음력 기준 반복도 설정할 수 있어요.',
       '화면이 좁을 때는 일정표 영역 안에서 좌우로 밀어 전체 요일을 확인할 수 있어요.',
     ],
   },
@@ -29,7 +30,7 @@ const SECTIONS = [
       '메모를 누르면 전체 내용을 크게 볼 수 있고, 그 안을 한 번 더 누르면 수정할 수 있어요.',
       '메모 형식을 일반/체크리스트/번호매김 중에서 고를 수 있어요.',
       '메모에 폴더를 만들어서 분류하고, 폴더 칩을 눌러 필터링할 수 있어요.',
-      '"비밀 메모"로 설정하면 PIN 번호나 패턴으로 화면을 가릴 수 있어요 (참고: 화면만 가리는 간단한 잠금으로, 내용 자체가 암호화되어 저장되지는 않아요).',
+      '메모탭 폴더 아이콘을 눌러 폴더 하나를 "보안폴더"로 지정할 수 있어요. PIN 번호나 패턴을 입력해야 볼 수 있고, 5회 이상 틀리면 잠기는데 이땐 로그인 이메일로 인증코드를 받아 새로 설정할 수 있어요. 보안폴더 메모는 전체 목록·검색·오늘 탭에 나타나지 않아요.',
       '별표를 누르면 오늘 탭에도 그 메모가 카드로 보이고, 오늘 탭에서 바로 수정할 수 있어요.',
       '삭제된 메모는 보관함에서 복원하거나 완전히 지울 수 있어요.',
     ],
@@ -53,6 +54,7 @@ const SECTIONS = [
 ];
 
 export default function HelpModal({ onClose }: any) {
+  useModalBackClose(onClose);
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">

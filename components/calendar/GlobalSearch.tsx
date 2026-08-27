@@ -9,6 +9,7 @@ export default function GlobalSearch({ query, events, todos, notes, folders = []
   const [busy, setBusy] = useState(false);
   const notify = onNotify || (() => {});
   const q = query.trim().toLowerCase();
+  const secureFolderId = useMemo(() => folders.find((f: any) => f.isSecure)?.id || null, [folders]);
   const folderNameById = useMemo(() => Object.fromEntries(folders.map((f: any) => [f.id, f.name])), [folders]);
   const results = useMemo(() => {
     if (!q) return { events: [], todos: [], notes: [] };
@@ -16,12 +17,12 @@ export default function GlobalSearch({ query, events, todos, notes, folders = []
       events: events.filter((e: any) => `${e.title} ${e.location || ''} ${e.description || ''}`.toLowerCase().includes(q)).slice(0, 20),
       todos: todos.filter((t: any) => `${t.title} ${t.memo || ''}`.toLowerCase().includes(q)).slice(0, 20),
       notes: notes.filter((n: any) => {
+        if (secureFolderId && n.folderId === secureFolderId) return false; // 보안폴더 메모는 검색에서 제외
         const folderName = n.folderId ? (folderNameById[n.folderId] || '') : '';
-        const haystack = n.locked ? `${n.title} ${folderName}` : `${n.title} ${n.content || ''} ${folderName}`;
-        return haystack.toLowerCase().includes(q);
+        return `${n.title} ${n.content || ''} ${folderName}`.toLowerCase().includes(q);
       }).slice(0, 20),
     };
-  }, [q, events, todos, notes, folderNameById]);
+  }, [q, events, todos, notes, folderNameById, secureFolderId]);
 
   const total = results.events.length + results.todos.length + results.notes.length;
   if (!q) return null;
@@ -94,7 +95,7 @@ export default function GlobalSearch({ query, events, todos, notes, folders = []
           </section>}
           {results.notes.length > 0 && <section>
             <h4 className="text-xs font-black text-amber-500 dark:text-amber-400 mb-2 flex items-center gap-1.5"><FileText className="w-4 h-4" />메모</h4>
-            <div className="space-y-1.5">{results.notes.map((n: any) => <button key={n.id} onClick={() => onNote(n)} className="w-full text-left p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800"><span className="font-bold text-sm">{n.locked ? '비밀 메모' : n.title}</span>{!n.locked && <span className="block text-[11px] text-slate-500 line-clamp-1">{n.content}</span>}</button>)}</div>
+            <div className="space-y-1.5">{results.notes.map((n: any) => <button key={n.id} onClick={() => onNote(n)} className="w-full text-left p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800"><span className="font-bold text-sm">{n.title}</span><span className="block text-[11px] text-slate-500 line-clamp-1">{n.content}</span></button>)}</div>
           </section>}
         </div>
       )}

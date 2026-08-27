@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
     isLunar: Number(row.is_lunar || 0) === 1,
     lunarMonth: row.lunar_month == null ? null : Number(row.lunar_month),
     lunarDay: row.lunar_day == null ? null : Number(row.lunar_day),
+    isAnniversary: Number(row.is_anniversary || 0) === 1,
     source: row.source || 'manual',
     externalUid: row.external_uid || null,
     linkedTodoId: row.linked_todo_id || null,
@@ -58,8 +59,8 @@ export async function POST(req: NextRequest) {
     }
 
     await turso.execute({
-      sql: `INSERT OR REPLACE INTO events (id, user_id, title, start, end_time, end_date, location, description, color, recurrence_type, recurrence_count, is_lunar, lunar_month, lunar_day, updated_at, source, external_uid, linked_todo_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT OR REPLACE INTO events (id, user_id, title, start, end_time, end_date, location, description, color, recurrence_type, recurrence_count, is_lunar, lunar_month, lunar_day, is_anniversary, updated_at, source, external_uid, linked_todo_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
         uid,
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
         body.isLunar ? 1 : 0,
         body.lunarMonth ?? null,
         body.lunarDay ?? null,
+        body.isAnniversary ? 1 : 0,
         now,
         source,
         externalUid,

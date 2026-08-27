@@ -2,11 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, format, isToday } from 'date-fns';
-import { Plus, MapPin, Repeat, CalendarRange, StickyNote, Lock, Star, Trash2 } from 'lucide-react';
+import { Plus, MapPin, Repeat, CalendarRange, StickyNote, Star, Trash2 } from 'lucide-react';
 import { eventOccursOnDay, getRecurrenceType } from '../../lib/recurrence';
 import { api } from '../../lib/api-client';
-import { hashCode } from '../../lib/noteLock';
-import { PinInput, PatternInput } from './NoteLockPad';
 import NoteContent, { toggleChecklistLine } from './NoteContent';
 import { getFolderColor } from '../../lib/folderColor';
 import EventModal from './EventModal';
@@ -90,13 +88,10 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
-  const [unlocked, setUnlocked] = useState(false);
-  const [unlockError, setUnlockError] = useState(false);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const isLocked = !!note.locked && !unlocked;
   const folderColor = note.folderId ? getFolderColor(note.folderId) : null;
-  const iconColorClass = note.locked ? 'text-slate-400' : (folderColor ? folderColor.text : 'text-amber-500 dark:text-amber-400');
+  const iconColorClass = folderColor ? folderColor.text : 'text-amber-500 dark:text-amber-400';
 
   useEffect(() => { setTitle(note.title); setContent(note.content); }, [note.title, note.content]);
 
@@ -113,7 +108,7 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
   const persist = (extra?: any) => {
     const trimmedTitle = title.trim() || '(제목 없음)';
     if (!extra && trimmedTitle === note.title && content === note.content) return;
-    api.notes.update(note.id, { title: trimmedTitle, content, showToday: note.showToday, folderId: note.folderId || null, format: note.format, locked: note.locked, lockType: note.lockType, lockHash: note.lockHash, ...extra })
+    api.notes.update(note.id, { title: trimmedTitle, content, showToday: note.showToday, folderId: note.folderId || null, format: note.format, ...extra })
       .then(() => onRefresh?.())
       .catch((err: any) => onNotify?.(`저장 실패: ${err.message || err}`, 'error'));
   };
@@ -142,33 +137,18 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
     api.notes.remove(note.id).then(() => { onNotify?.('메모를 보관함으로 옮겼습니다.'); onRefresh?.(); }).catch((err: any) => onNotify?.(`삭제 실패: ${err.message || err}`, 'error'));
   };
 
+  // 체크박스를 눌렀을 때는 체크만 토글하고, 수정모드로는 들어가지 않음
   const toggleLine = (idx: number) => {
     const newContent = toggleChecklistLine(content, idx);
     setContent(newContent);
     persist({ content: newContent });
   };
-
-  const tryUnlock = async (code: string) => {
-    const hash = await hashCode(code);
-    if (hash === note.lockHash) { setUnlocked(true); setUnlockError(false); }
-    else setUnlockError(true);
-  };
+  // 글 내용(텍스트) 부분을 눌렀을 때만 수정모드로 진입
+  const enterEditAtLine = () => setEditing(true);
 
   // 탭한 위치에 그대로 커서가 놓이도록, 보기/수정 모드에서 같은 textarea를 유지하고 readOnly만 바꿈
   // (일반 형식일 때만; 체크리스트/번호매김은 보기모드에서 예쁘게 렌더링하고, 탭하면 원문 편집 모드로 전환)
   const isPlain = (note.format || 'plain') === 'plain';
-
-  if (isLocked) {
-    return (
-      <div className="rounded-xl border border-amber-200 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/5 p-4 space-y-2">
-        <div className="flex items-center gap-1.5"><Lock className="w-4 h-4 text-slate-400 shrink-0" /><span className="font-bold text-base text-slate-500 dark:text-slate-400">비밀 메모</span></div>
-        <div className="max-w-[220px]">
-          {note.lockType === 'pattern' ? <PatternInput onSubmit={tryUnlock} submitLabel="해제" /> : <PinInput onSubmit={tryUnlock} submitLabel="해제" />}
-        </div>
-        {unlockError && <p className="text-xs text-rose-500">맞지 않아요.</p>}
-      </div>
-    );
-  }
 
   return (
     <div ref={wrapperRef} className={`rounded-xl border p-4 transition ${editing ? 'border-amber-400/60 bg-white dark:bg-slate-900/40 shadow-sm' : 'border-amber-200 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/5 hover:bg-amber-100/60 dark:hover:bg-amber-500/10 cursor-text'}`}>
@@ -203,7 +183,7 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
           onChange={(e) => { setContent(e.target.value); autoGrow(e.target); }}
           onFocus={(e) => autoGrow(e.target)}
           rows={2}
-          className={`w-full bg-transparent text-sm leading-relaxed outline-none resize-none [overflow-wrap:anywhere] ${editing ? 'text-slate-700 dark:text-slate-300 cursor-text' : 'text-slate-600 dark:text-slate-400 cursor-text'}`}
+          className={`w-full bg-transparent text-base leading-relaxed outline-none resize-none [overflow-wrap:anywhere] ${editing ? 'text-slate-700 dark:text-slate-300 cursor-text' : 'text-slate-600 dark:text-slate-400 cursor-text'}`}
         />
       ) : editing ? (
         <textarea
@@ -213,11 +193,12 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
           onChange={(e) => { setContent(e.target.value); autoGrow(e.target); }}
           onFocus={(e) => autoGrow(e.target)}
           rows={3}
-          className="w-full bg-transparent text-sm leading-relaxed outline-none resize-none [overflow-wrap:anywhere] text-slate-700 dark:text-slate-300"
+          className="w-full bg-transparent text-base leading-relaxed outline-none resize-none [overflow-wrap:anywhere] text-slate-700 dark:text-slate-300"
         />
       ) : (
-        <div onClick={() => setEditing(true)} className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed cursor-text">
-          <NoteContent content={content} format={note.format} onToggleLine={toggleLine} />
+        <div className="text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+          {/* 체크박스는 토글만, 글자 부분을 눌러야 수정모드로 진입 (체크박스 클릭이 수정모드를 열지 않도록 분리) */}
+          <NoteContent content={content} format={note.format} onToggleLine={toggleLine} onLineClick={enterEditAtLine} />
         </div>
       )}
     </div>

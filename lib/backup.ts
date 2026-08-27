@@ -31,6 +31,7 @@ export async function buildUserBackupJson(uid: string): Promise<string> {
     isLunar: Number(row.is_lunar || 0) === 1,
     lunarMonth: row.lunar_month == null ? null : Number(row.lunar_month),
     lunarDay: row.lunar_day == null ? null : Number(row.lunar_day),
+    isAnniversary: Number(row.is_anniversary || 0) === 1,
     source: row.source || null,
     externalUid: row.external_uid || null,
   }));

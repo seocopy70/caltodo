@@ -3,13 +3,10 @@
 
 const RESEND_FROM = process.env.RESEND_FROM_EMAIL || 'Cal2do <onboarding@resend.dev>';
 
-export async function sendBackupEmail(toEmail: string, backupJson: string, filename: string) {
+async function sendViaResend(payload: { to: string; subject: string; html: string; attachments?: { filename: string; content: string }[] }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('RESEND_API_KEY 환경변수가 설정되지 않았습니다.');
-  if (!toEmail) throw new Error('받는 사람 이메일 주소를 확인할 수 없습니다.');
-
-  const attachmentBase64 = Buffer.from(backupJson, 'utf-8').toString('base64');
-  const today = new Date().toLocaleDateString('ko-KR');
+  if (!payload.to) throw new Error('받는 사람 이메일 주소를 확인할 수 없습니다.');
 
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -19,10 +16,10 @@ export async function sendBackupEmail(toEmail: string, backupJson: string, filen
     },
     body: JSON.stringify({
       from: RESEND_FROM,
-      to: [toEmail],
-      subject: `Cal2do 백업 (${today})`,
-      html: `<p>Cal2do 전체 백업 파일이에요.</p><p>첨부된 <b>${filename}</b> 파일을 보관해두시면, 앱의 "가져오기 / 내보내기 → 전체 백업 가져오기"에서 그대로 복원할 수 있어요.</p>`,
-      attachments: [{ filename, content: attachmentBase64 }],
+      to: [payload.to],
+      subject: payload.subject,
+      html: payload.html,
+      ...(payload.attachments ? { attachments: payload.attachments } : {}),
     }),
   });
 
@@ -36,4 +33,24 @@ export async function sendBackupEmail(toEmail: string, backupJson: string, filen
   }
 
   return res.json();
+}
+
+export async function sendBackupEmail(toEmail: string, backupJson: string, filename: string) {
+  const attachmentBase64 = Buffer.from(backupJson, 'utf-8').toString('base64');
+  const today = new Date().toLocaleDateString('ko-KR');
+  return sendViaResend({
+    to: toEmail,
+    subject: `Cal2do 백업 (${today})`,
+    html: `<p>Cal2do 전체 백업 파일이에요.</p><p>첨부된 <b>${filename}</b> 파일을 보관해두시면, 앱의 "가져오기 / 내보내기 → 전체 백업 가져오기"에서 그대로 복원할 수 있어요.</p>`,
+    attachments: [{ filename, content: attachmentBase64 }],
+  });
+}
+
+/** 보안폴더 비밀번호/패턴 복구용 인증코드 이메일 발송 */
+export async function sendSecureFolderResetEmail(toEmail: string, code: string) {
+  return sendViaResend({
+    to: toEmail,
+    subject: 'Cal2do 보안폴더 인증코드',
+    html: `<p>보안폴더 잠금을 해제하기 위한 인증코드예요.</p><p style="font-size:28px;font-weight:bold;letter-spacing:0.2em;">${code}</p><p>이 코드는 15분간만 유효합니다. 본인이 요청하지 않았다면 이 메일을 무시하세요.</p>`,
+  });
 }

@@ -52,6 +52,11 @@ export const api = {
     create: (name: string) => request('/api/note-folders', { method: 'POST', body: JSON.stringify({ name }) }),
     rename: (id: string, name: string) => request(`/api/note-folders/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
     remove: (id: string) => request(`/api/note-folders/${id}`, { method: 'DELETE' }),
+    setupSecure: (id: string, lockType: string, code: string) => request(`/api/note-folders/${id}/secure`, { method: 'POST', body: JSON.stringify({ lockType, code }) }),
+    verifySecure: (id: string, code: string) => request(`/api/note-folders/${id}/secure`, { method: 'PUT', body: JSON.stringify({ code }) }),
+    unsecure: (id: string, code: string) => request(`/api/note-folders/${id}/secure`, { method: 'DELETE', body: JSON.stringify({ code }) }),
+    requestSecureReset: (id: string) => request(`/api/note-folders/${id}/secure/reset`, { method: 'POST' }),
+    confirmSecureReset: (id: string, code: string, newLockType: string, newCode: string) => request(`/api/note-folders/${id}/secure/reset`, { method: 'PUT', body: JSON.stringify({ code, newLockType, newCode }) }),
   },
   backup: {
     getSettings: () => request('/api/backup/settings'),

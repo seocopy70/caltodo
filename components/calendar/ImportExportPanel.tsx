@@ -4,8 +4,10 @@ import { useRef, useState } from 'react';
 import { api } from '../../lib/api-client';
 import { Upload, X, FileJson, CalendarDays, DatabaseBackup } from 'lucide-react';
 import { eventsToICS, downloadTextFile, parseICS, type ParsedICSEvent } from '../../lib/ics';
+import { useModalBackClose } from '../../lib/useModalBackClose';
 
 export default function ImportExportPanel({ events, todos, notes, user, onNotify, onRefresh, onClose }: any) {
+  useModalBackClose(onClose);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const [pendingImport, setPendingImport] = useState<ParsedICSEvent[] | null>(null);

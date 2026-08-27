@@ -13,6 +13,7 @@ import GlobalSearch from '../components/calendar/GlobalSearch';
 import ImportExportPanel from '../components/calendar/ImportExportPanel';
 import EmailBackupPanel from '../components/calendar/EmailBackupPanel';
 import DataManagementPanel from '../components/calendar/DataManagementPanel';
+import AnniversaryModal from '../components/calendar/AnniversaryModal';
 import TodoModal from '../components/calendar/TodoModal';
 import NoteModal from '../components/calendar/NoteModal';
 import VersionModal from '../components/calendar/VersionModal';
@@ -33,12 +34,14 @@ export default function Home() {
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const [isEmailBackupOpen, setIsEmailBackupOpen] = useState(false);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
+  const [isAnniversaryOpen, setIsAnniversaryOpen] = useState(false);
   const [isVersionOpen, setIsVersionOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [editingNote, setEditingNote] = useState<any>(null);
+  const [editingNoteFocus, setEditingNoteFocus] = useState<{ focus: 'title' | 'content'; lineIndex?: number } | null>(null);
   const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartX = useRef<number | null>(null);
@@ -153,6 +156,7 @@ export default function Home() {
         <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
         <button onClick={() => go('list')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">일정 목록 보기</button>
         <button onClick={() => { setIsDataManagementOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">일정데이터 관리</button>
+        <button onClick={() => { setIsAnniversaryOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">기념일 관리</button>
         <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
         <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">{isDarkMode ? '밝은 모드' : '다크 모드'}</button>
         <button onClick={() => { setIsHelpOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">도움말</button>
@@ -161,14 +165,15 @@ export default function Home() {
         <button onClick={() => signOut(auth)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">로그아웃</button>
       </div>
     </>}
-    <main className="max-w-7xl mx-auto p-2.5 sm:p-4">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any) => setEditingNote(n)} /> : view === 'month' ? <Calendar key="month-view" view="month" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'week' ? <Calendar key="week-view" view="week" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any) => setEditingNote(n)} onPatchNote={patchNoteLocal} />}</main>
+    <main className="max-w-7xl mx-auto p-2.5 sm:p-4">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any) => setEditingNote(n)} /> : view === 'month' ? <Calendar key="month-view" view="month" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'week' ? <Calendar key="week-view" view="week" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex }); }} onPatchNote={patchNoteLocal} />}</main>
     {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {isEmailBackupOpen && <EmailBackupPanel user={user} onClose={() => setIsEmailBackupOpen(false)} onNotify={notify} />}
     {isDataManagementOpen && <DataManagementPanel events={events} user={user} onClose={() => setIsDataManagementOpen(false)} onRefresh={refreshData} onNotify={notify} />}
+    {isAnniversaryOpen && <AnniversaryModal events={events} user={user} onClose={() => setIsAnniversaryOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {isVersionOpen && <VersionModal onClose={() => setIsVersionOpen(false)} />}
     {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
     {editingTodo && <TodoModal todo={editingTodo} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
-    {(editingNote || isNewNoteOpen) && <NoteModal note={editingNote} folders={noteFolders} onClose={() => { setEditingNote(null); setIsNewNoteOpen(false); }} onRefresh={refreshData} onNotify={notify} />}
+    {(editingNote || isNewNoteOpen) && <NoteModal note={editingNote} folders={noteFolders} secureFolderId={noteFolders.find((f: any) => f.isSecure)?.id || null} initialFocus={editingNoteFocus?.focus} initialLineIndex={editingNoteFocus?.lineIndex} onClose={() => { setEditingNote(null); setIsNewNoteOpen(false); setEditingNoteFocus(null); }} onRefresh={refreshData} onNotify={notify} />}
     {toast && <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold ${toast.type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>{toast.message}</div>}
   </div>;
 }

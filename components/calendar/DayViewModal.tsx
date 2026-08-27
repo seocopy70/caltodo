@@ -4,11 +4,13 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { X, Plus } from 'lucide-react';
+import { useModalBackClose } from '../../lib/useModalBackClose';
 import TimeGrid from './TimeGrid';
 import EventModal from './EventModal';
 import { eventOccursOnDay } from '../../lib/recurrence';
 
 export default function DayViewModal({ date, events, holidayMap, user, onNotify, onRefresh, onClose }: any) {
+  useModalBackClose(onClose);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [prefillDate, setPrefillDate] = useState<Date>(date);

@@ -1,26 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api-client';
-import { X, Trash2, ListChecks, ListOrdered, AlignLeft, Plus, Lock } from 'lucide-react';
-import { hashCode } from '../../lib/noteLock';
+import { X, Trash2, ListChecks, ListOrdered, AlignLeft, Plus } from 'lucide-react';
 import { convertContentForFormat } from './NoteContent';
-import { PinInput, PatternInput } from './NoteLockPad';
+import { useModalBackClose } from '../../lib/useModalBackClose';
 
 type NoteFormat = 'plain' | 'checklist' | 'numbered';
 
-export default function NoteModal({ note, folders = [], onClose, onRefresh, onNotify }: any) {
+export default function NoteModal({ note, folders = [], secureFolderId, initialFocus, initialLineIndex, onClose, onRefresh, onNotify }: any) {
+  useModalBackClose(onClose);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [showToday, setShowToday] = useState(false);
   const [folderId, setFolderId] = useState<string | null>(null);
   const [format, setFormat] = useState<NoteFormat>('plain');
-  const [locked, setLocked] = useState(false);
-  const [lockType, setLockType] = useState<'pin' | 'pattern'>('pin');
-  const [lockHash, setLockHash] = useState<string | null>(null); // 기존 잠금 해시(변경 안 하면 유지)
-  const [settingUpLock, setSettingUpLock] = useState(false); // 새 PIN/패턴 설정 중
   const notify = onNotify || (() => {});
   const isEdit = !!note;
+  const titleRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const lineInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const isInSecureFolder = !!secureFolderId && folderId === secureFolderId;
 
   useEffect(() => {
     setTitle(note?.title || '');
@@ -28,11 +28,26 @@ export default function NoteModal({ note, folders = [], onClose, onRefresh, onNo
     setShowToday(!!note?.showToday);
     setFolderId(note?.folderId || null);
     setFormat((note?.format as NoteFormat) || 'plain');
-    setLocked(!!note?.locked);
-    setLockType((note?.lockType as 'pin' | 'pattern') || 'pin');
-    setLockHash(note?.lockHash || null);
-    setSettingUpLock(false);
   }, [note]);
+
+  // 어디를 탭해서 들어왔는지에 따라 제목이 아니라 실제 탭한 위치(내용)에 커서를 둠
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (initialFocus === 'content') {
+        if (format === 'plain') {
+          contentRef.current?.focus();
+          const len = contentRef.current?.value.length || 0;
+          contentRef.current?.setSelectionRange(len, len);
+        } else if (initialLineIndex != null) {
+          lineInputRefs.current[initialLineIndex]?.focus();
+        }
+      } else {
+        titleRef.current?.focus();
+      }
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const switchFormat = (next: NoteFormat) => {
     setContent((c) => convertContentForFormat(c, format, next));
@@ -56,25 +71,29 @@ export default function NoteModal({ note, folders = [], onClose, onRefresh, onNo
     if (m) { const checked = m[1].toLowerCase() === 'x'; arr[idx] = `[${checked ? ' ' : 'x'}] ${m[2]}`; }
     setContent(arr.join('\n'));
   };
-  const addLine = () => setContent((c) => `${c}${c ? '\n' : ''}${format === 'checklist' ? '[ ] ' : ''}`);
+  // 엔터키를 누르면 그 자리에서 줄을 나눠 새 항목을 만들고, 새 줄로 포커스 이동
+  const insertLineAfter = (idx: number) => {
+    const arr = [...lines];
+    arr.splice(idx + 1, 0, format === 'checklist' ? '[ ] ' : '');
+    setContent(arr.join('\n'));
+    setTimeout(() => lineInputRefs.current[idx + 1]?.focus(), 0);
+  };
   const removeLine = (idx: number) => { const arr = [...lines]; arr.splice(idx, 1); setContent(arr.join('\n')); };
 
-  const setupLockCode = async (code: string) => {
-    setLockHash(await hashCode(code));
-    setSettingUpLock(false);
-    notify(`${lockType === 'pin' ? 'PIN' : '패턴'}이 설정되었어요. 저장을 눌러 완료하세요.`);
+  const toggleShowToday = (checked: boolean) => {
+    if (isInSecureFolder) return; // 보안폴더 메모는 오늘 탭 표시(별표) 불가
+    setShowToday(checked);
   };
 
-  const toggleLocked = (checked: boolean) => {
-    setLocked(checked);
-    if (checked && !lockHash) setSettingUpLock(true);
-    if (!checked) { setLockHash(null); setSettingUpLock(false); }
+  const handleFolderChange = (value: string) => {
+    const next = value || null;
+    setFolderId(next);
+    if (next && next === secureFolderId) setShowToday(false); // 보안폴더로 옮기면 자동으로 별표 해제
   };
 
   const save = () => {
     if (!title.trim() && !content.trim()) return;
-    if (locked && !lockHash) { notify('먼저 PIN 또는 패턴을 설정해주세요.', 'error'); return; }
-    const noteData = { title: title.trim() || '(제목 없음)', content, showToday, folderId, format, locked, lockType: locked ? lockType : null, lockHash: locked ? lockHash : null };
+    const noteData = { title: title.trim() || '(제목 없음)', content, showToday: isInSecureFolder ? false : showToday, folderId, format };
     const targetId = note?.id;
     onClose();
     const task = isEdit ? api.notes.update(targetId, noteData) : api.notes.create(noteData);
@@ -99,7 +118,7 @@ export default function NoteModal({ note, folders = [], onClose, onRefresh, onNo
             <button onClick={onClose} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><X /></button>
           </div>
 
-          <input autoFocus className="w-full bg-transparent text-xl font-bold focus:outline-none border-b border-slate-200 dark:border-slate-700 pb-2 shrink-0 text-slate-900 dark:text-white" placeholder="제목" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input ref={titleRef} className="w-full bg-transparent text-xl font-bold focus:outline-none border-b border-slate-200 dark:border-slate-700 pb-2 shrink-0 text-slate-900 dark:text-white" placeholder="제목" value={title} onChange={(e) => setTitle(e.target.value)} />
 
           {/* 형식: 일반/체크리스트/번호매김 중 하나만 선택 가능 */}
           <div className="flex items-center gap-1.5 shrink-0">
@@ -109,7 +128,7 @@ export default function NoteModal({ note, folders = [], onClose, onRefresh, onNo
           </div>
 
           {format === 'plain' ? (
-            <textarea className="w-full flex-1 min-h-[16rem] bg-slate-100 dark:bg-slate-800 rounded-2xl p-4 outline-none text-base leading-relaxed resize-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="내용을 입력하세요..." value={content} onChange={(e) => setContent(e.target.value)} />
+            <textarea ref={contentRef} className="w-full flex-1 min-h-[16rem] bg-slate-100 dark:bg-slate-800 rounded-2xl p-4 outline-none text-base leading-relaxed resize-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="내용을 입력하세요..." value={content} onChange={(e) => setContent(e.target.value)} />
           ) : (
             <div className="w-full flex-1 min-h-[16rem] bg-slate-100 dark:bg-slate-800 rounded-2xl p-3 overflow-y-auto space-y-1.5">
               {lines.map((line, idx) => {
@@ -122,49 +141,38 @@ export default function NoteModal({ note, folders = [], onClose, onRefresh, onNo
                       <button onClick={() => toggleLineCheck(idx)} className={`w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center ${checked ? 'bg-blue-600 border-blue-600' : 'border-slate-400 dark:border-slate-500'}`}>{checked && <span className="text-white text-[10px] leading-none">✓</span>}</button>
                     )}
                     {format === 'numbered' && <span className="w-5 shrink-0 text-sm font-bold opacity-60 text-right">{idx + 1}.</span>}
-                    <input value={text} onChange={(e) => updateLine(idx, e.target.value)} className={`flex-1 bg-transparent outline-none text-sm ${checked ? 'line-through text-slate-400 dark:text-slate-600' : 'text-slate-900 dark:text-slate-100'}`} placeholder="내용" />
+                    <input
+                      ref={(el) => { lineInputRefs.current[idx] = el; }}
+                      value={text}
+                      onChange={(e) => updateLine(idx, e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); insertLineAfter(idx); } }}
+                      className={`flex-1 bg-transparent outline-none text-sm ${checked ? 'line-through text-slate-400 dark:text-slate-600' : 'text-slate-900 dark:text-slate-100'}`}
+                      placeholder="내용 (Enter로 다음 줄 추가)"
+                    />
                     <button onClick={() => removeLine(idx)} className="text-slate-400 hover:text-rose-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 );
               })}
-              <button onClick={addLine} className="flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-400 mt-1"><Plus className="w-3.5 h-3.5" /> 항목 추가</button>
+              <button onClick={() => insertLineAfter(lines.length - 1)} className="flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-400 mt-1"><Plus className="w-3.5 h-3.5" /> 항목 추가</button>
             </div>
           )}
 
           <div className="flex items-center gap-3 shrink-0 flex-wrap">
-            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><input type="checkbox" checked={showToday} onChange={(e) => setShowToday(e.target.checked)} /> 오늘 탭에 표시</label>
+            <label className={`flex items-center gap-2 text-sm ${isInSecureFolder ? 'text-slate-400 dark:text-slate-600' : 'text-slate-600 dark:text-slate-300'}`}>
+              <input type="checkbox" checked={showToday} disabled={isInSecureFolder} onChange={(e) => toggleShowToday(e.target.checked)} /> 오늘 탭에 표시
+            </label>
             {folders.length > 0 && (
               <select
                 value={folderId || ''}
-                onChange={(e) => setFolderId(e.target.value || null)}
+                onChange={(e) => handleFolderChange(e.target.value)}
                 className="text-sm bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg px-2 py-1.5 outline-none"
               >
                 <option value="">폴더 없음</option>
-                {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}{f.id === secureFolderId ? ' 🔒' : ''}</option>)}
               </select>
             )}
-            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><Lock className="w-3.5 h-3.5" /><input type="checkbox" checked={locked} onChange={(e) => toggleLocked(e.target.checked)} /> 비밀 메모(화면 가림)</label>
           </div>
-
-          {locked && (
-            <div className="shrink-0 bg-slate-100 dark:bg-slate-800/60 rounded-2xl p-3 space-y-2">
-              {!settingUpLock ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">{lockHash ? `${lockType === 'pin' ? 'PIN' : '패턴'} 설정됨` : '아직 설정 안 됨'}</span>
-                  <button onClick={() => setSettingUpLock(true)} className="text-xs font-bold text-blue-500 dark:text-blue-400">{lockHash ? '다시 설정' : '설정하기'}</button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <button onClick={() => setLockType('pin')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${lockType === 'pin' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-500'}`}>PIN 번호</button>
-                    <button onClick={() => setLockType('pattern')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${lockType === 'pattern' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-500'}`}>패턴</button>
-                  </div>
-                  {lockType === 'pin' ? <PinInput label="새 PIN 번호를 입력하세요" onSubmit={setupLockCode} submitLabel="PIN 설정" /> : <PatternInput label="새 패턴을 그려주세요" onSubmit={setupLockCode} submitLabel="패턴 설정" />}
-                </>
-              )}
-              <p className="text-[10px] text-slate-500">비밀 메모는 다른 사람이 화면을 봐도 내용이 바로 보이지 않도록 가려주는 간단한 잠금이에요.</p>
-            </div>
-          )}
+          {isInSecureFolder && <p className="text-[11px] text-slate-500 -mt-2">보안폴더로 옮긴 메모는 오늘 탭에 표시할 수 없어요.</p>}
 
           <div className="flex gap-3 pt-2 shrink-0">
             {isEdit && <button onClick={remove} className="p-3 text-rose-500 hover:bg-rose-500/10 rounded-2xl"><Trash2 /></button>}

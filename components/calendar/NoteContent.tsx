@@ -1,6 +1,6 @@
 'use client';
 
-export default function NoteContent({ content, format, onToggleLine, className }: { content: string; format?: string; onToggleLine?: (idx: number) => void; className?: string }) {
+export default function NoteContent({ content, format, onToggleLine, onLineClick, className }: { content: string; format?: string; onToggleLine?: (idx: number) => void; onLineClick?: (idx: number) => void; className?: string }) {
   const lines = (content || '').split('\n');
   // 공백/줄바꿈 없는 긴 문자열(URL 등)이 카드/화면 폭을 넘어가지 않도록 어디서든 줄바꿈 허용
   const wrapClass = 'break-words [overflow-wrap:anywhere]';
@@ -22,7 +22,7 @@ export default function NoteContent({ content, format, onToggleLine, className }
               >
                 {checked && <span className="text-white text-[10px] leading-none">✓</span>}
               </button>
-              <span className={`min-w-0 ${wrapClass} ${checked ? 'line-through text-slate-400 dark:text-slate-600' : ''}`}>{text}</span>
+              <span onClick={(e) => { e.stopPropagation(); onLineClick?.(i); }} className={`min-w-0 ${wrapClass} ${checked ? 'line-through text-slate-400 dark:text-slate-600' : ''}`}>{text}</span>
             </div>
           );
         })}
@@ -40,7 +40,7 @@ export default function NoteContent({ content, format, onToggleLine, className }
           return (
             <div key={i} className="flex gap-2 py-0.5">
               <span className="shrink-0 font-bold opacity-60">{n}.</span>
-              <span className={`min-w-0 ${wrapClass}`}>{line}</span>
+              <span onClick={(e) => { e.stopPropagation(); onLineClick?.(i); }} className={`min-w-0 ${wrapClass}`}>{line}</span>
             </div>
           );
         })}
@@ -48,7 +48,7 @@ export default function NoteContent({ content, format, onToggleLine, className }
     );
   }
 
-  return <p className={`whitespace-pre-wrap min-w-0 ${wrapClass} ${className || ''}`}>{content}</p>;
+  return <p onClick={(e) => { e.stopPropagation(); onLineClick?.(0); }} className={`whitespace-pre-wrap min-w-0 ${wrapClass} ${className || ''}`}>{content}</p>;
 }
 
 /** 체크리스트 형식 메모의 특정 줄 체크 상태를 토글한 새 content 문자열을 반환 */

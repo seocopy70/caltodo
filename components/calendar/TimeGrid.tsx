@@ -80,8 +80,10 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
 
   return (
     <div className="flex flex-col border border-slate-300 dark:border-slate-700 rounded-2xl overflow-hidden shadow-2xl bg-white/70 dark:bg-slate-900/20">
-      {/* data-hscroll: 이 영역 안에서 좌우로 밀면 그리드 자체가 스크롤되고(탭 순환 아님), 영역 밖에서 밀면 탭이 순환됨 */}
-      <div data-hscroll className="overflow-x-auto overscroll-x-contain">
+      {/* data-hscroll: 이 영역 안에서 좌우로 밀면 그리드 자체가 스크롤되고(탭 순환 아님), 영역 밖에서 밀면 탭이 순환됨.
+          touch-pan-x/touch-pan-y로 가로/세로 스크롤 축을 명확히 구분해줘야 주별보기에서 처음 스와이프할 때
+          브라우저가 방향을 판단하느라 살짝 멈칫하는(움찔) 현상이 사라짐 */}
+      <div data-hscroll className="overflow-x-auto overscroll-x-contain touch-pan-x">
         <div style={innerMinWidth ? { minWidth: innerMinWidth } : undefined}>
           {/* 헤더: 요일+날짜 한 줄 */}
           <div className="flex border-b border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60">
@@ -122,7 +124,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
           )}
 
           {/* 시간표 본문: 주별보기는 기본으로 06~20시 정도만 보이는 높이로 제한하고(스크롤 시 00~24시 전체 확인 가능), 일별보기는 화면 비율 기준 */}
-          <div ref={scrollRef} className="flex overflow-y-auto" style={{ maxHeight: isWeekView ? WEEK_VISIBLE_HOURS * HOUR_HEIGHT : '65vh' }}>
+          <div ref={scrollRef} className="flex overflow-y-auto touch-pan-y" style={{ maxHeight: isWeekView ? WEEK_VISIBLE_HOURS * HOUR_HEIGHT : '65vh' }}>
             <div className="w-9 shrink-0">
               {HOURS.map((h) => (
                 <div key={h} style={{ height: HOUR_HEIGHT }} className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-right pr-1 -translate-y-1.5 border-t border-slate-100 dark:border-slate-800/60">{h === 0 ? '' : `${h}시`}</div>

@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { X, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { APP_VERSION, APP_VERSION_NOTES } from '../../lib/version';
+import { useModalBackClose } from '../../lib/useModalBackClose';
 
 export default function VersionModal({ onClose }: any) {
+  useModalBackClose(onClose);
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">

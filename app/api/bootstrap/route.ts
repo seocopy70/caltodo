@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
     isLunar: Number(row.is_lunar || 0) === 1,
     lunarMonth: row.lunar_month == null ? null : Number(row.lunar_month),
     lunarDay: row.lunar_day == null ? null : Number(row.lunar_day),
+    isAnniversary: Number(row.is_anniversary || 0) === 1,
     source: row.source || 'manual',
     externalUid: row.external_uid || null,
     linkedTodoId: row.linked_todo_id || null,
@@ -69,6 +70,9 @@ export async function GET(req: NextRequest) {
     name: row.name,
     orderIndex: Number(row.order_index || 0),
     createdAt: new Date(Number(row.created_at)).toISOString(),
+    isSecure: Number(row.is_secure || 0) === 1,
+    lockType: row.lock_type || null,
+    isLocked: Number(row.is_locked || 0) === 1,
   }));
 
   return NextResponse.json({ events, todos, notes, noteFolders });

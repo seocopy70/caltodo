@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api-client';
 import { X, Mail, Send } from 'lucide-react';
+import { useModalBackClose } from '../../lib/useModalBackClose';
 
 const FREQUENCY_LABEL: Record<string, string> = { off: '사용 안 함', daily: '매일', weekly: '매주', monthly: '매월' };
 
 export default function EmailBackupPanel({ user, onClose, onNotify }: any) {
+  useModalBackClose(onClose);
   const [frequency, setFrequency] = useState('off');
   const [lastSentAt, setLastSentAt] = useState<string | null>(null);
   const [sendingNow, setSendingNow] = useState(false);

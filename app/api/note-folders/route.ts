@@ -17,6 +17,10 @@ export async function GET(req: NextRequest) {
     name: row.name,
     orderIndex: Number(row.order_index || 0),
     createdAt: new Date(Number(row.created_at)).toISOString(),
+    isSecure: Number(row.is_secure || 0) === 1,
+    lockType: row.lock_type || null,
+    isLocked: Number(row.is_locked || 0) === 1,
+    // lock_hash, reset_code_* 는 클라이언트로 절대 보내지 않음 (서버에서만 검증)
   }));
 
   return NextResponse.json({ folders });

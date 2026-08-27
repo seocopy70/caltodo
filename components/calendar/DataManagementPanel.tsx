@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { api } from '../../lib/api-client';
 import { X, Search, Trash2, AlertTriangle } from 'lucide-react';
+import { useModalBackClose } from '../../lib/useModalBackClose';
 
 export default function DataManagementPanel({ events, onNotify, onRefresh, onClose }: any) {
+  useModalBackClose(onClose);
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
