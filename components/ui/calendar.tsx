@@ -7,7 +7,7 @@ import {
   isSameDay, addDays, subDays
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Repeat, CalendarRange, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Repeat, CalendarRange, CalendarDays, Rows3, Grid3x3 } from 'lucide-react';
 import { getKoreanHolidaysForYears } from '../../lib/holidays';
 import { eventOccursOnDay, getRecurrenceType } from '../../lib/recurrence';
 import KoreanLunarCalendar from 'korean-lunar-calendar';
@@ -24,7 +24,8 @@ function getLunarLabel(date: Date) {
 
 const YEAR_RANGE = 15;
 
-export default function Calendar({ view, events, user, onNotify, onRefresh }: any) {
+export default function Calendar({ initialView = 'month', events, user, onNotify, onRefresh }: any) {
+  const [view, setCalView] = useState<'month' | 'week'>(initialView);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -58,7 +59,14 @@ export default function Calendar({ view, events, user, onNotify, onRefresh }: an
     <div className="flex flex-col h-full animate-in fade-in duration-500">
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => setIsDatePickerOpen((v) => !v)} className="group flex items-center gap-2 text-left rounded-xl px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="연월 선택"><h2 className="text-2xl font-bold">{view === 'month' ? format(currentDate, 'yyyy년 MMMM', { locale: ko }) : `${format(currentDate, 'M', { locale: ko })}월 ${weekOfMonth}주차`}</h2><CalendarDays className="w-5 h-5 text-slate-400 group-hover:text-blue-500" /></button>
-        <div className="flex gap-2"><button onClick={() => setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronLeft/></button><button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 text-sm font-bold bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700">오늘</button><button onClick={() => setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronRight/></button></div>
+        <div className="flex items-center gap-2">
+          {/* 월별/주별보기 토글 (메모탭 카드/목록 토글과 동일한 패턴) */}
+          <div className="flex items-center rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden">
+            <button onClick={() => setCalView('month')} title="월별보기" className={`p-2 transition ${view === 'month' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Grid3x3 className="w-4 h-4" /></button>
+            <button onClick={() => setCalView('week')} title="주별보기" className={`p-2 transition ${view === 'week' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Rows3 className="w-4 h-4" /></button>
+          </div>
+          <div className="flex gap-2"><button onClick={() => setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronLeft/></button><button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 text-sm font-bold bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700">오늘</button><button onClick={() => setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronRight/></button></div>
+        </div>
       </div>
 
       {isDatePickerOpen && <div className="mb-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4"><div className="flex items-center justify-between mb-3"><div className="text-sm font-bold text-slate-700 dark:text-slate-200">연월로 바로 이동</div><button onClick={() => setIsDatePickerOpen(false)} className="text-xs text-slate-500">닫기</button></div><div className="flex gap-3 mb-3"><select value={currentDate.getFullYear()} onChange={(e) => jumpTo(Number(e.target.value), currentDate.getMonth())} className="flex-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-bold outline-none">{years.map((year) => <option key={year} value={year}>{year}년</option>)}</select><div className="flex-[2] grid grid-cols-6 gap-1.5">{Array.from({ length: 12 }, (_, month) => <button key={month} onClick={() => jumpTo(currentDate.getFullYear(), month)} className={`rounded-lg px-2 py-2 text-xs font-bold ${month === currentDate.getMonth() ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-blue-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}>{month + 1}월</button>)}</div></div></div>}

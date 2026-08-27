@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { addDays, format, isToday } from 'date-fns';
-import { Plus, MapPin, Repeat, CalendarRange, StickyNote, Star, Trash2 } from 'lucide-react';
+import { addDays, format } from 'date-fns';
+import { Plus, MapPin, AlignLeft, Repeat, CalendarRange, StickyNote, Star, Trash2 } from 'lucide-react';
 import { eventOccursOnDay, getRecurrenceType } from '../../lib/recurrence';
 import { api } from '../../lib/api-client';
 import NoteContent, { toggleChecklistLine } from './NoteContent';
@@ -10,10 +10,9 @@ import { getFolderColor } from '../../lib/folderColor';
 import EventModal from './EventModal';
 import TodoListPanel from './TodoListPanel';
 
-const DEFAULT_VISIBLE = 3;
-const EXPANDED_WINDOW_DAYS = 5; // 펼치면 오늘부터 5일 이내 일정까지 모두 표시
+const EXPANDED_WINDOW_DAYS = 7; // 펼치면 오늘부터 7일 이내 일정까지 가까운 순서로 모두 표시
 
-export default function HomeView({ events, todos, notes = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onNewNote, onEditNote }: any) {
+export default function HomeView({ events, todos, notes = [], todoFolders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onNewNote, onEditNote }: any) {
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [eventsExpanded, setEventsExpanded] = useState(false);
@@ -34,10 +33,16 @@ export default function HomeView({ events, todos, notes = [], user, onNotify, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
 
-  const visibleEvents = eventsExpanded ? windowEvents : windowEvents.slice(0, DEFAULT_VISIBLE);
+  // 접으면 오늘·내일 일정만, 펼치면 7일 내 전체(가까운 순서)
+  const collapsedEvents = useMemo(() => windowEvents.filter((e: any) => {
+    const diff = Math.round((e.__day.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000);
+    return diff <= 1;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [windowEvents]);
+  const visibleEvents = eventsExpanded ? windowEvents : collapsedEvents;
 
   return <div className="max-w-5xl mx-auto space-y-4 p-2">
-    <TodoListPanel todos={todos} user={user} onNotify={onNotify} onRefresh={onRefresh} onPatchTodo={onPatchTodo} onRemoveTodo={onRemoveTodo} maxVisible={5} compact hideCompleted largePlaceholder />
+    <TodoListPanel todos={todos} folders={todoFolders} user={user} onNotify={onNotify} onRefresh={onRefresh} onPatchTodo={onPatchTodo} onRemoveTodo={onRemoveTodo} maxVisible={5} compact hideCompleted largePlaceholder showRelativeDates />
 
     <div className="flex justify-end gap-2">
       <button type="button" onClick={() => setIsEventModalOpen(true)} className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition font-bold text-sm" title="새 일정"><Plus className="w-5 h-5" /><span>새 일정</span></button>
@@ -45,15 +50,15 @@ export default function HomeView({ events, todos, notes = [], user, onNotify, on
     </div>
 
     <section className="rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden">
-      <div className="divide-y divide-slate-100 dark:divide-slate-700/30">
+      {windowEvents.length > collapsedEvents.length && (
+        <button onClick={() => setEventsExpanded((v) => !v)} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-100 dark:border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition">
+          {eventsExpanded ? '접기' : `펼치기 (7일 내 ${windowEvents.length}개)`}
+        </button>
+      )}
+      <div className={`divide-y divide-slate-100 dark:divide-slate-700/30 ${eventsExpanded ? 'max-h-[50vh] overflow-y-auto' : ''}`}>
         {visibleEvents.map((event: any) => <EventRow key={`${event.id}-${format(event.__day, 'yyyy-MM-dd')}`} event={event} onEdit={() => setEditingEvent(event)} />)}
         {windowEvents.length === 0 && <div className="text-center text-slate-500 dark:text-slate-600 py-8 text-sm">일정이 없습니다.</div>}
       </div>
-      {windowEvents.length > DEFAULT_VISIBLE && (
-        <button onClick={() => setEventsExpanded((v) => !v)} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-t border-slate-100 dark:border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition">
-          {eventsExpanded ? '접기' : `펼치기 (5일 내 ${windowEvents.length}개)`}
-        </button>
-      )}
     </section>
 
     {notes.length > 0 && (
@@ -69,15 +74,18 @@ export default function HomeView({ events, todos, notes = [], user, onNotify, on
 function EventRow({ event, onEdit }: any) {
   const repeated = getRecurrenceType(event) !== 'none';
   const multi = !!event.endDate;
+  const today = new Date();
+  const diffDays = Math.round((new Date(event.__day.getFullYear(), event.__day.getMonth(), event.__day.getDate()).getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000);
+  const dayLabel = diffDays === 0 ? '오늘' : diffDays === 1 ? '내일' : format(event.__day, 'M/d');
   return <div onClick={onEdit} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/20 transition ${repeated ? 'bg-violet-50 dark:bg-violet-500/10' : ''}`}>
     {/* 날짜/시간을 두 줄로 통일 */}
     <div className="w-14 shrink-0 flex flex-col items-start leading-tight">
-      <span className="text-sm font-black text-slate-700 dark:text-slate-300">{isToday(event.__day) ? '오늘' : format(event.__day, 'M/d')}</span>
+      <span className={`text-sm font-black ${diffDays <= 1 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>{dayLabel}</span>
       <span className="text-sm font-bold text-slate-400 dark:text-slate-500">{format(event.start, 'HH:mm')}</span>
     </div>
     <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
       <div className="flex items-center gap-1.5 min-w-0">{repeated && <Repeat className="w-3 h-3 text-violet-400 shrink-0" />}{multi && <CalendarRange className="w-3 h-3 text-slate-500 shrink-0" />}<span className="font-bold text-sm truncate">{event.title}</span></div>
-      {event.location && <span className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0"><MapPin className="w-3.5 h-3.5" />{event.location}</span>}
+      {event.location ? <span className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0"><MapPin className="w-3.5 h-3.5" />{event.location}</span> : event.description ? <span className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0 truncate"><AlignLeft className="w-3.5 h-3.5 shrink-0" />{event.description}</span> : null}
     </div>
   </div>;
 }

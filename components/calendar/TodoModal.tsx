@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { api } from '../../lib/api-client';
-import { Calendar as CalIcon, Trash2, X, AlignLeft } from 'lucide-react';
+import { Calendar as CalIcon, Trash2, X, AlignLeft, Folder } from 'lucide-react';
 
 const PRIORITIES = [
   { key: 'red', dot: 'bg-rose-500', ring: 'ring-rose-500' },
@@ -11,11 +11,12 @@ const PRIORITIES = [
   { key: 'green', dot: 'bg-emerald-500', ring: 'ring-emerald-500' },
 ];
 
-export default function TodoModal({ todo, notify, onClose, onRefresh }: any) {
+export default function TodoModal({ todo, folders = [], notify, onClose, onRefresh }: any) {
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [memo, setMemo] = useState('');
   const [priority, setPriority] = useState<string | null>(null);
+  const [folderId, setFolderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!todo) return;
@@ -23,6 +24,7 @@ export default function TodoModal({ todo, notify, onClose, onRefresh }: any) {
     setDueDate(todo.dueDate ? format(todo.dueDate, 'yyyy-MM-dd') : '');
     setMemo(todo.memo || '');
     setPriority(todo.priority || null);
+    setFolderId(todo.folderId || null);
   }, [todo]);
 
   const notifyFn = notify || (() => {});
@@ -36,6 +38,7 @@ export default function TodoModal({ todo, notify, onClose, onRefresh }: any) {
     const d = dueDate;
     const m = memo;
     const p = priority;
+    const f = folderId;
     const priorityChanged = p !== (todo.priority || null);
     onClose();
 
@@ -44,6 +47,7 @@ export default function TodoModal({ todo, notify, onClose, onRefresh }: any) {
       dueDate: d ? new Date(d).toISOString() : null,
       memo: m,
       priority: p,
+      folderId: f,
       bumpToTop: priorityChanged && !!p,
     })
       .then(() => { notifyFn('할 일이 수정되었습니다.'); onRefresh?.(); })
@@ -99,6 +103,15 @@ export default function TodoModal({ todo, notify, onClose, onRefresh }: any) {
             <AlignLeft className="w-4 h-4 text-slate-500 mt-1" />
             <textarea className="bg-transparent flex-1 outline-none text-sm h-16 resize-none" placeholder="메모" value={memo} onChange={(e) => setMemo(e.target.value)} />
           </div>
+          {folders.length > 0 && (
+            <div className="flex items-center gap-3 bg-slate-800 p-3 rounded-2xl">
+              <Folder className="w-4 h-4 text-slate-500 shrink-0" />
+              <select className="bg-transparent flex-1 outline-none text-sm" value={folderId || ''} onChange={(e) => setFolderId(e.target.value || null)}>
+                <option value="">미분류</option>
+                {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+          )}
           <div className="flex gap-3 pt-4">
             <button onClick={remove} className="p-3 text-rose-500 hover:bg-rose-500/10 rounded-2xl"><Trash2/></button>
             <button onClick={onClose} className="flex-1 py-3 font-bold text-slate-400">취소</button>

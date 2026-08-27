@@ -19,6 +19,12 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [secureModal, setSecureModal] = useState<{ folder: any; mode: 'setup' | 'unlock' | 'disable' } | null>(null);
   const [unlockedSecureId, setUnlockedSecureId] = useState<string | null>(null);
+  const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
+  const toggleCardExpanded = (id: string) => setExpandedCardIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const notify = onNotify || (() => {});
   const secureFolder = folders.find((f: any) => f.isSecure) || null;
@@ -29,7 +35,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const visibleForAll = secureFolder ? allActiveNotes.filter((n: any) => n.folderId !== secureFolder.id) : allActiveNotes;
 
   const activeNotes = activeFolderId === 'all'
-    ? visibleForAll
+    ? visibleForAll.filter((n: any) => !n.showToday) // 별표(오늘 탭 표시)된 메모는 전체보기에서 숨김 — 오늘 탭에서 확인
     : activeFolderId === 'none'
       ? visibleForAll.filter((n: any) => !n.folderId)
       : activeFolderId === secureFolder?.id
@@ -117,7 +123,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
                 return (
                   <div key={f.id} className="w-full flex items-center gap-1 px-1 py-0.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
                     <button onClick={() => selectFolder(f.id)} className="flex-1 flex items-center gap-2 px-2 py-1.5 text-sm font-bold text-left min-w-0">
-                      {f.isSecure ? <Lock className="w-3.5 h-3.5 shrink-0 text-slate-400" /> : <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${c.activeBg}`} />}
+                      {f.isSecure ? <Lock className="w-3.5 h-3.5 shrink-0 text-slate-400" /> : <span className={`w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-slate-300 dark:ring-slate-600 ${c.activeBg}`} />}
                       <span className={`truncate ${c.text}`}>{f.name}</span>
                     </button>
                     {activeFolderId === f.id && <Check className="w-4 h-4 text-blue-500 shrink-0" />}
@@ -164,14 +170,32 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
             return (
               <div key={note.id} onClick={() => setViewingNote(note)} className="break-inside-avoid mb-3 group relative bg-white dark:bg-slate-800/30 p-4 rounded-xl border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none hover:border-blue-500/50 transition cursor-pointer">
                 <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <h4 className="font-bold text-base truncate flex items-center gap-1.5 text-slate-900 dark:text-white min-w-0"><StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} /><span className="truncate">{note.title}</span></h4>
+                  <h4 className="font-bold text-lg truncate flex items-center gap-1.5 text-slate-900 dark:text-white min-w-0"><StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} /><span className="truncate">{note.title}</span></h4>
                   <div className="flex items-center gap-1 shrink-0">
                     {!isSecureNote && <button title={note.showToday ? '오늘 탭에서 숨기기' : '오늘 탭에 표시'} onClick={(e) => { e.stopPropagation(); toggleStar(note); }} className={`p-1 ${note.showToday ? 'text-amber-400' : 'text-slate-400 dark:text-slate-600 hover:text-amber-400'}`}><Star className="w-3.5 h-3.5" fill={note.showToday ? 'currentColor' : 'none'} /></button>}
                     <button title="보관함으로 이동" onClick={(e) => { e.stopPropagation(); remove(note.id); }} className="text-slate-400 dark:text-slate-600 hover:text-rose-500 transition"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
-                <div className="text-sm text-slate-600 dark:text-slate-400 line-clamp-8 leading-relaxed min-w-0">
-                  <NoteContent content={note.content} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} />
+                <div className="text-base text-slate-600 dark:text-slate-400 leading-relaxed min-w-0">
+                  {(() => {
+                    const contentLines = (note.content || '').split('\n');
+                    const isLong = contentLines.length > 15;
+                    const isExpanded = expandedCardIds.has(note.id);
+                    const shown = isLong && !isExpanded ? contentLines.slice(0, 15).join('\n') : note.content;
+                    return (
+                      <>
+                        <NoteContent content={shown} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} />
+                        {isLong && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleCardExpanded(note.id); }}
+                            className="mt-1 text-xs font-bold text-blue-500 dark:text-blue-400"
+                          >
+                            {isExpanded ? '접기' : `더 보기 (${contentLines.length - 15}줄 더)`}
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center justify-between gap-2 mt-2">
                   {note.updatedAt && <p className="text-[10px] text-slate-400 dark:text-slate-600 shrink-0">{format(note.updatedAt, 'M월 d일 HH:mm', { locale: ko })}</p>}
@@ -199,7 +223,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
             return (
               <button key={note.id} onClick={() => setViewingNote(note)} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-left">
                 <StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} />
-                <span className="flex-1 min-w-0 font-bold text-sm truncate text-slate-900 dark:text-white">{note.title}</span>
+                <span className="flex-1 min-w-0 font-bold text-base truncate text-slate-900 dark:text-white">{note.title}</span>
                 {note.showToday && <Star className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="currentColor" />}
                 <button title="보관함으로 이동" onClick={(e) => { e.stopPropagation(); remove(note.id); }} className="text-slate-400 dark:text-slate-600 hover:text-rose-500 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
               </button>

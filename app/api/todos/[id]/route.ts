@@ -28,6 +28,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
   if (body.memo !== undefined) { sets.push('memo = ?'); args.push(body.memo); }
   if (body.orderIndex !== undefined) { sets.push('order_index = ?'); args.push(Number(body.orderIndex)); }
+  if (body.folderId !== undefined) { sets.push('folder_id = ?'); args.push(body.folderId || null); }
   if (body.priority !== undefined) {
     sets.push('priority = ?'); args.push(body.priority || null);
     if (body.priority && body.bumpToTop) {

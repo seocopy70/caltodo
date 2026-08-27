@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     priority: row.priority || null,
     completedAt: row.completed_at ? new Date(Number(row.completed_at)).toISOString() : null,
     linkedEventId: row.linked_event_id || null,
+    folderId: row.folder_id || null,
     createdAt: new Date(Number(row.created_at)).toISOString(),
   }));
 
@@ -46,8 +47,8 @@ export async function POST(req: NextRequest) {
   }
 
   await turso.execute({
-    sql: `INSERT OR REPLACE INTO todos (id, user_id, title, completed, due_date, memo, order_index, priority, completed_at, linked_event_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, uid, body.title, body.completed ? 1 : 0, dueDateMs, body.memo || '', orderIndex, body.priority || null, body.completedAt ? new Date(body.completedAt).getTime() : null, linkedEventId, body.createdAt ? new Date(body.createdAt).getTime() : Date.now()],
+    sql: `INSERT OR REPLACE INTO todos (id, user_id, title, completed, due_date, memo, order_index, priority, completed_at, linked_event_id, folder_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, uid, body.title, body.completed ? 1 : 0, dueDateMs, body.memo || '', orderIndex, body.priority || null, body.completedAt ? new Date(body.completedAt).getTime() : null, linkedEventId, body.folderId || null, body.createdAt ? new Date(body.createdAt).getTime() : Date.now()],
   });
 
   return NextResponse.json({ id, linkedEventId });

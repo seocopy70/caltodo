@@ -18,17 +18,18 @@ import TodoModal from '../components/calendar/TodoModal';
 import NoteModal from '../components/calendar/NoteModal';
 import VersionModal from '../components/calendar/VersionModal';
 import HelpModal from '../components/calendar/HelpModal';
-import { LogIn, Menu, Search } from 'lucide-react';
+import { LogIn, Menu, Search, CalendarSearch } from 'lucide-react';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'today' | 'month' | 'week' | 'list' | 'todo' | 'notes'>('today');
+  const [view, setView] = useState<'today' | 'calendar' | 'list' | 'todo' | 'notes'>('today');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [events, setEvents] = useState<any[]>([]);
   const [todos, setTodos] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [noteFolders, setNoteFolders] = useState<any[]>([]);
+  const [todoFolders, setTodoFolders] = useState<any[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
@@ -39,6 +40,8 @@ export default function Home() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [searchDate, setSearchDate] = useState('');
+  const searchDateRef = useRef<HTMLInputElement>(null);
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [editingNote, setEditingNote] = useState<any>(null);
   const [editingNoteFocus, setEditingNoteFocus] = useState<{ focus: 'title' | 'content'; lineIndex?: number } | null>(null);
@@ -56,6 +59,18 @@ export default function Home() {
 
   useEffect(() => onAuthStateChanged(auth, (currentUser) => { setUser(currentUser); setLoading(false); }), []);
 
+  // 텍스트 입력창이 아닌 곳(할일/일정/메모 카드 등)을 길게 눌렀을 때 뜨는 네이티브 복사/공유 컨텍스트 메뉴 차단.
+  // 입력창/textarea/contenteditable 안에서는 그대로 둬서 붙여넣기·선택은 정상 동작하게 함.
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+      e.preventDefault();
+    };
+    document.addEventListener('contextmenu', handler);
+    return () => document.removeEventListener('contextmenu', handler);
+  }, []);
+
   const refreshData = useCallback(async () => {
     if (!auth.currentUser) return;
     try {
@@ -64,6 +79,7 @@ export default function Home() {
       setTodos(res.todos.map((t: any) => ({ ...t, dueDate: t.dueDate ? new Date(t.dueDate) : null, completedAt: t.completedAt ? new Date(t.completedAt) : null, createdAt: new Date(t.createdAt) })));
       setNotes(res.notes.map((n: any) => ({ ...n, createdAt: new Date(n.createdAt), updatedAt: new Date(n.updatedAt), deletedAt: n.deletedAt ? new Date(n.deletedAt) : null })));
       setNoteFolders(res.noteFolders || []);
+      setTodoFolders(res.todoFolders || []);
     } catch (err) { console.error('데이터 조회 실패:', err); }
   }, []);
 
@@ -89,10 +105,10 @@ export default function Home() {
 
   const go = (next: typeof view) => { setView(next); setMenuOpen(false); };
   // 목록 탭은 메인메뉴로 이동했으므로 탭바/스와이프 순환에서는 제외 (view 상태 자체는 유지)
-  const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['month', '월'], ['week', '주'], ['todo', '할일'], ['notes', '메모']];
+  const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['calendar', '일정'], ['todo', '할일'], ['notes', '메모']];
   const activeNotes = notes.filter((n: any) => !n.deletedAt);
   const todayNotes = activeNotes.filter((n: any) => n.showToday);
-  const anyOverlayOpen = menuOpen || isImportExportOpen || isEmailBackupOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim();
+  const anyOverlayOpen = menuOpen || isImportExportOpen || isEmailBackupOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim() || !!searchDate;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -141,10 +157,42 @@ export default function Home() {
           <div className="font-black tracking-tight mr-1 hidden sm:block">Cal2do</div>
           <nav className="flex items-center gap-0.5 overflow-x-auto flex-1 no-scrollbar">{tabs.map(([key, label]) => <button key={key} onClick={() => go(key)} className={`px-2.5 py-1.5 rounded-lg text-base font-black whitespace-nowrap ${view === key ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{label}</button>)}</nav>
         </div>
-        <div className="relative w-full sm:w-48 md:w-64 shrink-0">
-          <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400"/>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="검색" className="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
-          {search.trim() && <GlobalSearch query={search} events={events} todos={todos} notes={activeNotes} folders={noteFolders} onClose={() => setSearch('')} onEvent={() => { setSearch(''); setView('list'); }} onTodo={(t: any) => { setSearch(''); setEditingTodo(t); }} onNote={(n: any) => { setSearch(''); setEditingNote(n); }} onRefresh={refreshData} onNotify={notify} />}
+        <div className="relative w-full sm:w-48 md:w-64 shrink-0 flex items-center gap-1.5">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400"/>
+            <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) setSearchDate(''); }} placeholder="검색" className="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
+          </div>
+          <button
+            type="button"
+            onClick={() => searchDateRef.current?.showPicker?.() || searchDateRef.current?.focus()}
+            title="날짜로 전체 기록 보기"
+            className={`p-2 rounded-lg shrink-0 transition ${searchDate ? 'text-blue-500 bg-blue-500/10' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            <CalendarSearch className="w-4 h-4" />
+          </button>
+          <input
+            ref={searchDateRef}
+            type="date"
+            value={searchDate}
+            onChange={(e) => { setSearchDate(e.target.value); if (e.target.value) setSearch(''); }}
+            className="sr-only"
+          />
+          {(search.trim() || searchDate) && (
+            <GlobalSearch
+              query={search}
+              date={searchDate ? new Date(searchDate) : null}
+              events={events}
+              todos={todos}
+              notes={activeNotes}
+              folders={noteFolders}
+              onClose={() => { setSearch(''); setSearchDate(''); }}
+              onEvent={() => { setSearch(''); setSearchDate(''); setView('list'); }}
+              onTodo={(t: any) => { setSearch(''); setSearchDate(''); setEditingTodo(t); }}
+              onNote={(n: any) => { setSearch(''); setSearchDate(''); setEditingNote(n); }}
+              onRefresh={refreshData}
+              onNotify={notify}
+            />
+          )}
         </div>
       </div>
     </header>
@@ -165,14 +213,14 @@ export default function Home() {
         <button onClick={() => signOut(auth)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">로그아웃</button>
       </div>
     </>}
-    <main className="max-w-7xl mx-auto p-2.5 sm:p-4">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any) => setEditingNote(n)} /> : view === 'month' ? <Calendar key="month-view" view="month" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'week' ? <Calendar key="week-view" view="week" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex }); }} onPatchNote={patchNoteLocal} />}</main>
-    {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
+    <main className="max-w-7xl mx-auto p-2.5 sm:p-4">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any) => setEditingNote(n)} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex }); }} onPatchNote={patchNoteLocal} />}</main>
+    {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} folders={noteFolders} todoFolders={todoFolders} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {isEmailBackupOpen && <EmailBackupPanel user={user} onClose={() => setIsEmailBackupOpen(false)} onNotify={notify} />}
     {isDataManagementOpen && <DataManagementPanel events={events} user={user} onClose={() => setIsDataManagementOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {isAnniversaryOpen && <AnniversaryModal events={events} user={user} onClose={() => setIsAnniversaryOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {isVersionOpen && <VersionModal onClose={() => setIsVersionOpen(false)} />}
     {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
-    {editingTodo && <TodoModal todo={editingTodo} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
+    {editingTodo && <TodoModal todo={editingTodo} folders={todoFolders} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
     {(editingNote || isNewNoteOpen) && <NoteModal note={editingNote} folders={noteFolders} secureFolderId={noteFolders.find((f: any) => f.isSecure)?.id || null} initialFocus={editingNoteFocus?.focus} initialLineIndex={editingNoteFocus?.lineIndex} onClose={() => { setEditingNote(null); setIsNewNoteOpen(false); setEditingNoteFocus(null); }} onRefresh={refreshData} onNotify={notify} />}
     {toast && <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold ${toast.type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>{toast.message}</div>}
   </div>;

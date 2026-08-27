@@ -6,12 +6,12 @@ import { Upload, X, FileJson, CalendarDays, DatabaseBackup } from 'lucide-react'
 import { eventsToICS, downloadTextFile, parseICS, type ParsedICSEvent } from '../../lib/ics';
 import { useModalBackClose } from '../../lib/useModalBackClose';
 
-export default function ImportExportPanel({ events, todos, notes, user, onNotify, onRefresh, onClose }: any) {
+export default function ImportExportPanel({ events, todos, notes, folders, todoFolders, user, onNotify, onRefresh, onClose }: any) {
   useModalBackClose(onClose);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const [pendingImport, setPendingImport] = useState<ParsedICSEvent[] | null>(null);
-  const [pendingJsonImport, setPendingJsonImport] = useState<{ events: any[]; todos: any[]; notes: any[] } | null>(null);
+  const [pendingJsonImport, setPendingJsonImport] = useState<{ events: any[]; todos: any[]; notes: any[]; noteFolders: any[]; todoFolders: any[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const notify = onNotify || (() => {});
 
@@ -28,12 +28,16 @@ export default function ImportExportPanel({ events, todos, notes, user, onNotify
   };
   const exportJSON = () => {
     // id를 그대로 유지해서 내보냄 -> 다른 기기에서 가져오기 하면 원래 id로 복원되어 재가져오기해도 중복 생성되지 않음
+    // 폴더(note_folders)도 함께 내보내되, lock_hash 등 보안 관련 값은 절대 포함하지 않음(오프라인 무차별 대입 위험).
+    // 보안폴더였다는 사실(wasSecure)만 남겨서, 복원 후 다시 PIN을 설정하라고 안내하는 데 사용.
     const backup = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       events: events.map((e: any) => ({ ...e, start: e.start?.toISOString?.(), end: e.end?.toISOString?.(), endDate: e.endDate?.toISOString?.() ?? null, updatedAt: e.updatedAt?.toISOString?.() })),
       todos: todos.map((t: any) => ({ ...t, dueDate: t.dueDate?.toISOString?.() ?? null, completedAt: t.completedAt?.toISOString?.() ?? null, createdAt: t.createdAt?.toISOString?.() })),
       notes: (notes || []).map((n: any) => ({ ...n, updatedAt: n.updatedAt?.toISOString?.(), createdAt: n.createdAt?.toISOString?.(), deletedAt: n.deletedAt?.toISOString?.() ?? null })),
+      noteFolders: (folders || []).map((f: any) => ({ id: f.id, name: f.name, orderIndex: f.orderIndex ?? 0, wasSecure: !!f.isSecure })),
+      todoFolders: (todoFolders || []).map((f: any) => ({ id: f.id, name: f.name, orderIndex: f.orderIndex ?? 0 })),
     };
     downloadTextFile(`cal2do-backup-${Date.now()}.json`, JSON.stringify(backup, null, 2), 'application/json');
     notify('전체 데이터를 JSON 백업 파일로 내보냈어요.');
@@ -56,7 +60,7 @@ export default function ImportExportPanel({ events, todos, notes, user, onNotify
         notify('Cal2do 백업 파일 형식이 아니에요.', 'error');
         return;
       }
-      setPendingJsonImport({ events: parsed.events || [], todos: parsed.todos || [], notes: parsed.notes || [] });
+      setPendingJsonImport({ events: parsed.events || [], todos: parsed.todos || [], notes: parsed.notes || [], noteFolders: parsed.noteFolders || [], todoFolders: parsed.todoFolders || [] });
     } catch (err) {
       console.error(err);
       notify('백업 파일을 읽는 중 문제가 발생했어요.', 'error');
@@ -82,10 +86,38 @@ export default function ImportExportPanel({ events, todos, notes, user, onNotify
     setImporting(true);
     let count = 0;
     try {
+      // 폴더를 먼저 복원(항상 일반 폴더로 생성 - PIN 해시는 백업에 없으므로 보안 설정은 복원 후 다시 해야 함)하고,
+      // 예전 id -> 새 id 매핑을 만들어 메모/할일의 folderId를 새 폴더로 이어준다.
+      const folderIdMap = new Map<string, string>();
+      const restoredSecureNames: string[] = [];
+      for (const f of pendingJsonImport.noteFolders) {
+        try {
+          const result = await api.noteFolders.create(f.name);
+          if (result?.id) folderIdMap.set(f.id, result.id);
+          if (f.wasSecure) restoredSecureNames.push(f.name);
+          count++;
+        } catch (err) { console.error('폴더 복원 실패:', f.name, err); }
+      }
+      const todoFolderIdMap = new Map<string, string>();
+      for (const f of pendingJsonImport.todoFolders) {
+        try {
+          const result = await api.todoFolders.create(f.name);
+          if (result?.id) todoFolderIdMap.set(f.id, result.id);
+          count++;
+        } catch (err) { console.error('할일 폴더 복원 실패:', f.name, err); }
+      }
       for (const ev of pendingJsonImport.events) { await api.events.create(ev); count++; }
-      for (const t of pendingJsonImport.todos) { await api.todos.create({ ...t, skipLink: true }); count++; }
-      for (const n of pendingJsonImport.notes) { await api.notes.create(n); count++; }
-      notify(`백업에서 ${count}개 항목을 복원했어요.`);
+      for (const t of pendingJsonImport.todos) {
+        const remappedFolderId = t.folderId && todoFolderIdMap.has(t.folderId) ? todoFolderIdMap.get(t.folderId) : null;
+        await api.todos.create({ ...t, folderId: remappedFolderId, skipLink: true });
+        count++;
+      }
+      for (const n of pendingJsonImport.notes) {
+        const remappedFolderId = n.folderId && folderIdMap.has(n.folderId) ? folderIdMap.get(n.folderId) : null;
+        await api.notes.create({ ...n, folderId: remappedFolderId });
+        count++;
+      }
+      notify(`백업에서 ${count}개 항목을 복원했어요.${restoredSecureNames.length ? ` 보안폴더였던 "${restoredSecureNames.join(', ')}"는 보안 설정 없이 일반 폴더로 복원됐어요 — 필요하면 다시 보안폴더로 지정해주세요.` : ''}`);
       onRefresh?.();
     } catch (err: any) {
       console.error(err);

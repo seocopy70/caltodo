@@ -9,11 +9,12 @@ export async function GET(req: NextRequest) {
   const uid = await verifyRequestUser(req);
   if (!uid) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const [eventsResult, todosResult, notesResult, foldersResult] = await Promise.all([
+  const [eventsResult, todosResult, notesResult, foldersResult, todoFoldersResult] = await Promise.all([
     turso.execute({ sql: 'SELECT * FROM events WHERE user_id = ? ORDER BY start ASC', args: [uid] }),
     turso.execute({ sql: 'SELECT * FROM todos WHERE user_id = ? ORDER BY completed ASC, order_index ASC, created_at ASC', args: [uid] }),
     turso.execute({ sql: 'SELECT * FROM notes WHERE user_id = ? ORDER BY deleted_at IS NOT NULL, updated_at DESC', args: [uid] }),
     turso.execute({ sql: 'SELECT * FROM note_folders WHERE user_id = ? ORDER BY order_index ASC, created_at ASC', args: [uid] }).catch(() => ({ rows: [] as any[] })),
+    turso.execute({ sql: 'SELECT * FROM todo_folders WHERE user_id = ? ORDER BY order_index ASC, created_at ASC', args: [uid] }).catch(() => ({ rows: [] as any[] })),
   ]);
 
   const events = eventsResult.rows.map((row: any) => ({
@@ -47,6 +48,7 @@ export async function GET(req: NextRequest) {
     priority: row.priority || null,
     completedAt: row.completed_at ? new Date(Number(row.completed_at)).toISOString() : null,
     linkedEventId: row.linked_event_id || null,
+    folderId: row.folder_id || null,
     createdAt: new Date(Number(row.created_at)).toISOString(),
   }));
 
@@ -75,5 +77,12 @@ export async function GET(req: NextRequest) {
     isLocked: Number(row.is_locked || 0) === 1,
   }));
 
-  return NextResponse.json({ events, todos, notes, noteFolders });
+  const todoFolders = todoFoldersResult.rows.map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    orderIndex: Number(row.order_index || 0),
+    createdAt: new Date(Number(row.created_at)).toISOString(),
+  }));
+
+  return NextResponse.json({ events, todos, notes, noteFolders, todoFolders });
 }

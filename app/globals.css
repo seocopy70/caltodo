@@ -27,6 +27,18 @@
     @apply bg-background text-foreground;
     /* 아래로 당겼을 때 브라우저가 페이지를 새로고침(pull-to-refresh)하는 것을 방지 */
     overscroll-behavior-y: contain;
+    /* 화면을 길게 눌렀을 때 iOS/Android 네이티브 "복사/공유" 컨텍스트 메뉴가 뜨지 않도록 함.
+       입력창(text input, textarea, contenteditable)에서는 아래에서 다시 허용해 붙여넣기/선택은 그대로 동작함.
+       할일/일정 순서 변경은 원래부터 별도의 드래그 손잡이(GripVertical 아이콘)로만 동작하므로 영향 없음. */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input, textarea, [contenteditable="true"] {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   /* Custom scrollbar for dark mode */

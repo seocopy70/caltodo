@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { Repeat, CalendarRange } from 'lucide-react';
+import { Repeat, CalendarRange, MapPin, AlignLeft } from 'lucide-react';
 import { eventOccursOnDay, getRecurrenceType, getOccurrenceTimes } from '../../lib/recurrence';
 
 const HOUR_HEIGHT = 42; // px per hour (기존 48 대비 살짝 축소)
@@ -81,9 +81,11 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
   return (
     <div className="flex flex-col border border-slate-300 dark:border-slate-700 rounded-2xl overflow-hidden shadow-2xl bg-white/70 dark:bg-slate-900/20">
       {/* data-hscroll: 이 영역 안에서 좌우로 밀면 그리드 자체가 스크롤되고(탭 순환 아님), 영역 밖에서 밀면 탭이 순환됨.
-          touch-pan-x/touch-pan-y로 가로/세로 스크롤 축을 명확히 구분해줘야 주별보기에서 처음 스와이프할 때
-          브라우저가 방향을 판단하느라 살짝 멈칫하는(움찔) 현상이 사라짐 */}
-      <div data-hscroll className="overflow-x-auto overscroll-x-contain touch-pan-x">
+          주의: 이 컨테이너 안에는 세로 스크롤이 필요한 시간표 본문(scrollRef, touch-pan-y)이 중첩되어 있음.
+          바깥 컨테이너를 touch-pan-x만으로 제한하면 touch-action 교집합이 비어버려서(pan-x ∩ pan-y = none)
+          본문 영역 대부분에서 세로 스크롤이 먹통이 되는 문제가 있었음(맨 위 경계 부근에서만 간헐적으로 동작).
+          바깥은 x/y 모두 허용해 두고, 실제 축 구분은 안쪽(scrollRef=touch-pan-y, 헤더/종일 영역=상속된 양축)에서 맡김 */}
+      <div data-hscroll className="overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y">
         <div style={innerMinWidth ? { minWidth: innerMinWidth } : undefined}>
           {/* 헤더: 요일+날짜 한 줄 */}
           <div className="flex border-b border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60">
@@ -114,7 +116,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
               {days.map((day: Date, i: number) => (
                 <div key={i} style={{ minHeight: HOUR_HEIGHT, ...colStyle }} className="flex-1 min-w-0 border-l border-slate-100 dark:border-slate-800/60 first:border-l-0 p-1 space-y-1">
                   {allDayEvents.filter((e: any) => eventOccursOnDay(e, day)).map((e: any, idx: number) => (
-                    <div key={idx} onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }} className={`px-1.5 py-0.5 rounded text-xs font-bold truncate border-l-4 flex items-center gap-1 cursor-pointer ${colorClasses(e)}`}>
+                    <div key={idx} onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }} className={`px-1.5 py-0.5 rounded text-sm font-bold truncate border-l-4 flex items-center gap-1 cursor-pointer ${colorClasses(e)}`}>
                       <CalendarRange className="w-2.5 h-2.5 shrink-0" /><span className="truncate">{e.title}</span>
                     </div>
                   ))}
@@ -153,6 +155,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                     const height = Math.max((durationMin / 60) * HOUR_HEIGHT, 15);
                     const pos = layout.get(e) || { widthPct: 100, leftPct: 0 };
                     const extraInfo = e.location || e.description || '';
+                    const ExtraIcon = e.location ? MapPin : AlignLeft; // 장소면 MapPin, 메모(설명)면 AlignLeft — 오늘탭과 동일한 아이콘 규칙
                     // 일별보기: 옆으로(같은 줄), 주별보기: 박스가 기본 그리드 높이보다 클 때만 아래쪽에
                     const showBeside = !isWeekView && pos.widthPct >= 45 && !!extraInfo;
                     const showBelow = isWeekView && height > HOUR_HEIGHT && pos.widthPct >= 45 && !!extraInfo;
@@ -161,14 +164,14 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                         key={idx}
                         onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }}
                         style={{ position: 'absolute', top, height, width: `calc(${pos.widthPct}% - 2px)`, left: `${pos.leftPct}%` }}
-                        className={`px-1.5 py-0.5 rounded-md text-xs font-bold cursor-pointer overflow-hidden flex flex-col justify-center border-l-4 ${colorClasses(e)}`}
+                        className={`px-1.5 py-0.5 rounded-md text-sm font-bold cursor-pointer overflow-hidden flex flex-col justify-center border-l-4 ${colorClasses(e)}`}
                       >
                         <div className="flex items-center gap-1.5 min-w-0">
                           {getRecurrenceType(e) !== 'none' && <Repeat className="w-2.5 h-2.5 shrink-0" />}
                           <span className="truncate">{e.title}</span>
-                          {showBeside && <span className="text-xs font-medium opacity-70 truncate">· {extraInfo}</span>}
+                          {showBeside && <span className="flex items-center gap-0.5 text-sm font-medium opacity-70 truncate shrink-0"><ExtraIcon className="w-3 h-3 shrink-0" />{extraInfo}</span>}
                         </div>
-                        {showBelow && <div className="text-[11px] font-medium opacity-70 truncate">{extraInfo}</div>}
+                        {showBelow && <div className="flex items-center gap-1 text-xs font-medium opacity-70 truncate"><ExtraIcon className="w-3 h-3 shrink-0" />{extraInfo}</div>}
                       </div>
                     );
                   })}

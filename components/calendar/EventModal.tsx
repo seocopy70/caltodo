@@ -6,8 +6,29 @@ import { api } from '../../lib/api-client';
 import { MapPin, AlignLeft, Trash2, X, Repeat } from 'lucide-react';
 import { getRecurrenceType } from '../../lib/recurrence';
 import { useModalBackClose } from '../../lib/useModalBackClose';
+import { useRecentInputs } from '../../lib/useRecentInputs';
 
 type RecurrenceType = 'none' | 'weekly' | 'monthly' | 'yearly';
+
+/** 구글 검색창처럼 최근 입력값을 입력창 아래에 후보로 보여주는 작은 재사용 UI. */
+function AutocompleteDropdown({ suggestions, onSelect }: { suggestions: string[]; onSelect: (v: string) => void }) {
+  if (suggestions.length === 0) return null;
+  return (
+    <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+      {suggestions.map((s) => (
+        <button
+          key={s}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onSelect(s)}
+          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 truncate"
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function EventModal({ date, editingEvent, user, notify, onClose, onRefresh }: any) {
   useModalBackClose(onClose);
@@ -24,6 +45,10 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>('none');
   const [recurrenceCount, setRecurrenceCount] = useState(''); // 빈 값 = 계속 반복
   const endTouchedRef = useRef(false); // 사용자가 종료시간을 직접 만졌는지 (만지면 자동 동기화 중단)
+  const [titleSuggestOpen, setTitleSuggestOpen] = useState(false);
+  const [locationSuggestOpen, setLocationSuggestOpen] = useState(false);
+  const { remember: rememberTitle, suggestionsFor: titleSuggestionsFor } = useRecentInputs('event-title');
+  const { remember: rememberLocation, suggestionsFor: locationSuggestionsFor } = useRecentInputs('event-location');
 
   useEffect(() => {
     if (editingEvent) {
@@ -109,6 +134,8 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
 
     const targetId = editingEvent?.id;
     const isEdit = !!editingEvent;
+    rememberTitle(title.trim());
+    if (location.trim()) rememberLocation(location.trim());
     onClose();
 
     const task = isEdit ? api.events.update(targetId, eventData) : api.events.create(eventData);
@@ -144,7 +171,10 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
             <h3 className="font-bold text-xl">{editingEvent ? '일정 수정' : '새 일정'}</h3>
             <button onClick={onClose} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><X /></button>
           </div>
-          <input autoFocus className="w-full bg-transparent text-2xl font-bold focus:outline-none" placeholder="일정 제목" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <div className="relative">
+            <input autoFocus className="w-full bg-transparent text-2xl font-bold focus:outline-none" placeholder="일정 제목" value={title} onChange={(e) => setTitle(e.target.value)} onFocus={() => setTitleSuggestOpen(true)} onBlur={() => setTimeout(() => setTitleSuggestOpen(false), 150)} />
+            {titleSuggestOpen && <AutocompleteDropdown suggestions={titleSuggestionsFor(title)} onSelect={(v) => { setTitle(v); setTitleSuggestOpen(false); }} />}
+          </div>
 
           <div className="flex gap-3">
             <div className="flex-1 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
@@ -179,9 +209,10 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
             </div>
           )}
 
-          <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
+          <div className="relative flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
             <MapPin className="w-4 h-4 text-slate-500" />
-            <input className="bg-transparent flex-1 outline-none text-sm" placeholder="장소" value={location} onChange={(e) => setLocation(e.target.value)} />
+            <input className="bg-transparent flex-1 outline-none text-sm" placeholder="장소" value={location} onChange={(e) => setLocation(e.target.value)} onFocus={() => setLocationSuggestOpen(true)} onBlur={() => setTimeout(() => setLocationSuggestOpen(false), 150)} />
+            {locationSuggestOpen && <AutocompleteDropdown suggestions={locationSuggestionsFor(location)} onSelect={(v) => { setLocation(v); setLocationSuggestOpen(false); }} />}
           </div>
           <div className="flex items-start gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
             <AlignLeft className="w-4 h-4 text-slate-500 mt-1" />

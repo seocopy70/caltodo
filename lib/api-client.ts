@@ -58,6 +58,12 @@ export const api = {
     requestSecureReset: (id: string) => request(`/api/note-folders/${id}/secure/reset`, { method: 'POST' }),
     confirmSecureReset: (id: string, code: string, newLockType: string, newCode: string) => request(`/api/note-folders/${id}/secure/reset`, { method: 'PUT', body: JSON.stringify({ code, newLockType, newCode }) }),
   },
+  todoFolders: {
+    list: () => request('/api/todo-folders'),
+    create: (name: string) => request('/api/todo-folders', { method: 'POST', body: JSON.stringify({ name }) }),
+    rename: (id: string, name: string) => request(`/api/todo-folders/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+    remove: (id: string) => request(`/api/todo-folders/${id}`, { method: 'DELETE' }),
+  },
   backup: {
     getSettings: () => request('/api/backup/settings'),
     updateSettings: (frequency: string) => request('/api/backup/settings', { method: 'PUT', body: JSON.stringify({ frequency }) }),

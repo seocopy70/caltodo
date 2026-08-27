@@ -115,7 +115,11 @@ export default function AnniversaryModal({ events, user, notify, onClose, onRefr
                   <Cake className="w-4 h-4 text-rose-500 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm truncate">{ev.title}</p>
-                    <p className="text-[11px] text-slate-500">{format(ev.start, 'M월 d일', { locale: ko })}{ev.isLunar ? ' (음력)' : ''}</p>
+                    <p className="text-[11px] text-slate-500">
+                      {ev.isLunar && ev.lunarMonth != null && ev.lunarDay != null
+                        ? `음력 ${ev.lunarMonth}월 ${ev.lunarDay}일`
+                        : format(ev.start, 'M월 d일', { locale: ko })}
+                    </p>
                   </div>
                   <button onClick={() => startEdit(ev)} className="p-2 text-slate-400 hover:text-blue-500 shrink-0"><Pencil className="w-4 h-4" /></button>
                   <button onClick={() => remove(ev.id)} className="p-2 text-slate-400 hover:text-rose-500 shrink-0"><Trash2 className="w-4 h-4" /></button>

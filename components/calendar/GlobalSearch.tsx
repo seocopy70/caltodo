@@ -2,16 +2,30 @@
 
 import { useMemo, useState } from 'react';
 import { CalendarDays, CheckSquare, FileText, X, Trash2 } from 'lucide-react';
+import { format, isSameDay } from 'date-fns';
+import { ko } from 'date-fns/locale';
 import { api } from '../../lib/api-client';
+import { eventOccursOnDay } from '../../lib/recurrence';
 
-export default function GlobalSearch({ query, events, todos, notes, folders = [], onClose, onEvent, onTodo, onNote, onRefresh, onNotify }: any) {
+export default function GlobalSearch({ query, date, events, todos, notes, folders = [], onClose, onEvent, onTodo, onNote, onRefresh, onNotify }: any) {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const notify = onNotify || (() => {});
-  const q = query.trim().toLowerCase();
+  const q = (query || '').trim().toLowerCase();
   const secureFolderId = useMemo(() => folders.find((f: any) => f.isSecure)?.id || null, [folders]);
   const folderNameById = useMemo(() => Object.fromEntries(folders.map((f: any) => [f.id, f.name])), [folders]);
   const results = useMemo(() => {
+    if (date) {
+      // 날짜 선택 모드: 그 날짜의 모든 기록(완료된 할일 포함, 반복 일정도 그 날짜에 발생하면 포함)
+      return {
+        events: events.filter((e: any) => eventOccursOnDay(e, date)),
+        todos: todos.filter((t: any) => t.dueDate && isSameDay(t.dueDate, date)),
+        notes: notes.filter((n: any) => {
+          if (secureFolderId && n.folderId === secureFolderId) return false;
+          return (n.createdAt && isSameDay(n.createdAt, date)) || (n.updatedAt && isSameDay(n.updatedAt, date));
+        }),
+      };
+    }
     if (!q) return { events: [], todos: [], notes: [] };
     return {
       events: events.filter((e: any) => `${e.title} ${e.location || ''} ${e.description || ''}`.toLowerCase().includes(q)).slice(0, 20),
@@ -22,10 +36,10 @@ export default function GlobalSearch({ query, events, todos, notes, folders = []
         return `${n.title} ${n.content || ''} ${folderName}`.toLowerCase().includes(q);
       }).slice(0, 20),
     };
-  }, [q, events, todos, notes, folderNameById, secureFolderId]);
+  }, [q, date, events, todos, notes, folderNameById, secureFolderId]);
 
   const total = results.events.length + results.todos.length + results.notes.length;
-  if (!q) return null;
+  if (!q && !date) return null;
 
   const selectedIds = Object.keys(selected).filter((id) => selected[id]);
 
@@ -66,7 +80,7 @@ export default function GlobalSearch({ query, events, todos, notes, folders = []
   return (
     <div className="absolute right-0 top-full mt-2 z-[70] w-[min(92vw,26rem)] max-h-[70vh] overflow-y-auto rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
       <div className="p-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
-        <span className="text-xs text-slate-500 dark:text-slate-400">검색 결과 {total}건</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">{date ? `${format(date, 'M월 d일 (EEE)', { locale: ko })} 전체 기록 ${total}건` : `검색 결과 ${total}건`}</span>
         <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"><X className="w-4 h-4" /></button>
       </div>
       {total === 0 ? <div className="p-8 text-center text-sm text-slate-500">검색 결과가 없습니다.</div> : (
@@ -91,7 +105,7 @@ export default function GlobalSearch({ query, events, todos, notes, folders = []
           </section>}
           {results.todos.length > 0 && <section>
             <h4 className="text-xs font-black text-emerald-500 dark:text-emerald-400 mb-2 flex items-center gap-1.5"><CheckSquare className="w-4 h-4" />할 일</h4>
-            <div className="space-y-1.5">{results.todos.map((t: any) => <button key={t.id} onClick={() => onTodo(t)} className="w-full text-left p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800"><span className={`font-bold text-sm ${t.completed ? 'line-through text-slate-500' : ''}`}>{t.title}</span>{t.dueDate && <span className="block text-[11px] text-slate-500">기한 {t.dueDate.toLocaleDateString('ko-KR')}</span>}</button>)}</div>
+            <div className="space-y-1.5">{results.todos.map((t: any) => <button key={t.id} onClick={() => onTodo(t)} className="w-full text-left p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800"><span className={`font-bold text-sm ${t.completed ? 'line-through text-slate-500' : ''}`}>{t.title}</span>{date ? (t.completed && <span className="block text-[11px] text-emerald-500">완료됨</span>) : (t.dueDate && <span className="block text-[11px] text-slate-500">기한 {t.dueDate.toLocaleDateString('ko-KR')}</span>)}</button>)}</div>
           </section>}
           {results.notes.length > 0 && <section>
             <h4 className="text-xs font-black text-amber-500 dark:text-amber-400 mb-2 flex items-center gap-1.5"><FileText className="w-4 h-4" />메모</h4>

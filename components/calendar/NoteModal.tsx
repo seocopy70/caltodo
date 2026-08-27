@@ -2,11 +2,32 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api-client';
-import { X, Trash2, ListChecks, ListOrdered, AlignLeft, Plus } from 'lucide-react';
+import { X, Trash2, ListChecks, ListOrdered, AlignLeft, Plus, Star } from 'lucide-react';
 import { convertContentForFormat } from './NoteContent';
 import { useModalBackClose } from '../../lib/useModalBackClose';
+import { useRecentInputs } from '../../lib/useRecentInputs';
 
 type NoteFormat = 'plain' | 'checklist' | 'numbered';
+
+/** 구글 검색창처럼 최근 입력값을 입력창 아래에 후보로 보여주는 작은 재사용 UI. */
+function AutocompleteDropdown({ suggestions, onSelect }: { suggestions: string[]; onSelect: (v: string) => void }) {
+  if (suggestions.length === 0) return null;
+  return (
+    <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+      {suggestions.map((s) => (
+        <button
+          key={s}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onSelect(s)}
+          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 truncate"
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function NoteModal({ note, folders = [], secureFolderId, initialFocus, initialLineIndex, onClose, onRefresh, onNotify }: any) {
   useModalBackClose(onClose);
@@ -21,6 +42,8 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const lineInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const isInSecureFolder = !!secureFolderId && folderId === secureFolderId;
+  const [titleSuggestOpen, setTitleSuggestOpen] = useState(false);
+  const { remember: rememberTitle, suggestionsFor: titleSuggestionsFor } = useRecentInputs('note-title');
 
   useEffect(() => {
     setTitle(note?.title || '');
@@ -95,6 +118,7 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
     if (!title.trim() && !content.trim()) return;
     const noteData = { title: title.trim() || '(제목 없음)', content, showToday: isInSecureFolder ? false : showToday, folderId, format };
     const targetId = note?.id;
+    if (title.trim() && !isInSecureFolder) rememberTitle(title.trim()); // 보안폴더 메모 제목은 자동완성 기록에 남기지 않음
     onClose();
     const task = isEdit ? api.notes.update(targetId, noteData) : api.notes.create(noteData);
     task.then(() => { notify(isEdit ? '메모가 수정되었습니다.' : '메모가 추가되었습니다.'); onRefresh?.(); })
@@ -118,13 +142,16 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
             <button onClick={onClose} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><X /></button>
           </div>
 
-          <input ref={titleRef} className="w-full bg-transparent text-xl font-bold focus:outline-none border-b border-slate-200 dark:border-slate-700 pb-2 shrink-0 text-slate-900 dark:text-white" placeholder="제목" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <div className="relative shrink-0">
+            <input ref={titleRef} className="w-full bg-transparent text-xl font-bold focus:outline-none border-b border-slate-200 dark:border-slate-700 pb-2 text-slate-900 dark:text-white" placeholder="제목" value={title} onChange={(e) => setTitle(e.target.value)} onFocus={() => setTitleSuggestOpen(true)} onBlur={() => setTimeout(() => setTitleSuggestOpen(false), 150)} />
+            {titleSuggestOpen && !isInSecureFolder && <AutocompleteDropdown suggestions={titleSuggestionsFor(title)} onSelect={(v) => { setTitle(v); setTitleSuggestOpen(false); }} />}
+          </div>
 
           {/* 형식: 일반/체크리스트/번호매김 중 하나만 선택 가능 */}
           <div className="flex items-center gap-1.5 shrink-0">
             <button onClick={() => switchFormat('plain')} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${format === 'plain' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><AlignLeft className="w-3.5 h-3.5" /> 일반</button>
-            <button onClick={() => switchFormat('checklist')} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${format === 'checklist' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><ListChecks className="w-3.5 h-3.5" /> 체크리스트</button>
-            <button onClick={() => switchFormat('numbered')} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${format === 'numbered' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><ListOrdered className="w-3.5 h-3.5" /> 번호매김</button>
+            <button onClick={() => switchFormat('checklist')} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${format === 'checklist' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><ListChecks className="w-3.5 h-3.5" /> 체크</button>
+            <button onClick={() => switchFormat('numbered')} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${format === 'numbered' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><ListOrdered className="w-3.5 h-3.5" /> 번호</button>
           </div>
 
           {format === 'plain' ? (
@@ -146,7 +173,7 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
                       value={text}
                       onChange={(e) => updateLine(idx, e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); insertLineAfter(idx); } }}
-                      className={`flex-1 bg-transparent outline-none text-sm ${checked ? 'line-through text-slate-400 dark:text-slate-600' : 'text-slate-900 dark:text-slate-100'}`}
+                      className={`flex-1 bg-transparent outline-none text-base ${checked ? 'line-through text-slate-400 dark:text-slate-600' : 'text-slate-900 dark:text-slate-100'}`}
                       placeholder="내용 (Enter로 다음 줄 추가)"
                     />
                     <button onClick={() => removeLine(idx)} className="text-slate-400 hover:text-rose-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
@@ -158,9 +185,14 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
           )}
 
           <div className="flex items-center gap-3 shrink-0 flex-wrap">
-            <label className={`flex items-center gap-2 text-sm ${isInSecureFolder ? 'text-slate-400 dark:text-slate-600' : 'text-slate-600 dark:text-slate-300'}`}>
-              <input type="checkbox" checked={showToday} disabled={isInSecureFolder} onChange={(e) => toggleShowToday(e.target.checked)} /> 오늘 탭에 표시
-            </label>
+            <button
+              type="button"
+              onClick={() => toggleShowToday(!showToday)}
+              disabled={isInSecureFolder}
+              className={`flex items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg ${isInSecureFolder ? 'text-slate-400 dark:text-slate-600 cursor-not-allowed' : showToday ? 'text-amber-500 bg-amber-500/10' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            >
+              <Star className="w-4 h-4" fill={showToday ? 'currentColor' : 'none'} /> 오늘 탭에 표시
+            </button>
             {folders.length > 0 && (
               <select
                 value={folderId || ''}
