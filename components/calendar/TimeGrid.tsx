@@ -10,7 +10,7 @@ const HOUR_HEIGHT = 42; // px per hour (기존 48 대비 살짝 축소)
 const ALL_HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SCROLL_TO_HOUR = 6; // 탭 진입 시 06시 위치로 스크롤 (위아래로 스크롤하면 00~24시 전체 확인 가능)
 const WEEK_VISIBLE_HOURS = 15; // 주별보기에서 스크롤 없이 기본으로 보여줄 시간 범위(06~20시)
-const WEEK_DAY_COL_WIDTH = 92; // 주별보기에서 좁은 화면일 때 한 칸의 최소 폭(가로 스크롤로 전체 확인 가능)
+const WEEK_DAY_COL_WIDTH = 112; // 주별보기에서 좁은 화면일 때 한 칸의 최소 폭(가로 스크롤로 전체 확인 가능) — 기존보다 넓게
 
 function isAllDayConvention(start: Date, end: Date) {
   return start.getHours() === 0 && start.getMinutes() === 0 && end.getHours() === 23 && end.getMinutes() === 59;
@@ -125,8 +125,10 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
             </div>
           )}
 
-          {/* 시간표 본문: 주별보기는 기본으로 06~20시 정도만 보이는 높이로 제한하고(스크롤 시 00~24시 전체 확인 가능), 일별보기는 화면 비율 기준 */}
-          <div ref={scrollRef} className="flex overflow-y-auto touch-pan-y" style={{ maxHeight: isWeekView ? WEEK_VISIBLE_HOURS * HOUR_HEIGHT : '65vh' }}>
+          {/* 시간표 본문: 주별보기는 기본으로 06~20시 정도만 보이는 높이로 제한하고(스크롤 시 00~24시 전체 확인 가능), 일별보기는 화면 비율 기준.
+              touch-pan-x도 함께 허용해서, 이 영역 안에서 시작한 좌우 스와이프가 바깥(data-hscroll)의 가로 스크롤로
+              정상적으로 이어지게 함 — pan-y만 허용했을 때는 이 영역에서 시작한 좌우 스크롤이 먹통이었음. */}
+          <div ref={scrollRef} className="flex overflow-y-auto touch-pan-x touch-pan-y" style={{ maxHeight: isWeekView ? WEEK_VISIBLE_HOURS * HOUR_HEIGHT : '65vh' }}>
             <div className="w-9 shrink-0">
               {HOURS.map((h) => (
                 <div key={h} style={{ height: HOUR_HEIGHT }} className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-right pr-1 -translate-y-1.5 border-t border-slate-100 dark:border-slate-800/60">{h === 0 ? '' : `${h}시`}</div>

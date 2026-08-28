@@ -122,7 +122,7 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
     onClose();
     const task = isEdit ? api.notes.update(targetId, noteData) : api.notes.create(noteData);
     task.then(() => { notify(isEdit ? '메모가 수정되었습니다.' : '메모가 추가되었습니다.'); onRefresh?.(); })
-      .catch((err: any) => { console.error(err); notify(`저장 실패: ${err.message || err}`, 'error'); });
+      .catch((err: any) => { console.error(err); notify(`저장 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 
   const remove = () => {
@@ -130,7 +130,7 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
     const targetId = note.id;
     onClose();
     api.notes.remove(targetId).then(() => { notify('메모를 보관함으로 옮겼습니다.'); onRefresh?.(); })
-      .catch((err: any) => notify(`삭제 실패: ${err.message || err}`, 'error'));
+      .catch((err: any) => { notify(`삭제 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 
   return (

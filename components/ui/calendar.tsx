@@ -7,7 +7,7 @@ import {
   isSameDay, addDays, subDays
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Repeat, CalendarRange, CalendarDays, Rows3, Grid3x3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Repeat, CalendarRange, CalendarDays } from 'lucide-react';
 import { getKoreanHolidaysForYears } from '../../lib/holidays';
 import { eventOccursOnDay, getRecurrenceType } from '../../lib/recurrence';
 import KoreanLunarCalendar from 'korean-lunar-calendar';
@@ -23,6 +23,8 @@ function getLunarLabel(date: Date) {
 }
 
 const YEAR_RANGE = 15;
+const MONTH_CELL_MAX_EVENTS = 3; // 날짜 아래 최대 3개까지만 보여주고, 넘치면 "+N개 더"로 요약
+const MONTH_CELL_HEIGHT = 150; // 날짜+음력, 공휴일, 일정 3줄이 항상 들어가는 고정 높이(주마다 칸 높이가 달라지지 않게)
 
 export default function Calendar({ initialView = 'month', events, user, onNotify, onRefresh }: any) {
   const [view, setCalView] = useState<'month' | 'week'>(initialView);
@@ -60,11 +62,17 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => setIsDatePickerOpen((v) => !v)} className="group flex items-center gap-2 text-left rounded-xl px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="연월 선택"><h2 className="text-2xl font-bold">{view === 'month' ? format(currentDate, 'yyyy년 MMMM', { locale: ko }) : `${format(currentDate, 'M', { locale: ko })}월 ${weekOfMonth}주차`}</h2><CalendarDays className="w-5 h-5 text-slate-400 group-hover:text-blue-500" /></button>
         <div className="flex items-center gap-2">
-          {/* 월별/주별보기 토글 (메모탭 카드/목록 토글과 동일한 패턴) */}
-          <div className="flex items-center rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden">
-            <button onClick={() => setCalView('month')} title="월별보기" className={`p-2 transition ${view === 'month' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Grid3x3 className="w-4 h-4" /></button>
-            <button onClick={() => setCalView('week')} title="주별보기" className={`p-2 transition ${view === 'week' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Rows3 className="w-4 h-4" /></button>
-          </div>
+          {/* 월별/주별보기를 두 개의 버튼이 아니라, 한 자리에서 탭하면 전환되는 슬라이딩 토글 하나로 */}
+          <button
+            type="button"
+            onClick={() => setCalView((v) => (v === 'month' ? 'week' : 'month'))}
+            title={view === 'month' ? '탭하면 주별보기로' : '탭하면 월별보기로'}
+            className="relative flex items-center w-[84px] h-9 rounded-full border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shrink-0"
+          >
+            <span className={`absolute top-0.5 bottom-0.5 w-10 rounded-full bg-blue-600 transition-transform duration-200 ${view === 'week' ? 'translate-x-[40px]' : 'translate-x-0.5'}`} />
+            <span className={`relative z-10 flex-1 text-center text-xs font-bold transition-colors ${view === 'month' ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`}>월</span>
+            <span className={`relative z-10 flex-1 text-center text-xs font-bold transition-colors ${view === 'week' ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`}>주</span>
+          </button>
           <div className="flex gap-2"><button onClick={() => setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronLeft/></button><button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 text-sm font-bold bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700">오늘</button><button onClick={() => setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronRight/></button></div>
         </div>
       </div>
@@ -75,33 +83,41 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
         <TimeGrid days={days} events={events} holidayMap={holidayMap} onSlotClick={handleSlotClick} onEventClick={openEditEvent} onDayHeaderClick={(day: Date) => setDayViewDate(day)} />
       ) : (
         <>
-          <div data-hscroll className="overflow-x-auto overscroll-x-contain touch-pan-x rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl bg-white/70 dark:bg-slate-900/20">
-            <div style={{ minWidth: 7 * 96 }}>
+          {/* touch-pan-x만 걸려있으면(이전 방식) 이 영역 안에서 시작한 세로 스와이프가 페이지 스크롤로
+              이어지지 못해 "월별보기에서 위아래 스크롤이 안 되는" 문제가 있었음 — x/y 모두 허용. */}
+          <div data-hscroll className="overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl bg-white/70 dark:bg-slate-900/20">
+            <div style={{ minWidth: 7 * 120 }}>
             <div className="grid grid-cols-7 text-center text-xs font-black text-slate-500 border-b border-slate-200 dark:border-slate-700/30 py-1.5">{['일', '월', '화', '수', '목', '금', '토'].map((d, i) => <div key={d} className={i === 0 ? 'text-rose-500 dark:text-rose-400' : i === 6 ? 'text-blue-500 dark:text-blue-400' : ''}>{d}</div>)}</div>
             {Array.from({ length: days.length / 7 }, (_, weekIdx) => {
               const week = days.slice(weekIdx * 7, weekIdx * 7 + 7);
               return (
-                // 모든 주(週)가 동일한 폭을 쓰도록 고정하고, 일정이 많은 날은 높이만 유동적으로 늘어나게 함
-                <div key={weekIdx} className="grid border-b border-slate-200 dark:border-slate-700/30 last:border-b-0" style={{ gridTemplateColumns: 'repeat(7, minmax(96px, 1fr))' }}>
+                // 모든 주(週)가 항상 동일한 높이를 쓰도록 고정(일정 3개 + 공휴일 표시가 들어갈 정도).
+                // 넘치는 일정은 늘어나지 않고 "+N개 더" 표시로 요약해서, 주마다 칸 높이가 들쭉날쭉해지지 않게 함.
+                <div key={weekIdx} className="grid border-b border-slate-200 dark:border-slate-700/30 last:border-b-0" style={{ gridTemplateColumns: 'repeat(7, minmax(120px, 1fr))' }}>
                   {week.map((day, i) => {
                     const dayEvents = events.filter((e: any) => eventOccursOnDay(e, day));
+                    const visibleEvents = dayEvents.slice(0, MONTH_CELL_MAX_EVENTS);
+                    const hiddenCount = dayEvents.length - visibleEvents.length;
                     const isToday = isSameDay(day, new Date());
                     const dow = day.getDay();
                     const holidayName = holidayMap[format(day, 'yyyy-MM-dd')];
                     const lunarLabel = getLunarLabel(day);
                     const dateColorClass = isToday ? '' : holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400';
-                    return <div key={i} onClick={() => handleDayClick(day)} className={`min-h-[110px] p-1.5 border-r border-slate-200 dark:border-slate-700/30 last:border-r-0 transition-all cursor-pointer hover:bg-blue-500/5 ${!isSameMonth(day, monthStart) ? 'opacity-40 dark:opacity-10' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
+                    return <div key={i} onClick={() => handleDayClick(day)} style={{ height: MONTH_CELL_HEIGHT }} className={`p-1.5 border-r border-slate-200 dark:border-slate-700/30 last:border-r-0 transition-all cursor-pointer hover:bg-blue-500/5 overflow-hidden ${!isSameMonth(day, monthStart) ? 'opacity-40 dark:opacity-10' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
                       <div className="flex items-center justify-center gap-1 mb-1">
                         <div className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center' : dateColorClass}`}>{format(day, 'd')}</div>
                         <div className="text-[9px] text-slate-400 dark:text-slate-600 leading-tight">{lunarLabel}</div>
                       </div>
                       {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate leading-tight text-center mb-1">{holidayName}</div>}
                       {/* 월별보기에서는 칸이 좁아 추가정보(장소 등)는 보여주지 않고 제목만 표시 */}
-                      <div className="space-y-1.5">{dayEvents.map((event: any, idx: number) => {
-                        const isRecurring = getRecurrenceType(event) !== 'none';
-                        const isMultiDay = !!event.endDate;
-                        return <div key={idx} onClick={(e) => { e.stopPropagation(); openEditEvent(event); }} className={`py-1 px-1.5 rounded-md text-xs font-bold border-l-4 truncate flex items-center gap-1.5 min-w-0 ${isRecurring ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-400 dark:text-violet-100' : event.color === 'green' ? 'bg-emerald-50 border-emerald-600 text-emerald-900 dark:bg-emerald-500/20 dark:border-emerald-500 dark:text-emerald-100' : event.color === 'rose' ? 'bg-rose-50 border-rose-600 text-rose-900 dark:bg-rose-500/20 dark:border-rose-500 dark:text-rose-100' : event.color === 'amber' ? 'bg-amber-50 border-amber-600 text-amber-900 dark:bg-amber-500/20 dark:border-amber-500 dark:text-amber-100' : event.color === 'violet' ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-500 dark:text-violet-100' : 'bg-blue-50 border-blue-600 text-blue-900 dark:bg-blue-500/20 dark:border-blue-500 dark:text-blue-100'}`}>{isRecurring && <Repeat className="w-2.5 h-2.5 shrink-0"/>}{isMultiDay && <CalendarRange className="w-2.5 h-2.5 shrink-0"/>}<span className="truncate">{event.title}</span></div>;
-                      })}</div>
+                      <div className="space-y-1.5">
+                        {visibleEvents.map((event: any, idx: number) => {
+                          const isRecurring = getRecurrenceType(event) !== 'none';
+                          const isMultiDay = !!event.endDate;
+                          return <div key={idx} onClick={(e) => { e.stopPropagation(); openEditEvent(event); }} className={`py-1 px-1.5 rounded-md text-xs font-bold border-l-4 truncate flex items-center gap-1.5 min-w-0 ${isRecurring ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-400 dark:text-violet-100' : event.color === 'green' ? 'bg-emerald-50 border-emerald-600 text-emerald-900 dark:bg-emerald-500/20 dark:border-emerald-500 dark:text-emerald-100' : event.color === 'rose' ? 'bg-rose-50 border-rose-600 text-rose-900 dark:bg-rose-500/20 dark:border-rose-500 dark:text-rose-100' : event.color === 'amber' ? 'bg-amber-50 border-amber-600 text-amber-900 dark:bg-amber-500/20 dark:border-amber-500 dark:text-amber-100' : event.color === 'violet' ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-500 dark:text-violet-100' : 'bg-blue-50 border-blue-600 text-blue-900 dark:bg-blue-500/20 dark:border-blue-500 dark:text-blue-100'}`}>{isRecurring && <Repeat className="w-2.5 h-2.5 shrink-0"/>}{isMultiDay && <CalendarRange className="w-2.5 h-2.5 shrink-0"/>}<span className="truncate">{event.title}</span></div>;
+                        })}
+                        {hiddenCount > 0 && <div onClick={(e) => { e.stopPropagation(); setDayViewDate(day); }} className="text-[10px] font-bold text-slate-500 dark:text-slate-400 pl-1.5 hover:text-blue-500 dark:hover:text-blue-400">+{hiddenCount}개 더</div>}
+                      </div>
                     </div>;
                   })}
                 </div>

@@ -19,6 +19,13 @@ import NoteModal from '../components/calendar/NoteModal';
 import VersionModal from '../components/calendar/VersionModal';
 import HelpModal from '../components/calendar/HelpModal';
 import { LogIn, Menu, Search, CalendarSearch } from 'lucide-react';
+import { useModalBackClose } from '../lib/useModalBackClose';
+
+/** 메인 메뉴가 펼쳐진 동안 뒤로가기를 누르면 앱을 나가는 대신 메뉴만 닫히게 함. */
+function MainMenuBackCloseGuard({ onClose }: { onClose: () => void }) {
+  useModalBackClose(onClose);
+  return null;
+}
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -107,7 +114,9 @@ export default function Home() {
   // 목록 탭은 메인메뉴로 이동했으므로 탭바/스와이프 순환에서는 제외 (view 상태 자체는 유지)
   const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['calendar', '일정'], ['todo', '할일'], ['notes', '메모']];
   const activeNotes = notes.filter((n: any) => !n.deletedAt);
-  const todayNotes = activeNotes.filter((n: any) => n.showToday);
+  // 수정할 때마다(체크박스 토글 등으로 updatedAt이 바뀔 때마다) 카드 위치가 요동치지 않도록,
+  // 오늘 탭에서는 항상 생성순으로 고정 정렬한다 (activeNotes는 updatedAt 내림차순이라 그대로 쓰면 안 됨).
+  const todayNotes = [...activeNotes].filter((n: any) => n.showToday).sort((a: any, b: any) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
   const anyOverlayOpen = menuOpen || isImportExportOpen || isEmailBackupOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim() || !!searchDate;
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -155,28 +164,28 @@ export default function Home() {
         <div className="flex items-center gap-1.5">
           <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0" aria-label="메뉴"><Menu className="w-5 h-5" /></button>
           <div className="font-black tracking-tight mr-1 hidden sm:block">Cal2do</div>
-          <nav className="flex items-center gap-0.5 overflow-x-auto flex-1 no-scrollbar">{tabs.map(([key, label]) => <button key={key} onClick={() => go(key)} className={`px-2.5 py-1.5 rounded-lg text-base font-black whitespace-nowrap ${view === key ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{label}</button>)}</nav>
+          <nav className="flex items-center gap-0.5 overflow-x-auto flex-1 no-scrollbar">{tabs.map(([key, label]) => <button key={key} onClick={() => go(key)} className={`px-2.5 py-1.5 rounded-lg text-base font-semibold whitespace-nowrap ${view === key ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{label}</button>)}</nav>
         </div>
-        <div className="relative w-full sm:w-48 md:w-64 shrink-0 flex items-center gap-1.5">
-          <div className="relative flex-1">
+        <div className="relative w-full sm:w-48 md:w-64 shrink-0">
+          <div className="relative">
             <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400"/>
-            <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) setSearchDate(''); }} placeholder="검색" className="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
+            <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) setSearchDate(''); }} placeholder="검색" className="w-full pl-8 pr-9 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
+            <button
+              type="button"
+              onClick={() => searchDateRef.current?.showPicker?.() || searchDateRef.current?.focus()}
+              title="날짜로 전체 기록 보기"
+              className={`absolute right-1 top-1 p-1.5 rounded-md transition ${searchDate ? 'text-blue-500 bg-blue-500/10' : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+            >
+              <CalendarSearch className="w-4 h-4" />
+            </button>
+            <input
+              ref={searchDateRef}
+              type="date"
+              value={searchDate}
+              onChange={(e) => { setSearchDate(e.target.value); if (e.target.value) setSearch(''); }}
+              className="sr-only"
+            />
           </div>
-          <button
-            type="button"
-            onClick={() => searchDateRef.current?.showPicker?.() || searchDateRef.current?.focus()}
-            title="날짜로 전체 기록 보기"
-            className={`p-2 rounded-lg shrink-0 transition ${searchDate ? 'text-blue-500 bg-blue-500/10' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-          >
-            <CalendarSearch className="w-4 h-4" />
-          </button>
-          <input
-            ref={searchDateRef}
-            type="date"
-            value={searchDate}
-            onChange={(e) => { setSearchDate(e.target.value); if (e.target.value) setSearch(''); }}
-            className="sr-only"
-          />
           {(search.trim() || searchDate) && (
             <GlobalSearch
               query={search}
@@ -197,6 +206,7 @@ export default function Home() {
       </div>
     </header>
     {menuOpen && <>
+      <MainMenuBackCloseGuard onClose={() => setMenuOpen(false)} />
       <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
       <div className="absolute top-14 left-2 z-50 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-2">
         <button onClick={() => { setIsImportExportOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">가져오기 / 내보내기</button>

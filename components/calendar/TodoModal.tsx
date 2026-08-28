@@ -54,6 +54,7 @@ export default function TodoModal({ todo, folders = [], notify, onClose, onRefre
       .catch((err: any) => {
         console.error(err);
         notifyFn(`수정 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
+        onRefresh?.(); // 타임아웃 등으로 실패 토스트가 떠도 서버엔 이미 반영됐을 수 있어, 항상 최신 상태로 동기화
       });
   };
 
@@ -67,6 +68,7 @@ export default function TodoModal({ todo, folders = [], notify, onClose, onRefre
       .catch((err: any) => {
         console.error(err);
         notifyFn(`삭제 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
+        onRefresh?.();
       });
   };
 

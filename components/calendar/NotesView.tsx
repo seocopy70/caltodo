@@ -184,7 +184,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
                     const shown = isLong && !isExpanded ? contentLines.slice(0, 15).join('\n') : note.content;
                     return (
                       <>
-                        <NoteContent content={shown} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} />
+                        <NoteContent content={shown} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} onLineClick={() => setViewingNote(note)} />
                         {isLong && (
                           <button
                             onClick={(e) => { e.stopPropagation(); toggleCardExpanded(note.id); }}

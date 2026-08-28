@@ -90,18 +90,26 @@ function EventRow({ event, onEdit }: any) {
   </div>;
 }
 
-// 오늘 탭의 메모 카드: 별도 창을 띄우지 않고 카드 안에서 바로 수정. 내용 길이에 따라 카드 크기가 자연스럽게 늘어남.
+// 오늘 탭의 메모 카드: 별도 창을 띄우지 않고 카드 안에서 바로 수정. 내용은 10줄까지 보여주고 넘치면 카드 내부에서만 스크롤.
 // 카드 바깥을 탭해야 수정이 종료되도록 해서, 안쪽을 탭하거나 줄바꿈해도 실수로 닫히지 않게 함.
+const NOTE_CARD_CONTENT_MAX_HEIGHT = 260; // text-base leading-relaxed 기준 대략 10줄
+
 function TodayNoteCard({ note, onRefresh, onNotify }: any) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  // 체크박스를 연달아 빠르게 누를 때 React 렌더 타이밍에 의존하지 않고 항상 "가장 최신" content를 기준으로
+  // 다음 토글을 계산하기 위한 ref (state만 쓰면 연속 탭 시 이전 토글이 유실되는 경우가 있었음)
+  const latestContentRef = useRef(content);
+  // 카드 바깥을 탭해 수정을 닫은 직후, 같은 탭 동작이 이어서 발생시키는 click까지 삼켜서
+  // 탭한 다른 항목(일정/할일 카드 등)이 실수로 열리지 않도록 함
+  const suppressNextClickRef = useRef(false);
   const folderColor = note.folderId ? getFolderColor(note.folderId) : null;
   const iconColorClass = folderColor ? folderColor.text : 'text-amber-500 dark:text-amber-400';
 
-  useEffect(() => { setTitle(note.title); setContent(note.content); }, [note.title, note.content]);
+  useEffect(() => { setTitle(note.title); setContent(note.content); latestContentRef.current = note.content; }, [note.title, note.content]);
 
   const autoGrow = (el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -109,9 +117,12 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
     el.style.height = `${el.scrollHeight}px`;
   };
 
+  // editing 상태와 무관하게 content가 바뀔 때마다(체크박스 토글, 최초 로드 등) 항상 다시 계산해서,
+  // 특정 트리거(포커스/입력)에서만 높이가 갱신되어 카드가 짧게/길게 들쭉날쭉해 보이던 문제를 없앰.
+  // 실제 표시 높이는 아래 CSS max-height로 10줄에서 캡되고 그 이상은 내부 스크롤됨.
   useEffect(() => {
-    if (editing) requestAnimationFrame(() => autoGrow(contentRef.current));
-  }, [editing]);
+    requestAnimationFrame(() => autoGrow(contentRef.current));
+  }, [editing, content]);
 
   const persist = (extra?: any) => {
     const trimmedTitle = title.trim() || '(제목 없음)';
@@ -128,13 +139,25 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         persist();
         setEditing(false);
+        suppressNextClickRef.current = true;
+      }
+    };
+    // capture 단계에서 먼저 잡아서, 바깥 탭이 이어서 만드는 click이 탭 대상 요소(일정/할일 항목 등)의
+    // 자체 onClick으로 전달되기 전에 삼킨다.
+    const handleClickCapture = (e: MouseEvent) => {
+      if (suppressNextClickRef.current) {
+        suppressNextClickRef.current = false;
+        e.preventDefault();
+        e.stopPropagation();
       }
     };
     document.addEventListener('mousedown', handleOutside);
     document.addEventListener('touchstart', handleOutside);
+    document.addEventListener('click', handleClickCapture, true);
     return () => {
       document.removeEventListener('mousedown', handleOutside);
       document.removeEventListener('touchstart', handleOutside);
+      document.removeEventListener('click', handleClickCapture, true);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, title, content]);
@@ -145,9 +168,11 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
     api.notes.remove(note.id).then(() => { onNotify?.('메모를 보관함으로 옮겼습니다.'); onRefresh?.(); }).catch((err: any) => onNotify?.(`삭제 실패: ${err.message || err}`, 'error'));
   };
 
-  // 체크박스를 눌렀을 때는 체크만 토글하고, 수정모드로는 들어가지 않음
+  // 체크박스를 눌렀을 때는 체크만 토글하고, 수정모드로는 들어가지 않음.
+  // latestContentRef를 기준으로 계산해서, 빠르게 연달아 누를 때 이전 토글이 유실되지 않게 함.
   const toggleLine = (idx: number) => {
-    const newContent = toggleChecklistLine(content, idx);
+    const newContent = toggleChecklistLine(latestContentRef.current, idx);
+    latestContentRef.current = newContent;
     setContent(newContent);
     persist({ content: newContent });
   };
@@ -188,23 +213,25 @@ function TodayNoteCard({ note, onRefresh, onNotify }: any) {
           value={content}
           readOnly={!editing}
           onClick={() => !editing && setEditing(true)}
-          onChange={(e) => { setContent(e.target.value); autoGrow(e.target); }}
+          onChange={(e) => { setContent(e.target.value); latestContentRef.current = e.target.value; autoGrow(e.target); }}
           onFocus={(e) => autoGrow(e.target)}
           rows={2}
-          className={`w-full bg-transparent text-base leading-relaxed outline-none resize-none [overflow-wrap:anywhere] ${editing ? 'text-slate-700 dark:text-slate-300 cursor-text' : 'text-slate-600 dark:text-slate-400 cursor-text'}`}
+          style={{ maxHeight: NOTE_CARD_CONTENT_MAX_HEIGHT }}
+          className={`w-full bg-transparent text-base leading-relaxed outline-none resize-none overflow-y-auto [overflow-wrap:anywhere] ${editing ? 'text-slate-700 dark:text-slate-300 cursor-text' : 'text-slate-600 dark:text-slate-400 cursor-text'}`}
         />
       ) : editing ? (
         <textarea
           ref={contentRef}
           autoFocus
           value={content}
-          onChange={(e) => { setContent(e.target.value); autoGrow(e.target); }}
+          onChange={(e) => { setContent(e.target.value); latestContentRef.current = e.target.value; autoGrow(e.target); }}
           onFocus={(e) => autoGrow(e.target)}
           rows={3}
-          className="w-full bg-transparent text-base leading-relaxed outline-none resize-none [overflow-wrap:anywhere] text-slate-700 dark:text-slate-300"
+          style={{ maxHeight: NOTE_CARD_CONTENT_MAX_HEIGHT }}
+          className="w-full bg-transparent text-base leading-relaxed outline-none resize-none overflow-y-auto [overflow-wrap:anywhere] text-slate-700 dark:text-slate-300"
         />
       ) : (
-        <div className="text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+        <div className="text-base text-slate-600 dark:text-slate-400 leading-relaxed overflow-y-auto" style={{ maxHeight: NOTE_CARD_CONTENT_MAX_HEIGHT }}>
           {/* 체크박스는 토글만, 글자 부분을 눌러야 수정모드로 진입 (체크박스 클릭이 수정모드를 열지 않도록 분리) */}
           <NoteContent content={content} format={note.format} onToggleLine={toggleLine} onLineClick={enterEditAtLine} />
         </div>

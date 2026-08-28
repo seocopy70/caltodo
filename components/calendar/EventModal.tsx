@@ -145,6 +145,10 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       .catch((e: any) => {
         console.error(e);
         notifyFn(`저장 실패: ${e.isTimeout ? e.message : (e.message || e)}`, 'error');
+        // 타임아웃 등으로 실패 토스트가 떠도 요청 자체는 서버에서 이미 처리됐을 수 있음(withTimeout 참고).
+        // 새로고침을 안 하면 로컬 화면은 계속 "수정 전" 데이터를 들고 있어서, 다시 열었을 때
+        // 방금 한 수정이 반영 안 된 것처럼("원래 수정창") 보이는 문제가 있었음 — 실패해도 항상 최신 상태로 동기화.
+        onRefresh?.();
       });
   };
 
@@ -158,6 +162,7 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       .catch((e: any) => {
         console.error(e);
         notifyFn(`삭제 실패: ${e.isTimeout ? e.message : (e.message || e)}`, 'error');
+        onRefresh?.();
       });
   };
 
