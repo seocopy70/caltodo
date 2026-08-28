@@ -84,6 +84,7 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
         onRefresh={onRefresh}
         onPatchTodo={onPatchTodo}
         onRemoveTodo={onRemoveTodo}
+        showRelativeDates
       />
     </div>
   );

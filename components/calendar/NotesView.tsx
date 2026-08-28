@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { api } from '../../lib/api-client';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { Plus, Trash2, StickyNote, Archive, RotateCcw, Star, LayoutGrid, List, Folder, FolderPlus, Pencil, X, ChevronDown, Check, ShieldCheck, ShieldOff, Lock } from 'lucide-react';
+import { Plus, Trash2, StickyNote, Archive, RotateCcw, Star, LayoutGrid, List, Folder, FolderPlus, Pencil, X, ChevronDown, Check, ShieldCheck, ShieldOff, Lock, Search as SearchIcon } from 'lucide-react';
 import NoteViewModal from './NoteViewModal';
 import SecureFolderModal from './SecureFolderModal';
 import NoteContent, { toggleChecklistLine } from './NoteContent';
@@ -19,6 +19,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [secureModal, setSecureModal] = useState<{ folder: any; mode: 'setup' | 'unlock' | 'disable' } | null>(null);
   const [unlockedSecureId, setUnlockedSecureId] = useState<string | null>(null);
+  const [secureSearchQuery, setSecureSearchQuery] = useState('');
   const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
   const toggleCardExpanded = (id: string) => setExpandedCardIds((prev) => {
     const next = new Set(prev);
@@ -34,13 +35,19 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   // 보안폴더 메모는 '전체' 보기 등에서는 숨기고, 그 폴더를 잠금 해제하고 들어갔을 때만 보여줌
   const visibleForAll = secureFolder ? allActiveNotes.filter((n: any) => n.folderId !== secureFolder.id) : allActiveNotes;
 
-  const activeNotes = activeFolderId === 'all'
+  const isInUnlockedSecureFolder = activeFolderId === secureFolder?.id && unlockedSecureId === secureFolder?.id;
+  const activeNotesBeforeSearch = activeFolderId === 'all'
     ? visibleForAll.filter((n: any) => !n.showToday) // 별표(오늘 탭 표시)된 메모는 전체보기에서 숨김 — 오늘 탭에서 확인
     : activeFolderId === 'none'
       ? visibleForAll.filter((n: any) => !n.folderId)
       : activeFolderId === secureFolder?.id
-        ? (unlockedSecureId === secureFolder.id ? allActiveNotes.filter((n: any) => n.folderId === secureFolder.id) : [])
+        ? (isInUnlockedSecureFolder ? allActiveNotes.filter((n: any) => n.folderId === secureFolder.id) : [])
         : visibleForAll.filter((n: any) => n.folderId === activeFolderId);
+  // 보안폴더 안에서만 쓰는 로컬 검색(전역 검색은 보안폴더 메모를 애초에 제외하므로 별도로 둠)
+  const secureQuery = secureSearchQuery.trim().toLowerCase();
+  const activeNotes = isInUnlockedSecureFolder && secureQuery
+    ? activeNotesBeforeSearch.filter((n: any) => `${n.title} ${n.content || ''}`.toLowerCase().includes(secureQuery))
+    : activeNotesBeforeSearch;
 
   const currentFolderLabel = activeFolderId === 'all' ? '전체' : activeFolderId === 'none' ? '미분류' : (folders.find((f: any) => f.id === activeFolderId)?.name || '전체');
   const currentFolderColor = activeFolderId !== 'all' && activeFolderId !== 'none' ? getFolderColor(activeFolderId) : null;
@@ -95,6 +102,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const selectFolder = (id: string | 'all' | 'none') => {
     setActiveFolderId(id);
     setFolderPickerOpen(false);
+    setSecureSearchQuery('');
     if (secureFolder && id === secureFolder.id && unlockedSecureId !== secureFolder.id) {
       setSecureModal({ folder: secureFolder, mode: 'unlock' });
     }
@@ -159,7 +167,18 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
         <button onClick={() => setSecureModal({ folder: secureFolder, mode: 'unlock' })} className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold">잠금 해제</button>
       </div>
     ) : <>
-      {activeNotes.length === 0 && <div className="text-center text-slate-500 py-16 text-sm">{activeFolderId === 'all' ? '작성된 메모가 없어요.' : '이 폴더에는 메모가 없어요.'}</div>}
+      {isInUnlockedSecureFolder && (
+        <div className="relative">
+          <SearchIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+          <input
+            value={secureSearchQuery}
+            onChange={(e) => setSecureSearchQuery(e.target.value)}
+            placeholder="보안폴더 안에서 검색"
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none text-sm"
+          />
+        </div>
+      )}
+      {activeNotes.length === 0 && <div className="text-center text-slate-500 py-16 text-sm">{secureQuery ? '검색 결과가 없어요.' : activeFolderId === 'all' ? '작성된 메모가 없어요.' : '이 폴더에는 메모가 없어요.'}</div>}
 
       {layoutMode === 'card' ? (
         <div className="columns-1 sm:columns-2 gap-3 [column-fill:_balance]">

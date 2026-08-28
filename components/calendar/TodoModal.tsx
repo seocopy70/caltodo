@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { api } from '../../lib/api-client';
+import { autoPriorityForDueDate } from '../../lib/todoAutoColor';
 import { Calendar as CalIcon, Trash2, X, AlignLeft, Folder } from 'lucide-react';
 
 const PRIORITIES = [
@@ -72,6 +73,13 @@ export default function TodoModal({ todo, folders = [], notify, onClose, onRefre
       });
   };
 
+  const handleDueDateChange = (value: string) => {
+    setDueDate(value);
+    // 기한을 (다시) 설정하면 급한 정도에 따라 색깔원을 자동으로 골라줌 (composer와 동일한 규칙)
+    const autoPriority = autoPriorityForDueDate(value);
+    if (autoPriority) setPriority(autoPriority);
+  };
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
       <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
@@ -96,7 +104,7 @@ export default function TodoModal({ todo, folders = [], notify, onClose, onRefre
 
           <div className="flex items-center gap-3 bg-slate-800 p-3 rounded-2xl">
             <CalIcon className="w-4 h-4 text-slate-500" />
-            <input type="date" className="bg-transparent flex-1 outline-none text-sm" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <input type="date" className="bg-transparent flex-1 outline-none text-sm" value={dueDate} onChange={(e) => handleDueDateChange(e.target.value)} />
             {dueDate && (
               <button onClick={() => setDueDate('')} className="text-[10px] text-slate-500 hover:text-rose-400">날짜 제거</button>
             )}

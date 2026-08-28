@@ -147,12 +147,15 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
             {titleSuggestOpen && !isInSecureFolder && <AutocompleteDropdown suggestions={titleSuggestionsFor(title)} onSelect={(v) => { setTitle(v); setTitleSuggestOpen(false); }} />}
           </div>
 
-          {/* 형식: 일반/체크리스트/번호매김 중 하나만 선택 가능 */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button onClick={() => switchFormat('plain')} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${format === 'plain' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><AlignLeft className="w-3.5 h-3.5" /> 일반</button>
-            <button onClick={() => switchFormat('checklist')} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${format === 'checklist' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><ListChecks className="w-3.5 h-3.5" /> 체크</button>
-            <button onClick={() => switchFormat('numbered')} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${format === 'numbered' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><ListOrdered className="w-3.5 h-3.5" /> 번호</button>
-          </div>
+          {/* 형식: 일반/체크리스트/번호매김 중 하나만 선택 가능. 이미 만든 메모를 수정할 때는 형식이 바뀌면
+              기존 체크 상태 등이 흐트러질 수 있어서, 새 메모를 만들 때만 고를 수 있게 함. */}
+          {!isEdit && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button onClick={() => switchFormat('plain')} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${format === 'plain' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><AlignLeft className="w-3.5 h-3.5" /> 일반</button>
+              <button onClick={() => switchFormat('checklist')} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${format === 'checklist' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><ListChecks className="w-3.5 h-3.5" /> 체크</button>
+              <button onClick={() => switchFormat('numbered')} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold ${format === 'numbered' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><ListOrdered className="w-3.5 h-3.5" /> 번호</button>
+            </div>
+          )}
 
           {format === 'plain' ? (
             <textarea ref={contentRef} className="w-full flex-1 min-h-[16rem] bg-slate-100 dark:bg-slate-800 rounded-2xl p-4 outline-none text-base leading-relaxed resize-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="내용을 입력하세요..." value={content} onChange={(e) => setContent(e.target.value)} />

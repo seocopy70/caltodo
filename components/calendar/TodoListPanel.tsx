@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { format, isToday } from 'date-fns';
-import { CalendarDays, CheckCircle2, Circle, ChevronDown, ChevronUp, GripVertical, Trash2, Plus } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Circle, ChevronDown, ChevronUp, GripVertical, Trash2, Plus, Folder } from 'lucide-react';
 import { api } from '../../lib/api-client';
 import { useRecentInputs } from '../../lib/useRecentInputs';
+import { autoPriorityForDueDate } from '../../lib/todoAutoColor';
+import { getFolderColor } from '../../lib/folderColor';
 import TodoModal from './TodoModal';
 
 const PRIORITIES = [
@@ -65,17 +67,22 @@ export default function TodoListPanel({
   const [newTodo, setNewTodo] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<string | null>(null);
+  const [composerFolderId, setComposerFolderId] = useState<string | null>(defaultFolderId);
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [expanded, setExpanded] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const [quickActionsFor, setQuickActionsFor] = useState<any>(null);
   const { remember, suggestionsFor } = useRecentInputs('todo-title');
   const suggestions = suggestOpen ? suggestionsFor(newTodo) : [];
   const dateRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const notify = onNotify || (() => {});
+
+  // 폴더탭에서 특정 폴더를 보고 있을 때는 그 폴더를 기본값으로 맞춰줌(탭 전환 시에도 동기화)
+  useEffect(() => { setComposerFolderId(defaultFolderId); }, [defaultFolderId]);
 
   const activeTodosSorted = todos.filter((t: any) => !t.completed).sort(sortActive);
   const activeTodos = previewOrder
@@ -98,6 +105,7 @@ export default function TodoListPanel({
     if (!title || !user) return;
     const finalDueDate = overrides.dueDate !== undefined ? overrides.dueDate : dueDate;
     const finalPriority = overrides.priority !== undefined ? overrides.priority : priority;
+    const finalFolderId = composerFolderId;
     resetComposer();
     try {
       await api.todos.create({
@@ -106,7 +114,7 @@ export default function TodoListPanel({
         dueDate: finalDueDate ? new Date(finalDueDate).toISOString() : null,
         memo: '',
         priority: finalPriority || null,
-        folderId: defaultFolderId || null,
+        folderId: finalFolderId || null,
       });
       remember(title);
       notify('할 일이 추가되었습니다.');
@@ -120,7 +128,10 @@ export default function TodoListPanel({
 
   const handleDueDateChange = (value: string) => {
     setDueDate(value);
-    if (newTodo.trim()) createTodo({ dueDate: value });
+    // 기한을 설정하면 급한 정도에 따라 색깔원을 자동으로 골라줌(5일 이내 빨강/한달 이내 노랑/그외 초록)
+    const autoPriority = autoPriorityForDueDate(value);
+    if (autoPriority) setPriority(autoPriority);
+    if (newTodo.trim()) createTodo({ dueDate: value, priority: autoPriority ?? priority });
   };
   const handlePriorityClick = (key: string) => {
     const next = priority === key ? null : key;
@@ -143,15 +154,27 @@ export default function TodoListPanel({
       .catch((err: any) => { notify(`삭제 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 
-  // 포인터(터치+마우스 공용) 기반 드래그 재정렬
-  const startDrag = (id: string) => {
+  // 포인터(터치+마우스 공용) 기반 드래그 재정렬. 손잡이를 짧게 탭하면(움직임 거의 없으면)
+  // 드래그 대신 색깔/날짜/폴더를 바로 바꿀 수 있는 빠른 메뉴를 연다.
+  const dragStartPos = useRef<{ x: number; y: number } | null>(null);
+  const dragMovedRef = useRef(false);
+  const startDrag = (id: string, e: React.PointerEvent) => {
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+    dragMovedRef.current = false;
     setDragId(id);
     setPreviewOrder(activeTodosSorted.map((t: any) => t.id));
   };
 
   useEffect(() => {
     if (!dragId) return;
+    const DRAG_THRESHOLD = 6; // px — 이보다 적게 움직이면 "탭"으로 간주
     const handleMove = (e: PointerEvent) => {
+      if (dragStartPos.current) {
+        const dx = e.clientX - dragStartPos.current.x;
+        const dy = e.clientY - dragStartPos.current.y;
+        if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) dragMovedRef.current = true;
+      }
+      if (!dragMovedRef.current) return; // 아직 "탭"일 수 있으니 미리보기 순서를 흔들지 않음
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const row = el?.closest?.('[data-todo-id]') as HTMLElement | null;
       if (!row) return;
@@ -169,8 +192,17 @@ export default function TodoListPanel({
       });
     };
     const handleUp = async () => {
+      const wasDrag = dragMovedRef.current;
+      const tappedId = dragId;
       const finalOrder = previewOrder;
       setDragId(null);
+      if (!wasDrag) {
+        // 움직이지 않고 뗐으면 드래그가 아니라 탭 — 빠른 메뉴(색깔/날짜/폴더)를 연다
+        setPreviewOrder(null);
+        const t = todos.find((x: any) => x.id === tappedId);
+        if (t) setQuickActionsFor(t);
+        return;
+      }
       if (!finalOrder) return;
       finalOrder.forEach((id, i) => onPatchTodo?.(id, { orderIndex: i }));
       try {
@@ -186,6 +218,13 @@ export default function TodoListPanel({
     return () => { window.removeEventListener('pointermove', handleMove); window.removeEventListener('pointerup', handleUp); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragId]);
+
+  const applyQuickAction = (extra: any) => {
+    if (!quickActionsFor) return;
+    const id = quickActionsFor.id;
+    onPatchTodo?.(id, extra);
+    api.todos.update(id, extra).then(() => onRefresh?.()).catch((err: any) => { notify(`업데이트 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
+  };
 
   return (
     <section className={`rounded-2xl border border-slate-700/50 bg-slate-900/30 overflow-hidden ${compact ? '' : 'shadow-xl'}`}>
@@ -225,6 +264,17 @@ export default function TodoListPanel({
             />
           ))}
         </div>
+        {folders.length > 0 && (
+          <select
+            value={composerFolderId || ''}
+            onChange={(e) => setComposerFolderId(e.target.value || null)}
+            title="폴더"
+            className={`shrink-0 bg-transparent text-xs font-bold rounded-lg px-1.5 py-1 outline-none max-w-[72px] truncate ${composerFolderId ? getFolderColor(composerFolderId).text : 'text-slate-500'}`}
+          >
+            <option value="">미분류</option>
+            {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        )}
         <button
           type="button"
           onClick={() => dateRef.current?.showPicker?.() || dateRef.current?.focus()}
@@ -264,8 +314,9 @@ export default function TodoListPanel({
               <Trash2 className="w-4 h-4" />
             </button>
             <button
-              onPointerDown={(e) => { e.preventDefault(); startDrag(todo.id); }}
+              onPointerDown={(e) => { e.preventDefault(); startDrag(todo.id, e); }}
               className="shrink-0 touch-none cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300"
+              title="누른 채로 끌면 순서 변경, 짧게 탭하면 빠른 메뉴"
             >
               <GripVertical className="w-6 h-6" />
             </button>
@@ -299,6 +350,51 @@ export default function TodoListPanel({
       )}
 
       {editingTodo && <TodoModal todo={editingTodo} folders={folders} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={onRefresh} />}
+      {quickActionsFor && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setQuickActionsFor(null)} />
+          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-4 space-y-3">
+            <p className="text-sm font-bold truncate text-slate-200">{quickActionsFor.title}</p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 w-12 shrink-0">색깔</span>
+              {PRIORITIES.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => { applyQuickAction({ priority: quickActionsFor.priority === p.key ? null : p.key }); setQuickActionsFor(null); }}
+                  className={`w-6 h-6 rounded-full ${p.dot} transition ${quickActionsFor.priority === p.key ? `ring-2 ring-offset-2 ring-offset-slate-900 ${p.ring}` : 'opacity-50 hover:opacity-90'}`}
+                />
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 w-12 shrink-0">날짜</span>
+              <input
+                type="date"
+                defaultValue={quickActionsFor.dueDate ? format(quickActionsFor.dueDate, 'yyyy-MM-dd') : ''}
+                onChange={(e) => {
+                  const autoPriority = autoPriorityForDueDate(e.target.value);
+                  applyQuickAction({ dueDate: e.target.value ? new Date(e.target.value).toISOString() : null, ...(autoPriority ? { priority: autoPriority } : {}) });
+                  setQuickActionsFor(null);
+                }}
+                className="flex-1 bg-slate-800 rounded-lg px-2 py-1.5 text-sm outline-none"
+              />
+            </div>
+            {folders.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 w-12 shrink-0">폴더</span>
+                <select
+                  defaultValue={quickActionsFor.folderId || ''}
+                  onChange={(e) => { applyQuickAction({ folderId: e.target.value || null }); setQuickActionsFor(null); }}
+                  className="flex-1 bg-slate-800 rounded-lg px-2 py-1.5 text-sm outline-none"
+                >
+                  <option value="">미분류</option>
+                  {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+              </div>
+            )}
+            <button onClick={() => setQuickActionsFor(null)} className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold text-slate-300">닫기</button>
+          </div>
+        </>
+      )}
     </section>
   );
 }

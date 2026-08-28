@@ -7,6 +7,7 @@ import { X, Cake, Moon, Trash2, Plus, List, Pencil } from 'lucide-react';
 import { api } from '../../lib/api-client';
 import { solarToLunar } from '../../lib/holidays';
 import { useModalBackClose } from '../../lib/useModalBackClose';
+import LunarDatePicker from './LunarDatePicker';
 
 export default function AnniversaryModal({ events, user, notify, onClose, onRefresh }: any) {
   useModalBackClose(onClose);
@@ -100,6 +101,13 @@ export default function AnniversaryModal({ events, user, notify, onClose, onRefr
                 <span className="flex-1 text-sm">음력 기준으로 매년 반복</span>
                 <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={isLunar} onChange={(e) => setIsLunar(e.target.checked)} />
               </label>
+              {isLunar && (
+                <div className="space-y-1">
+                  <p className="text-[11px] text-slate-500">달력에서 원하는 음력 날짜가 표시된 칸을 눌러 고르세요.</p>
+                  <LunarDatePicker value={dateStr} onChange={setDateStr} />
+                  <p className="text-[11px] text-blue-500 dark:text-blue-400 font-bold">선택한 날짜의 음력: {(() => { const d = new Date(`${dateStr}T00:00:00`); const l = solarToLunar(d); return `${l.month}월 ${l.day}일`; })()}</p>
+                </div>
+              )}
               <p className="text-[11px] text-slate-500">입력한 날짜를 기준으로 매년 반복돼요. {isLunar ? '음력 기준이라, 매년 양력 날짜는 조금씩 달라져요.' : ''}</p>
               <div className="flex gap-3 pt-2">
                 {editingId && <button onClick={() => remove(editingId)} className="p-3 text-rose-500 hover:bg-rose-500/10 rounded-2xl"><Trash2 /></button>}
