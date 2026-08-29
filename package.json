@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:e2e": "node e2e/regression.test.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
