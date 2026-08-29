@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { format, isToday } from 'date-fns';
-import { CalendarDays, CheckCircle2, Circle, ChevronDown, ChevronUp, GripVertical, Trash2, Plus, Folder } from 'lucide-react';
+import { CheckCircle2, Circle, ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api-client';
-import { useRecentInputs } from '../../lib/useRecentInputs';
 import { autoPriorityForDueDate } from '../../lib/todoAutoColor';
-import { getFolderColor } from '../../lib/folderColor';
+import { ModalBackCloseGuard } from '../../lib/useModalBackClose';
 import TodoModal from './TodoModal';
 
 const PRIORITIES = [
@@ -52,7 +51,6 @@ function dueDateLabel(due: Date, showRelative: boolean): { text: string; isNear:
 export default function TodoListPanel({
   todos,
   folders = [],
-  defaultFolderId = null,
   user,
   onNotify,
   onRefresh,
@@ -64,25 +62,14 @@ export default function TodoListPanel({
   largePlaceholder = false,
   showRelativeDates = false,
 }: any) {
-  const [newTodo, setNewTodo] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [priority, setPriority] = useState<string | null>(null);
-  const [composerFolderId, setComposerFolderId] = useState<string | null>(defaultFolderId);
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [expanded, setExpanded] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
-  const [suggestOpen, setSuggestOpen] = useState(false);
   const [quickActionsFor, setQuickActionsFor] = useState<any>(null);
-  const { remember, suggestionsFor } = useRecentInputs('todo-title');
-  const suggestions = suggestOpen ? suggestionsFor(newTodo) : [];
-  const dateRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const notify = onNotify || (() => {});
-
-  // 폴더탭에서 특정 폴더를 보고 있을 때는 그 폴더를 기본값으로 맞춰줌(탭 전환 시에도 동기화)
-  useEffect(() => { setComposerFolderId(defaultFolderId); }, [defaultFolderId]);
 
   const activeTodosSorted = todos.filter((t: any) => !t.completed).sort(sortActive);
   const activeTodos = previewOrder
@@ -97,47 +84,6 @@ export default function TodoListPanel({
     });
 
   const visibleTodos = maxVisible && !expanded ? activeTodos.slice(0, maxVisible) : activeTodos;
-
-  const resetComposer = () => { setNewTodo(''); setDueDate(''); setPriority(null); };
-
-  const createTodo = async (overrides: { dueDate?: string; priority?: string | null } = {}) => {
-    const title = newTodo.trim();
-    if (!title || !user) return;
-    const finalDueDate = overrides.dueDate !== undefined ? overrides.dueDate : dueDate;
-    const finalPriority = overrides.priority !== undefined ? overrides.priority : priority;
-    const finalFolderId = composerFolderId;
-    resetComposer();
-    try {
-      await api.todos.create({
-        title,
-        completed: false,
-        dueDate: finalDueDate ? new Date(finalDueDate).toISOString() : null,
-        memo: '',
-        priority: finalPriority || null,
-        folderId: finalFolderId || null,
-      });
-      remember(title);
-      notify('할 일이 추가되었습니다.');
-      onRefresh?.();
-    } catch (err: any) {
-      notify(`추가 실패: ${err.message || err}`, 'error');
-    }
-  };
-
-  const addTodo = async (e: React.FormEvent) => { e.preventDefault(); await createTodo(); };
-
-  const handleDueDateChange = (value: string) => {
-    setDueDate(value);
-    // 기한을 설정하면 급한 정도에 따라 색깔원을 자동으로 골라줌(5일 이내 빨강/한달 이내 노랑/그외 초록)
-    const autoPriority = autoPriorityForDueDate(value);
-    if (autoPriority) setPriority(autoPriority);
-    if (newTodo.trim()) createTodo({ dueDate: value, priority: autoPriority ?? priority });
-  };
-  const handlePriorityClick = (key: string) => {
-    const next = priority === key ? null : key;
-    setPriority(next);
-    if (newTodo.trim()) createTodo({ priority: next });
-  };
 
   const toggleTodo = (id: string, completed: boolean) => {
     onPatchTodo?.(id, { completed, completedAt: completed ? new Date() : null });
@@ -228,70 +174,6 @@ export default function TodoListPanel({
 
   return (
     <section className={`rounded-2xl border border-slate-700/50 bg-slate-900/30 overflow-hidden ${compact ? '' : 'shadow-xl'}`}>
-      <form onSubmit={addTodo} className="relative flex items-center gap-2 px-4 py-3 border-b border-slate-700/40">
-        <Plus className="w-5 h-5 text-slate-500 shrink-0" />
-        <input
-          className="flex-1 min-w-0 bg-transparent outline-none placeholder:text-slate-500 text-base"
-          placeholder="새 할일"
-          value={newTodo}
-          onChange={(e) => setNewTodo(e.target.value)}
-          onFocus={() => setSuggestOpen(true)}
-          onBlur={() => setTimeout(() => setSuggestOpen(false), 150)}
-        />
-        {suggestions.length > 0 && (
-          <div className="absolute left-4 right-4 top-full mt-1 z-20 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden">
-            {suggestions.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { setNewTodo(s); setSuggestOpen(false); }}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-800 truncate"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="flex items-center gap-1 shrink-0">
-          {PRIORITIES.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => handlePriorityClick(p.key)}
-              title={p.key === 'red' ? '긴급' : p.key === 'yellow' ? '보통' : '여유'}
-              className={`w-4 h-4 rounded-full ${p.dot} transition ${priority === p.key ? `ring-2 ring-offset-2 ring-offset-slate-900 ${p.ring} scale-110` : 'opacity-40 hover:opacity-80'}`}
-            />
-          ))}
-        </div>
-        {folders.length > 0 && (
-          <select
-            value={composerFolderId || ''}
-            onChange={(e) => setComposerFolderId(e.target.value || null)}
-            title="폴더"
-            className={`shrink-0 bg-transparent text-xs font-bold rounded-lg px-1.5 py-1 outline-none max-w-[72px] truncate ${composerFolderId ? getFolderColor(composerFolderId).text : 'text-slate-500'}`}
-          >
-            <option value="">미분류</option>
-            {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        )}
-        <button
-          type="button"
-          onClick={() => dateRef.current?.showPicker?.() || dateRef.current?.focus()}
-          className={`p-1.5 rounded-lg transition ${dueDate ? 'text-blue-400 bg-blue-500/10' : 'text-slate-500 hover:text-blue-400 hover:bg-blue-500/10'}`}
-          title="할 일 기한"
-        >
-          <CalendarDays className="w-5 h-5" />
-        </button>
-        <input
-          ref={dateRef}
-          type="date"
-          value={dueDate}
-          onChange={(e) => handleDueDateChange(e.target.value)}
-          className="sr-only"
-        />
-      </form>
-
       {maxVisible && activeTodos.length > 0 && (
         <button onClick={() => setExpanded((v) => !v)} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-400 transition">
           {expanded ? <><ChevronUp className="w-3.5 h-3.5" /> 접기</> : <><ChevronDown className="w-3.5 h-3.5" /> 펼치기 ({activeTodos.length})</>}
@@ -352,6 +234,7 @@ export default function TodoListPanel({
       {editingTodo && <TodoModal todo={editingTodo} folders={folders} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={onRefresh} />}
       {quickActionsFor && (
         <>
+          <ModalBackCloseGuard onClose={() => setQuickActionsFor(null)} />
           <div className="fixed inset-0 z-40" onClick={() => setQuickActionsFor(null)} />
           <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-4 space-y-3">
             <p className="text-sm font-bold truncate text-slate-200">{quickActionsFor.title}</p>

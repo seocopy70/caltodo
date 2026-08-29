@@ -8,6 +8,7 @@ import { api } from '../../lib/api-client';
 import NoteContent, { toggleChecklistLine } from './NoteContent';
 import { getFolderColor } from '../../lib/folderColor';
 import EventModal from './EventModal';
+import TodoModal from './TodoModal';
 import TodoListPanel from './TodoListPanel';
 
 const EXPANDED_WINDOW_DAYS = 7; // 펼치면 오늘부터 7일 이내 일정까지 가까운 순서로 모두 표시
@@ -15,6 +16,7 @@ const EXPANDED_WINDOW_DAYS = 7; // 펼치면 오늘부터 7일 이내 일정까�
 export default function HomeView({ events, todos, notes = [], todoFolders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onNewNote, onEditNote }: any) {
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [isNewTodoOpen, setIsNewTodoOpen] = useState(false);
   const [eventsExpanded, setEventsExpanded] = useState(false);
   const notify = onNotify || (() => {});
   const today = new Date();
@@ -42,12 +44,14 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
   const visibleEvents = eventsExpanded ? windowEvents : collapsedEvents;
 
   return <div className="max-w-5xl mx-auto space-y-4 p-2">
-    <TodoListPanel todos={todos} folders={todoFolders} user={user} onNotify={onNotify} onRefresh={onRefresh} onPatchTodo={onPatchTodo} onRemoveTodo={onRemoveTodo} maxVisible={5} compact hideCompleted largePlaceholder showRelativeDates />
-
+    {/* 새 할일/일정/메모 — 화면 맨 위, 자주 쓰는 순서(할일 먼저) */}
     <div className="flex justify-end gap-2">
+      <button type="button" onClick={() => setIsNewTodoOpen(true)} className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition font-bold text-sm" title="새 할일"><Plus className="w-5 h-5" /><span>새 할일</span></button>
       <button type="button" onClick={() => setIsEventModalOpen(true)} className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition font-bold text-sm" title="새 일정"><Plus className="w-5 h-5" /><span>새 일정</span></button>
       <button type="button" onClick={() => onNewNote?.()} className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition font-bold text-sm" title="새 메모"><Plus className="w-5 h-5" /><span>새 메모</span></button>
     </div>
+
+    <TodoListPanel todos={todos} folders={todoFolders} user={user} onNotify={onNotify} onRefresh={onRefresh} onPatchTodo={onPatchTodo} onRemoveTodo={onRemoveTodo} maxVisible={5} compact hideCompleted largePlaceholder showRelativeDates />
 
     <section className="rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden">
       {windowEvents.length > collapsedEvents.length && (
@@ -68,6 +72,7 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
     )}
 
     {(isEventModalOpen || editingEvent) && <EventModal date={new Date()} editingEvent={editingEvent} user={user} notify={notify} onClose={() => { setIsEventModalOpen(false); setEditingEvent(null); }} onRefresh={onRefresh} />}
+    {isNewTodoOpen && <TodoModal todo={null} folders={todoFolders} notify={notify} onClose={() => setIsNewTodoOpen(false)} onRefresh={onRefresh} />}
   </div>;
 }
 

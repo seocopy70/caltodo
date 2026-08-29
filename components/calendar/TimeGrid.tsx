@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Repeat, CalendarRange, MapPin, AlignLeft } from 'lucide-react';
@@ -68,6 +68,15 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
   const colStyle = isWeekView ? { minWidth: WEEK_DAY_COL_WIDTH } : undefined;
   const innerMinWidth = isWeekView ? 36 + days.length * WEEK_DAY_COL_WIDTH : undefined;
 
+  // 구글/삼성 캘린더의 "현재 시각" 빨간 줄. 1분마다 다시 계산해서 살아있게 유지.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  const nowTop = (now.getHours() * 60 + now.getMinutes()) / 60 * HOUR_HEIGHT;
+  const todayInView = days.some((d: Date) => isSameDay(d, now));
+
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = SCROLL_TO_HOUR * HOUR_HEIGHT;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -79,7 +88,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
   const timedEvents = (events || []).filter((e: any) => !e.endDate && !isAllDayConvention(e.start, e.end));
 
   return (
-    <div className="flex flex-col border border-slate-300 dark:border-slate-700 rounded-2xl overflow-hidden shadow-2xl bg-white/70 dark:bg-slate-900/20">
+    <div className="flex flex-col border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm bg-white/70 dark:bg-slate-900/20">
       {/* data-hscroll: 이 영역 안에서 좌우로 밀면 그리드 자체가 스크롤되고(탭 순환 아님), 영역 밖에서 밀면 탭이 순환됨.
           주의: 이 컨테이너 안에는 세로 스크롤이 필요한 시간표 본문(scrollRef, touch-pan-y)이 중첩되어 있음.
           바깥 컨테이너를 touch-pan-x만으로 제한하면 touch-action 교집합이 비어버려서(pan-x ∩ pan-y = none)
@@ -87,23 +96,24 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
           바깥은 x/y 모두 허용해 두고, 실제 축 구분은 안쪽(scrollRef=touch-pan-y, 헤더/종일 영역=상속된 양축)에서 맡김 */}
       <div data-hscroll className="overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y">
         <div style={innerMinWidth ? { minWidth: innerMinWidth } : undefined}>
-          {/* 헤더: 요일+날짜 한 줄 */}
-          <div className="flex border-b border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60">
+          {/* 헤더: 구글 캘린더 스타일로 요일(작게)을 위에, 날짜(크게, 오늘은 원형 배지)를 아래에 */}
+          <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60">
             <div className="w-9 shrink-0" />
             {days.map((day: Date, i: number) => {
               const isToday = isSameDay(day, new Date());
               const dow = day.getDay();
               const holidayName = holidayMap?.[format(day, 'yyyy-MM-dd')];
-              const dateColorClass = isToday ? 'text-blue-600 dark:text-blue-400' : holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-600 dark:text-slate-300';
+              const weekdayColorClass = holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500';
               return (
                 <div
                   key={i}
                   style={colStyle}
                   onClick={isWeekView ? () => onDayHeaderClick?.(day) : undefined}
-                  className={`flex-1 min-w-0 text-center py-2 border-l border-slate-200 dark:border-slate-800 first:border-l-0 ${isWeekView ? 'cursor-pointer hover:bg-blue-500/5' : ''}`}
+                  className={`flex-1 min-w-0 text-center py-1.5 border-l border-slate-100 dark:border-slate-800/60 first:border-l-0 ${isWeekView ? 'cursor-pointer hover:bg-blue-500/5' : ''}`}
                 >
-                  <div className={`text-sm font-black flex items-center justify-center gap-1 ${dateColorClass}`}><span>{format(day, 'd')}</span><span className="text-[10px] font-bold text-slate-400">({format(day, 'EEE', { locale: ko })})</span></div>
-                  {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate px-1">{holidayName}</div>}
+                  <div className={`text-[10px] font-bold ${weekdayColorClass}`}>{format(day, 'EEE', { locale: ko })}</div>
+                  <div className={`mx-auto mt-0.5 w-7 h-7 rounded-full flex items-center justify-center text-sm font-black ${isToday ? 'bg-blue-600 text-white' : weekdayColorClass}`}>{format(day, 'd')}</div>
+                  {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate px-1 mt-0.5">{holidayName}</div>}
                 </div>
               );
             })}
@@ -111,12 +121,12 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
 
           {/* 종일 일정: 기본 높이를 시간 그리드 한 칸과 동일하게 맞춤 */}
           {allDayEvents.length > 0 && (
-            <div className="flex border-b border-slate-200 dark:border-slate-800">
+            <div className="flex border-b border-slate-100 dark:border-slate-800/60">
               <div style={{ minHeight: HOUR_HEIGHT }} className="w-9 shrink-0 text-[9px] text-slate-400 flex items-center justify-center">종일</div>
               {days.map((day: Date, i: number) => (
-                <div key={i} style={{ minHeight: HOUR_HEIGHT, ...colStyle }} className="flex-1 min-w-0 border-l border-slate-100 dark:border-slate-800/60 first:border-l-0 p-1 space-y-1">
+                <div key={i} style={{ minHeight: HOUR_HEIGHT, ...colStyle }} className="flex-1 min-w-0 border-l border-slate-50 dark:border-slate-800/40 first:border-l-0 p-1 space-y-1">
                   {allDayEvents.filter((e: any) => eventOccursOnDay(e, day)).map((e: any, idx: number) => (
-                    <div key={idx} onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }} className={`px-1.5 py-0.5 rounded text-sm font-bold truncate border-l-4 flex items-center gap-1 cursor-pointer ${colorClasses(e)}`}>
+                    <div key={idx} onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }} className={`px-1.5 py-0.5 rounded-full text-sm font-bold truncate flex items-center gap-1 cursor-pointer ${colorClasses(e)}`}>
                       <CalendarRange className="w-2.5 h-2.5 shrink-0" /><span className="truncate">{e.title}</span>
                     </div>
                   ))}
@@ -131,7 +141,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
           <div ref={scrollRef} className="flex overflow-y-auto touch-pan-x touch-pan-y" style={{ maxHeight: isWeekView ? WEEK_VISIBLE_HOURS * HOUR_HEIGHT : '65vh' }}>
             <div className="w-9 shrink-0">
               {HOURS.map((h) => (
-                <div key={h} style={{ height: HOUR_HEIGHT }} className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-right pr-1 -translate-y-1.5 border-t border-slate-100 dark:border-slate-800/60">{h === 0 ? '' : `${h}시`}</div>
+                <div key={h} style={{ height: HOUR_HEIGHT }} className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-right pr-1 -translate-y-1.5 border-t border-slate-50 dark:border-slate-800/40">{h === 0 ? '' : `${h}시`}</div>
               ))}
             </div>
             {days.map((day: Date, i: number) => {
@@ -139,16 +149,24 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                 .filter((e: any) => eventOccursOnDay(e, day))
                 .map((e: any) => ({ event: e, ...getOccurrenceTimes(e, day) }));
               const layout = layoutColumns(dayItems);
+              const isTodayCol = isSameDay(day, now);
               return (
-                <div key={i} style={colStyle} className="flex-1 min-w-0 relative border-l border-slate-100 dark:border-slate-800/60 first:border-l-0">
+                <div key={i} style={colStyle} className={`flex-1 min-w-0 relative border-l border-slate-50 dark:border-slate-800/40 first:border-l-0 ${isTodayCol ? 'bg-blue-500/5' : ''}`}>
                   {HOURS.map((h) => (
                     <div
                       key={h}
                       style={{ height: HOUR_HEIGHT }}
                       onClick={() => onSlotClick?.(day, h)}
-                      className="border-t border-slate-100 dark:border-slate-800/60 hover:bg-blue-500/5 cursor-pointer"
+                      className="border-t border-slate-50 dark:border-slate-800/40 hover:bg-blue-500/5 cursor-pointer"
                     />
                   ))}
+                  {/* 구글 캘린더의 상징적인 "현재 시각" 표시줄 — 오늘 컬럼에만 표시 */}
+                  {isTodayCol && (
+                    <div style={{ top: nowTop }} className="absolute left-0 right-0 z-10 pointer-events-none flex items-center">
+                      <span className="w-2 h-2 rounded-full bg-rose-500 -ml-1 shrink-0" />
+                      <span className="flex-1 h-[1.5px] bg-rose-500" />
+                    </div>
+                  )}
                   {dayItems.map((item: any, idx: number) => {
                     const { event: e, start, end } = item;
                     const top = (start.getHours() * 60 + start.getMinutes()) / 60 * HOUR_HEIGHT;
@@ -166,7 +184,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                         key={idx}
                         onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }}
                         style={{ position: 'absolute', top, height, width: `calc(${pos.widthPct}% - 2px)`, left: `${pos.leftPct}%` }}
-                        className={`px-1.5 py-0.5 rounded-md text-sm font-bold cursor-pointer overflow-hidden flex flex-col justify-center border-l-4 ${colorClasses(e)}`}
+                        className={`px-1.5 py-0.5 rounded-lg text-sm font-bold cursor-pointer overflow-hidden flex flex-col justify-center border-l-4 ${colorClasses(e)}`}
                       >
                         <div className="flex items-center gap-1.5 min-w-0">
                           {getRecurrenceType(e) !== 'none' && <Repeat className="w-2.5 h-2.5 shrink-0" />}

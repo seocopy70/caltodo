@@ -6,8 +6,10 @@ import { format, isSameDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { api } from '../../lib/api-client';
 import { eventOccursOnDay } from '../../lib/recurrence';
+import { useModalBackClose } from '../../lib/useModalBackClose';
 
 export default function GlobalSearch({ query, date, events, todos, notes, folders = [], onClose, onEvent, onTodo, onNote, onRefresh, onNotify }: any) {
+  useModalBackClose(onClose);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const notify = onNotify || (() => {});
