@@ -21,6 +21,12 @@ import HelpModal from '../components/calendar/HelpModal';
 import { LogIn, Menu, Search, CalendarSearch } from 'lucide-react';
 import { ModalBackCloseGuard } from '../lib/useModalBackClose';
 
+// 앱을 다시 열었을 때 "빈 오늘탭 → 잠시 후 데이터로 채워짐"으로 깜빡이는 대신, 지난번에 불러온
+// 데이터를 즉시 화면에 먼저 보여주고(약간 오래된 상태일 수 있음) 그 사이 서버에서 최신 데이터를
+// 가져와 조용히 덮어쓴다. 로그인 계정별로 분리해서 저장.
+const BOOTSTRAP_CACHE_PREFIX = 'cal2do-bootstrap-cache-';
+const bootstrapCacheKey = (uid: string) => BOOTSTRAP_CACHE_PREFIX + uid;
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,7 +64,26 @@ export default function Home() {
     toastTimer.current = setTimeout(() => setToast(null), 2500);
   }, []);
 
-  useEffect(() => onAuthStateChanged(auth, (currentUser) => { setUser(currentUser); setLoading(false); }), []);
+  const applyBootstrapResult = useCallback((res: any) => {
+    setEvents(res.events.map((e: any) => ({ ...e, start: new Date(e.start), end: new Date(e.end), endDate: e.endDate ? new Date(e.endDate) : null, updatedAt: new Date(e.updatedAt) })));
+    setTodos(res.todos.map((t: any) => ({ ...t, dueDate: t.dueDate ? new Date(t.dueDate) : null, completedAt: t.completedAt ? new Date(t.completedAt) : null, createdAt: new Date(t.createdAt) })));
+    setNotes(res.notes.map((n: any) => ({ ...n, createdAt: new Date(n.createdAt), updatedAt: new Date(n.updatedAt), deletedAt: n.deletedAt ? new Date(n.deletedAt) : null })));
+    setNoteFolders(res.noteFolders || []);
+    setTodoFolders(res.todoFolders || []);
+  }, []);
+
+  useEffect(() => onAuthStateChanged(auth, (currentUser) => {
+    // 로그인된 사용자면, 서버 응답을 기다리기 전에 지난번 캐시부터 먼저 화면에 반영해
+    // 로딩 스피너 다음 화면이 곧바로 (약간 오래됐을 수 있는) 데이터로 채워져 보이게 한다.
+    if (currentUser) {
+      try {
+        const cached = localStorage.getItem(bootstrapCacheKey(currentUser.uid));
+        if (cached) applyBootstrapResult(JSON.parse(cached));
+      } catch (err) { console.error('캐시 데이터 불러오기 실패:', err); }
+    }
+    setUser(currentUser);
+    setLoading(false);
+  }), [applyBootstrapResult]);
 
   // 텍스트 입력창이 아닌 곳(할일/일정/메모 카드 등)을 길게 눌렀을 때 뜨는 네이티브 복사/공유 컨텍스트 메뉴 차단.
   // 입력창/textarea/contenteditable 안에서는 그대로 둬서 붙여넣기·선택은 정상 동작하게 함.
@@ -76,13 +101,12 @@ export default function Home() {
     if (!auth.currentUser) return;
     try {
       const res = await api.bootstrap();
-      setEvents(res.events.map((e: any) => ({ ...e, start: new Date(e.start), end: new Date(e.end), endDate: e.endDate ? new Date(e.endDate) : null, updatedAt: new Date(e.updatedAt) })));
-      setTodos(res.todos.map((t: any) => ({ ...t, dueDate: t.dueDate ? new Date(t.dueDate) : null, completedAt: t.completedAt ? new Date(t.completedAt) : null, createdAt: new Date(t.createdAt) })));
-      setNotes(res.notes.map((n: any) => ({ ...n, createdAt: new Date(n.createdAt), updatedAt: new Date(n.updatedAt), deletedAt: n.deletedAt ? new Date(n.deletedAt) : null })));
-      setNoteFolders(res.noteFolders || []);
-      setTodoFolders(res.todoFolders || []);
+      applyBootstrapResult(res);
+      // 다음 실행 때 즉시 보여줄 수 있도록 원본(문자열 날짜 그대로) 응답을 캐시해둠.
+      try { localStorage.setItem(bootstrapCacheKey(auth.currentUser.uid), JSON.stringify(res)); }
+      catch (err) { console.error('캐시 저장 실패(용량 초과 등, 무시하고 계속):', err); }
     } catch (err) { console.error('데이터 조회 실패:', err); }
-  }, []);
+  }, [applyBootstrapResult]);
 
   // 낙관적 로컬 업데이트: 서버 응답을 기다리지 않고 화면에 즉시 반영해 체감 반응속도를 높임
   const patchTodoLocal = useCallback((id: string, patch: any) => setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t))), []);
