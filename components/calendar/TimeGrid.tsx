@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Repeat, CalendarRange, MapPin, AlignLeft } from 'lucide-react';
@@ -10,7 +10,6 @@ const HOUR_HEIGHT = 42; // px per hour (기존 48 대비 살짝 축소)
 const ALL_HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SCROLL_TO_HOUR = 6; // 탭 진입 시 06시 위치로 스크롤 (위아래로 스크롤하면 00~24시 전체 확인 가능)
 const WEEK_VISIBLE_HOURS = 15; // 주별보기에서 스크롤 없이 기본으로 보여줄 시간 범위(06~20시)
-const WEEK_DAY_COL_WIDTH = 112; // 주별보기에서 좁은 화면일 때 한 칸의 최소 폭(가로 스크롤로 전체 확인 가능) — 기존보다 넓게
 
 function isAllDayConvention(start: Date, end: Date) {
   return start.getHours() === 0 && start.getMinutes() === 0 && end.getHours() === 23 && end.getMinutes() === 59;
@@ -64,9 +63,10 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
   const scrollRef = useRef<HTMLDivElement>(null);
   const HOURS: number[] = ALL_HOURS;
   const isWeekView = days.length > 1;
-  // 주별보기는 좁은 화면에서 칸이 눌리지 않도록 최소 폭을 두고, 넘치면 좌우로 스크롤해서 전체를 볼 수 있게 함
-  const colStyle = isWeekView ? { minWidth: WEEK_DAY_COL_WIDTH } : undefined;
-  const innerMinWidth = isWeekView ? 36 + days.length * WEEK_DAY_COL_WIDTH : undefined;
+  // 주별보기도 일별보기와 동일하게 최소 폭을 두지 않고 화면 너비에 맞춰 7칸이 균등하게 눌려 들어가게 함
+  // (좁은 화면에서 가로 스크롤 없이 한 화면에 다 보이도록).
+  const colStyle: CSSProperties = {};
+  const innerMinWidth: number | undefined = undefined;
 
   // 구글/삼성 캘린더의 "현재 시각" 빨간 줄. 1분마다 다시 계산해서 살아있게 유지.
   const [now, setNow] = useState(() => new Date());

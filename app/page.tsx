@@ -19,7 +19,7 @@ import NoteModal from '../components/calendar/NoteModal';
 import VersionModal from '../components/calendar/VersionModal';
 import HelpModal from '../components/calendar/HelpModal';
 import { LogIn, Menu, Search, CalendarSearch } from 'lucide-react';
-import { ModalBackCloseGuard, consumeProgrammaticPop, isAnyModalOpen } from '../lib/useModalBackClose';
+import { ModalBackCloseGuard } from '../lib/useModalBackClose';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -60,57 +60,6 @@ export default function Home() {
 
   useEffect(() => onAuthStateChanged(auth, (currentUser) => { setUser(currentUser); setLoading(false); }), []);
 
-  // ── 중앙 뒤로가기 처리 ──────────────────────────────────────────────
-  // 우선순위: (1) 열려있는 모달/메뉴가 있으면 그건 각자의 useModalBackClose가 알아서 닫음(여긴 관여 안 함)
-  //          (2) 없으면, 방금 전 탭이 기억되어 있으면 그 탭으로
-  //          (3) 없으면, 입력창에 포커스가 있으면 포커스만 해제
-  //          (4) 그마저 없으면(첫 탭+입력없음) 평소처럼 뒤로가기/앱 종료
-  // 탭이 바뀔 때마다 히스토리를 쌓지 않고(그러면 계속 눌러야 함), 시작할 때 한 번 심어둔 항목 하나를
-  // 계속 재사용(pushState로 다시 채워넣기)하면서 "직전 탭 하나만" 기억한다.
-  const previousTabRef = useRef<typeof view | null>(null);
-  const prevViewRef = useRef(view);
-  const skipNextPrevTabRecordRef = useRef(false);
-  const viewRef = useRef(view); // 아래 popstate 핸들러(마운트 시 1회 등록)가 항상 최신 view를 보도록
-  useEffect(() => { viewRef.current = view; }, [view]);
-  useEffect(() => {
-    if (prevViewRef.current !== view) {
-      if (!skipNextPrevTabRecordRef.current) previousTabRef.current = prevViewRef.current;
-      skipNextPrevTabRecordRef.current = false;
-      prevViewRef.current = view;
-    }
-  }, [view]);
-
-  useEffect(() => {
-    window.history.pushState({ __appBase: true }, '');
-    const handlePopState = () => {
-      // 이 popstate가 "사용자가 뒤로가기를 누른 것"이 아니라 어떤 모달이 닫히면서
-      // 내부적으로 정리 차원에서 발생시킨 것이면 아무 것도 하지 않는다.
-      if (consumeProgrammaticPop()) return;
-      // 모달/메뉴가 열려있으면 그건 각자의 useModalBackClose 리스너가 처리하므로 여기선 관여하지 않음.
-      if (isAnyModalOpen()) return;
-
-      const active = document.activeElement as HTMLElement | null;
-      const isTyping = !!active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
-
-      if (previousTabRef.current && previousTabRef.current !== viewRef.current) {
-        skipNextPrevTabRecordRef.current = true;
-        setView(previousTabRef.current);
-        previousTabRef.current = null; // 한 단계만 되돌아가고, 그 이상은 스택처럼 계속 되짚지 않음
-        window.history.pushState({ __appBase: true }, '');
-        return;
-      }
-      if (isTyping) {
-        active.blur();
-        window.history.pushState({ __appBase: true }, '');
-        return;
-      }
-      // 더 되돌릴 탭도, 벗어날 입력도 없으면(첫 화면) 평소처럼 동작하게 그냥 둠(다시 채워넣지 않음)
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // 텍스트 입력창이 아닌 곳(할일/일정/메모 카드 등)을 길게 눌렀을 때 뜨는 네이티브 복사/공유 컨텍스트 메뉴 차단.
   // 입력창/textarea/contenteditable 안에서는 그대로 둬서 붙여넣기·선택은 정상 동작하게 함.
   useEffect(() => {
@@ -140,7 +89,21 @@ export default function Home() {
   const removeTodoLocal = useCallback((id: string) => setTodos((prev) => prev.filter((t) => t.id !== id)), []);
   const patchNoteLocal = useCallback((id: string, patch: any) => setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n))), []);
 
-  useEffect(() => { if (!user) return; refreshData(); const interval = setInterval(refreshData, 30000); return () => clearInterval(interval); }, [user, refreshData]);
+  // 백그라운드 자동 재조회: 다른 기기에서 바뀐 내용을 뒤늦게라도 반영하기 위한 용도라
+  // 화면이 꺼져있거나(백그라운드 탭) 사용자가 뭔가 입력/수정 중일 때까지 굳이 자주 돌릴 필요는 없음.
+  // 매번 이벤트/할일/메모(내용 포함) 전체를 다시 가져오는 무거운 호출이라, 주기를 늘리고
+  // 화면이 보이지 않을 땐 건너뛰어서 불필요한 트래픽과 그로 인한 버벅임을 줄인다.
+  useEffect(() => {
+    if (!user) return;
+    refreshData();
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      refreshData();
+    }, 120000);
+    const handleVisibility = () => { if (document.visibilityState === 'visible') refreshData(); };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', handleVisibility); };
+  }, [user, refreshData]);
   useEffect(() => { document.documentElement.classList.toggle('dark', isDarkMode); }, [isDarkMode]);
 
   const handleLogin = async () => {
@@ -155,7 +118,9 @@ export default function Home() {
   if (loading) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center text-white"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"/><p className="text-slate-400">안전하게 연결 중입니다...</p></div>;
   if (!user) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center safe-top"><h1 className="text-5xl font-black mb-4 text-white tracking-tighter italic">Cal2do</h1><p className="text-slate-400 mb-10 max-w-xs">기기를 접거나 꺼도 데이터가 안전하게 보관됩니다.</p><button onClick={handleLogin} className="flex items-center gap-4 bg-white text-black px-10 py-5 rounded-2xl font-black shadow-2xl"><LogIn className="w-6 h-6"/> 구글로 시작하기</button>{authError && <p className="mt-6 max-w-xs text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 break-words">로그인 실패: {authError}</p>}</div>;
 
-  const go = (next: typeof view) => { setView(next); setMenuOpen(false); };
+  // 탭을 바꿀 때 이전 탭에서의 스크롤 위치가 남아있으면, 새 탭(특히 캘린더)의 "화면에 맞춰 높이 계산"
+  // 로직이 잘못된 위치를 기준으로 계산해버려 레이아웃이 어긋나는 문제가 있었음 — 탭 전환 시 항상 맨 위로.
+  const go = (next: typeof view) => { setView(next); setMenuOpen(false); window.scrollTo(0, 0); };
   // 목록 탭은 메인메뉴로 이동했으므로 탭바/스와이프 순환에서는 제외 (view 상태 자체는 유지)
   const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['calendar', '일정'], ['todo', '할일'], ['notes', '메모']];
   const activeNotes = notes.filter((n: any) => !n.deletedAt);
@@ -201,6 +166,7 @@ export default function Home() {
     // 왼쪽으로 밀면 다음 탭, 오른쪽으로 밀면 이전 탭
     const nextIdx = deltaX < 0 ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
     setView(tabs[nextIdx][0]);
+    window.scrollTo(0, 0);
   };
 
   return <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="min-h-screen bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100">

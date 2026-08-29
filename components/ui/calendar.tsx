@@ -63,15 +63,20 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
     const recompute = () => {
       const el = monthGridWrapperRef.current;
       if (!el) return;
-      const top = el.getBoundingClientRect().top;
+      // 다른 탭에서 스크롤이 남아있는 상태로 넘어오는 등 그리드가 일시적으로 화면 위쪽 밖에
+      // 걸쳐있는 것처럼 측정되면(top이 음수) 계산이 왜곡되어 실제보다 훨씬 큰 높이가 나올 수 있음 — 0으로 고정.
+      const top = Math.max(el.getBoundingClientRect().top, 0);
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
       const bottomSafePadding = 12;
       setMonthAvailableHeight(Math.max(viewportHeight - top - bottomSafePadding, 0));
     };
     recompute();
+    // 폰트 교체(FOUT)나 모바일 브라우저 주소창 접힘처럼 레이아웃이 뒤늦게 안정되는 경우를 대비해 한 번 더 재측정.
+    const lateTimer = setTimeout(recompute, 300);
     window.addEventListener('resize', recompute);
     window.visualViewport?.addEventListener('resize', recompute);
     return () => {
+      clearTimeout(lateTimer);
       window.removeEventListener('resize', recompute);
       window.visualViewport?.removeEventListener('resize', recompute);
     };
