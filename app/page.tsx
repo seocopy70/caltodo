@@ -204,14 +204,15 @@ export default function Home() {
         <div className="relative w-full sm:w-48 md:w-64 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400"/>
-            <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) setSearchDate(''); }} placeholder="검색" className="w-full pl-8 pr-9 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
+            <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) setSearchDate(''); }} placeholder="검색" className="w-full pl-8 pr-[4.7rem] py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
             <button
               type="button"
               onClick={() => searchDateRef.current?.showPicker?.() || searchDateRef.current?.focus()}
               title="날짜로 전체 기록 보기"
-              className={`absolute right-1 top-1 p-1.5 rounded-md transition ${searchDate ? 'text-blue-500 bg-blue-500/10' : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              className={`absolute right-1 top-1 bottom-1 px-1.5 rounded-md transition flex items-center gap-1 ${searchDate ? 'text-blue-500 bg-blue-500/10' : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
             >
-              <CalendarSearch className="w-4 h-4" />
+              <span className="text-[10px] font-bold whitespace-nowrap">날짜검색</span>
+              <CalendarSearch className="w-4 h-4 shrink-0" />
             </button>
             <input
               ref={searchDateRef}
@@ -258,7 +259,7 @@ export default function Home() {
         <button onClick={() => signOut(auth)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">로그아웃</button>
       </div>
     </>}
-    <main className="max-w-7xl mx-auto p-2.5 sm:p-4">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any) => setEditingNote(n)} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex }); }} onPatchNote={patchNoteLocal} />}</main>
+    <main className="max-w-7xl mx-auto p-2.5 sm:p-4">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onPatchNote={patchNoteLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any) => setEditingNote(n)} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex }); }} onPatchNote={patchNoteLocal} />}</main>
     {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} folders={noteFolders} todoFolders={todoFolders} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {isEmailBackupOpen && <EmailBackupPanel user={user} onClose={() => setIsEmailBackupOpen(false)} onNotify={notify} />}
     {isDataManagementOpen && <DataManagementPanel events={events} user={user} onClose={() => setIsDataManagementOpen(false)} onRefresh={refreshData} onNotify={notify} />}

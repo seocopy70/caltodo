@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { format, getYear, isToday } from 'date-fns';
-import { ChevronDown, ChevronRight, Repeat, CalendarRange, ListCollapse, ListTree, Locate } from 'lucide-react';
+import { ChevronDown, ChevronRight, Repeat, CalendarRange, ListCollapse, ListTree, Locate, MapPin, AlignLeft } from 'lucide-react';
 import EventModal from './EventModal';
 import { getRecurrenceType } from '../../lib/recurrence';
 
@@ -74,13 +74,13 @@ export default function EventListView({ events, user, onNotify, onRefresh }: any
                     <button key={event.id} ref={todayMarker ? todayRef : undefined} onClick={() => setEditingEvent(event)} className={`w-full text-left flex items-center gap-3 p-3 rounded-xl border transition ${todayMarker ? 'ring-2 ring-blue-500' : ''} ${repeated ? 'bg-violet-500/10 border-violet-500/35' : 'bg-blue-500/5 border-slate-700/50 hover:border-blue-500/40'}`}>
                       <div className="w-20 shrink-0 text-xs font-bold text-slate-400">{format(event.start, 'yyyy.MM.dd')}</div>
                       <div className="w-14 shrink-0 text-xs font-bold text-slate-500">{format(event.start, 'HH:mm')}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
+                      <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 min-w-0">
                           {repeated && <Repeat className="w-3.5 h-3.5 text-violet-400 shrink-0" />}
                           {!!event.endDate && <CalendarRange className="w-3.5 h-3.5 text-slate-500 shrink-0" />}
                           <span className="font-bold truncate">{event.title}</span>
                         </div>
-                        {event.location && <div className="text-[11px] text-slate-500 truncate mt-0.5">{event.location}</div>}
+                        {event.location ? <span className="text-[11px] text-slate-500 flex items-center gap-1 shrink-0"><MapPin className="w-3.5 h-3.5" />{event.location}</span> : event.description ? <span className="text-[11px] text-slate-500 flex items-center gap-1 shrink-0 truncate"><AlignLeft className="w-3.5 h-3.5 shrink-0" />{event.description}</span> : null}
                       </div>
                     </button>
                   );

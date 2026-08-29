@@ -11,7 +11,18 @@ export function PinInput({ label, onSubmit, submitLabel = '확인' }: { label?: 
       {label && <p className="text-xs text-slate-500">{label}</p>}
       <input
         autoFocus
-        type="password"
+        // type="password"를 쓰면 크롬 등 브라우저가 "비밀번호를 저장할까요?" 팝업을 띄우는 경우가 있어서,
+        // 실제로는 text 필드에 -webkit-text-security로 점(dot) 마스킹만 흉내내고 자동완성/암호관리자 감지를 끔.
+        type="text"
+        style={{ WebkitTextSecurity: 'disc' } as any}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        name="cal2do-secure-code"
+        data-lpignore="true"
+        data-1p-ignore="true"
+        data-bwignore="true"
         inputMode="numeric"
         maxLength={6}
         value={pin}

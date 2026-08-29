@@ -63,17 +63,17 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const toggleStar = (note: any) => {
     if (secureFolder && note.folderId === secureFolder.id) return; // 보안폴더 메모는 별표 불가
     onPatchNote?.(note.id, { showToday: !note.showToday });
-    api.notes.update(note.id, { title: note.title, content: note.content, showToday: !note.showToday, folderId: note.folderId || null }).then(() => onRefresh?.());
+    api.notes.update(note.id, { title: note.title, content: note.content, showToday: !note.showToday, folderId: note.folderId || null }).catch((err: any) => { notify(`저장 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
   const assignFolder = (note: any, folderId: string | null) => {
     const movingToSecure = !!secureFolder && folderId === secureFolder.id;
     onPatchNote?.(note.id, { folderId, ...(movingToSecure ? { showToday: false } : {}) });
-    api.notes.update(note.id, { title: note.title, content: note.content, showToday: movingToSecure ? false : note.showToday, folderId }).then(() => onRefresh?.());
+    api.notes.update(note.id, { title: note.title, content: note.content, showToday: movingToSecure ? false : note.showToday, folderId }).catch((err: any) => { notify(`저장 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
   const toggleLine = (note: any, idx: number) => {
     const newContent = toggleChecklistLine(note.content, idx);
     onPatchNote?.(note.id, { content: newContent });
-    api.notes.update(note.id, { title: note.title, content: newContent, showToday: note.showToday, folderId: note.folderId || null, format: note.format }).then(() => onRefresh?.());
+    api.notes.update(note.id, { title: note.title, content: newContent, showToday: note.showToday, folderId: note.folderId || null, format: note.format }).catch((err: any) => { notify(`저장 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 
   const addFolder = () => {
@@ -101,6 +101,11 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   };
 
   const selectFolder = (id: string | 'all' | 'none') => {
+    // 보안폴더를 벗어나 다른 폴더로 이동하면 잠금 해제 상태를 초기화해서, 다시 들어올 때 비번을
+    // 재확인하도록 함(같은 탭 안에서 폴더만 바꾸는 경우엔 컴포넌트가 그대로 유지되어 이전엔 안 풀렸었음).
+    if (secureFolder && activeFolderId === secureFolder.id && id !== secureFolder.id) {
+      setUnlockedSecureId(null);
+    }
     setActiveFolderId(id);
     setFolderPickerOpen(false);
     setSecureSearchQuery('');

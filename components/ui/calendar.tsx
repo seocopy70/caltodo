@@ -7,7 +7,7 @@ import {
   isSameDay, addDays, subDays
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Repeat, CalendarRange, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Repeat, CalendarRange, CalendarDays, Grid3x3, Rows3 } from 'lucide-react';
 import { getKoreanHolidaysForYears } from '../../lib/holidays';
 import { eventOccursOnDay, getRecurrenceType } from '../../lib/recurrence';
 import KoreanLunarCalendar from 'korean-lunar-calendar';
@@ -36,8 +36,36 @@ function eventDotColor(event: any) {
 }
 
 const YEAR_RANGE = 15;
-const MONTH_CELL_MIN_HEIGHT = 62; // 이보다 작아지면 더는 안 줄이고, 대신 페이지가 세로로 스크롤되게 둠(가독성 최소 보장)
+const MONTH_CELL_MIN_HEIGHT = 40; // 화면이 아주 좁아도 위아래 경계 안에 다 들어오도록 기존(62)보다 더 낮춤(그 아래는 점(dot) 모드로 표시)
 const MONTH_CELL_FALLBACK_HEIGHT = 110; // 화면 높이를 아직 측정하기 전(첫 렌더)에 쓰는 기본값
+
+// 탭 상단부터 화면 맨 아래까지 남은 높이를 실측해서 반환하는 공용 훅(월별보기 그리드/주별보기 시간표에서 함께 사용).
+// 다른 탭에서 스크롤이 남아있는 채로 넘어오는 경우를 대비해 top이 음수면 0으로 고정하고,
+// 폰트 교체·주소창 접힘 등 뒤늦은 레이아웃 변화에 대비해 한 번 더 재측정한다.
+function useFitAvailableHeight(active: boolean, ref: React.RefObject<HTMLElement | null>, extraDep: number) {
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    const recompute = () => {
+      const el = ref.current;
+      if (!el) return;
+      const top = Math.max(el.getBoundingClientRect().top, 0);
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      setHeight(Math.max(viewportHeight - top - 12, 0));
+    };
+    recompute();
+    const lateTimer = setTimeout(recompute, 300);
+    window.addEventListener('resize', recompute);
+    window.visualViewport?.addEventListener('resize', recompute);
+    return () => {
+      clearTimeout(lateTimer);
+      window.removeEventListener('resize', recompute);
+      window.visualViewport?.removeEventListener('resize', recompute);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, extraDep]);
+  return height;
+}
 
 export default function Calendar({ initialView = 'month', events, user, onNotify, onRefresh }: any) {
   const [view, setCalView] = useState<'month' | 'week'>(initialView);
@@ -48,7 +76,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [dayViewDate, setDayViewDate] = useState<Date | null>(null);
   const monthGridWrapperRef = useRef<HTMLDivElement>(null);
-  const [monthAvailableHeight, setMonthAvailableHeight] = useState<number | null>(null);
+  const weekGridWrapperRef = useRef<HTMLDivElement>(null);
 
   const monthStart = startOfMonth(currentDate);
   const weekStart = startOfWeek(currentDate);
@@ -57,30 +85,9 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
 
   // 구글/삼성 캘린더처럼 월별보기를 스크롤 없이 화면 안에 다 들어오게: 그리드가 시작하는 위치부터
   // 화면 맨 아래까지 남은 높이를 실측해서, 그 안에 주 수(numWeeks)만큼 칸을 나눠 담는다.
-  // 화면이 작아서 칸이 너무 눌리면(MONTH_CELL_MIN_HEIGHT 미만) 더는 줄이지 않고 페이지 스크롤로 자연스럽게 넘어가게 둔다.
-  useEffect(() => {
-    if (view !== 'month') return;
-    const recompute = () => {
-      const el = monthGridWrapperRef.current;
-      if (!el) return;
-      // 다른 탭에서 스크롤이 남아있는 상태로 넘어오는 등 그리드가 일시적으로 화면 위쪽 밖에
-      // 걸쳐있는 것처럼 측정되면(top이 음수) 계산이 왜곡되어 실제보다 훨씬 큰 높이가 나올 수 있음 — 0으로 고정.
-      const top = Math.max(el.getBoundingClientRect().top, 0);
-      const viewportHeight = window.visualViewport?.height || window.innerHeight;
-      const bottomSafePadding = 12;
-      setMonthAvailableHeight(Math.max(viewportHeight - top - bottomSafePadding, 0));
-    };
-    recompute();
-    // 폰트 교체(FOUT)나 모바일 브라우저 주소창 접힘처럼 레이아웃이 뒤늦게 안정되는 경우를 대비해 한 번 더 재측정.
-    const lateTimer = setTimeout(recompute, 300);
-    window.addEventListener('resize', recompute);
-    window.visualViewport?.addEventListener('resize', recompute);
-    return () => {
-      clearTimeout(lateTimer);
-      window.removeEventListener('resize', recompute);
-      window.visualViewport?.removeEventListener('resize', recompute);
-    };
-  }, [view, numWeeks]);
+  const monthAvailableHeight = useFitAvailableHeight(view === 'month', monthGridWrapperRef, numWeeks);
+  // 주별보기 시간표도 동일한 방식으로 화면 안에 경계가 보이도록 남은 높이를 실측(내부는 스크롤).
+  const weekAvailableHeight = useFitAvailableHeight(view === 'week', weekGridWrapperRef, 0);
 
   const monthCellHeight = Math.max(
     monthAvailableHeight != null ? Math.floor(monthAvailableHeight / numWeeks) : MONTH_CELL_FALLBACK_HEIGHT,
@@ -113,41 +120,54 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
 
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-500">
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={() => setIsDatePickerOpen((v) => !v)} className="group flex items-center gap-2 text-left rounded-xl px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="연월 선택"><h2 className="text-2xl font-bold">{view === 'month' ? format(currentDate, 'yyyy년 MMMM', { locale: ko }) : `${format(currentDate, 'M', { locale: ko })}월 ${weekOfMonth}주차`}</h2><CalendarDays className="w-5 h-5 text-slate-400 group-hover:text-blue-500" /></button>
-        <div className="flex items-center gap-2">
-          {/* 월별/주별보기를 두 개의 버튼이 아니라, 한 자리에서 탭하면 전환되는 슬라이딩 토글 하나로 */}
+      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap gap-y-2">
+        <button onClick={() => setIsDatePickerOpen((v) => !v)} className="group flex items-center gap-1.5 text-left rounded-xl px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition min-w-0" title="연월 선택">
+          <h2 className="text-lg sm:text-2xl font-bold whitespace-nowrap">
+            {view === 'month' ? (
+              <>
+                <span className="hidden sm:inline">{format(currentDate, 'yyyy년 MMMM', { locale: ko })}</span>
+                <span className="sm:hidden">{format(currentDate, 'M월', { locale: ko })}</span>
+              </>
+            ) : (
+              <>
+                <span className="hidden sm:inline">{format(currentDate, 'M', { locale: ko })}월 {weekOfMonth}주차</span>
+                <span className="sm:hidden">{weekOfMonth}주차</span>
+              </>
+            )}
+          </h2>
+          <CalendarDays className="w-5 h-5 text-slate-400 group-hover:text-blue-500 shrink-0" />
+        </button>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* 월별/주별보기 전환: 메모탭 보기옵션처럼 한 칸짜리 아이콘 토글(현재 모드의 아이콘을 보여줌) */}
           <button
             type="button"
             onClick={() => setCalView((v) => (v === 'month' ? 'week' : 'month'))}
             title={view === 'month' ? '탭하면 주별보기로' : '탭하면 월별보기로'}
-            className="relative flex items-center w-[84px] h-9 rounded-full border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shrink-0"
+            className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0"
           >
-            <span className={`absolute top-0.5 bottom-0.5 w-10 rounded-full bg-blue-600 transition-transform duration-200 ${view === 'week' ? 'translate-x-[40px]' : 'translate-x-0.5'}`} />
-            <span className={`relative z-10 flex-1 text-center text-xs font-bold transition-colors ${view === 'month' ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`}>월</span>
-            <span className={`relative z-10 flex-1 text-center text-xs font-bold transition-colors ${view === 'week' ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`}>주</span>
+            {view === 'month' ? <Grid3x3 className="w-5 h-5" /> : <Rows3 className="w-5 h-5" />}
           </button>
-          <div className="flex gap-2"><button onClick={() => setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronLeft/></button><button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 text-sm font-bold bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700">오늘</button><button onClick={() => setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronRight/></button></div>
+          <div className="flex gap-1.5 sm:gap-2"><button onClick={() => setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronLeft/></button><button onClick={() => setCurrentDate(new Date())} className="px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 whitespace-nowrap">오늘</button><button onClick={() => setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronRight/></button></div>
         </div>
       </div>
 
       {isDatePickerOpen && <div className="mb-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4"><div className="flex items-center justify-between mb-3"><div className="text-sm font-bold text-slate-700 dark:text-slate-200">연월로 바로 이동</div><button onClick={() => setIsDatePickerOpen(false)} className="text-xs text-slate-500">닫기</button></div><div className="flex gap-3 mb-3"><select value={currentDate.getFullYear()} onChange={(e) => jumpTo(Number(e.target.value), currentDate.getMonth())} className="flex-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-bold outline-none">{years.map((year) => <option key={year} value={year}>{year}년</option>)}</select><div className="flex-[2] grid grid-cols-6 gap-1.5">{Array.from({ length: 12 }, (_, month) => <button key={month} onClick={() => jumpTo(currentDate.getFullYear(), month)} className={`rounded-lg px-2 py-2 text-xs font-bold ${month === currentDate.getMonth() ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-blue-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}>{month + 1}월</button>)}</div></div></div>}
 
       {view === 'week' ? (
-        <TimeGrid days={days} events={events} holidayMap={holidayMap} onSlotClick={handleSlotClick} onEventClick={openEditEvent} onDayHeaderClick={(day: Date) => setDayViewDate(day)} />
+        <div ref={weekGridWrapperRef}>
+          <TimeGrid days={days} events={events} holidayMap={holidayMap} onSlotClick={handleSlotClick} onEventClick={openEditEvent} onDayHeaderClick={(day: Date) => setDayViewDate(day)} availableHeight={weekAvailableHeight} />
+        </div>
       ) : (
-        <>
-          {/* touch-pan-x만 걸려있으면(이전 방식) 이 영역 안에서 시작한 세로 스와이프가 페이지 스크롤로
-              이어지지 못해 "월별보기에서 위아래 스크롤이 안 되는" 문제가 있었음 — x/y 모두 허용. */}
-          <div ref={monthGridWrapperRef} data-hscroll className="overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm bg-white/70 dark:bg-slate-900/20">
-            <div style={{ minWidth: 7 * 120 }}>
+        // touch-pan-x만 걸려있으면(이전 방식) 이 영역 안에서 시작한 세로 스와이프가 페이지 스크롤로
+        // 이어지지 못해 "월별보기에서 위아래 스크롤이 안 되는" 문제가 있었음 — x/y 모두 허용.
+        <div ref={monthGridWrapperRef} className="rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm bg-white/70 dark:bg-slate-900/20 overflow-hidden">
             <div className="grid grid-cols-7 text-center text-xs font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800/60 py-1.5">{['일', '월', '화', '수', '목', '금', '토'].map((d, i) => <div key={d} className={i === 0 ? 'text-rose-500 dark:text-rose-400' : i === 6 ? 'text-blue-500 dark:text-blue-400' : ''}>{d}</div>)}</div>
             {Array.from({ length: numWeeks }, (_, weekIdx) => {
               const week = days.slice(weekIdx * 7, weekIdx * 7 + 7);
               return (
                 // 모든 주(週)가 동일한 높이를 쓰도록 화면에 맞춰 계산된 높이로 고정.
                 // 넘치는 일정은 늘어나지 않고 "+N개 더" 표시(또는 좁을 땐 점)로 요약해서, 화면 밖으로 넘치지 않게 함.
-                <div key={weekIdx} className="grid border-b border-slate-100 dark:border-slate-800/60 last:border-b-0" style={{ gridTemplateColumns: 'repeat(7, minmax(120px, 1fr))' }}>
+                <div key={weekIdx} className="grid border-b border-slate-100 dark:border-slate-800/60 last:border-b-0" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                   {week.map((day, i) => {
                     const dayEvents = events.filter((e: any) => eventOccursOnDay(e, day));
                     const visibleEvents = dayEvents.slice(0, monthCellMaxChips);
@@ -191,9 +211,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
                 </div>
               );
             })}
-            </div>
           </div>
-        </>
       )}
 
       {isModalOpen && <EventModal date={selectedDate} editingEvent={editingEvent} user={user} notify={onNotify} onClose={closeModal} onRefresh={onRefresh} />}

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { format, isToday } from 'date-fns';
-import { CheckCircle2, Circle, ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
+import { CheckCircle2, Circle, ChevronDown, ChevronUp, GripVertical, Trash2, Folder } from 'lucide-react';
 import { api } from '../../lib/api-client';
 import { autoPriorityForDueDate } from '../../lib/todoAutoColor';
 import { ModalBackCloseGuard } from '../../lib/useModalBackClose';
@@ -87,8 +87,8 @@ export default function TodoListPanel({
 
   const toggleTodo = (id: string, completed: boolean) => {
     onPatchTodo?.(id, { completed, completedAt: completed ? new Date() : null });
+    // 이미 로컬 상태에 낙관적으로 반영했으므로, 성공 시엔 전체 재조회가 불필요 — 실패했을 때만 되돌림.
     api.todos.update(id, { completed })
-      .then(() => onRefresh?.())
       .catch((err: any) => { notify(`업데이트 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 
@@ -169,7 +169,7 @@ export default function TodoListPanel({
     if (!quickActionsFor) return;
     const id = quickActionsFor.id;
     onPatchTodo?.(id, extra);
-    api.todos.update(id, extra).then(() => onRefresh?.()).catch((err: any) => { notify(`업데이트 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
+    api.todos.update(id, extra).catch((err: any) => { notify(`업데이트 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 
   return (
@@ -192,7 +192,10 @@ export default function TodoListPanel({
               <span className="text-base font-medium truncate">{todo.title}</span>
               {todo.dueDate && (() => { const d = dueDateLabel(todo.dueDate, showRelativeDates); return <span className={`text-base font-medium shrink-0 ${d.isNear ? 'text-orange-400' : 'text-slate-400'}`}>{d.text}</span>; })()}
             </div>
-            <button onClick={() => removeTodo(todo.id)} className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-rose-500 transition shrink-0">
+            <button onClick={() => setQuickActionsFor(todo)} className="text-slate-600 hover:text-blue-400 transition shrink-0" title="폴더 선택 등 빠른 메뉴">
+              <Folder className="w-4 h-4" />
+            </button>
+            <button onClick={() => removeTodo(todo.id)} className="text-slate-600 hover:text-rose-500 transition shrink-0" title="삭제">
               <Trash2 className="w-4 h-4" />
             </button>
             <button

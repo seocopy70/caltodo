@@ -6,10 +6,10 @@ import { ko } from 'date-fns/locale';
 import { Repeat, CalendarRange, MapPin, AlignLeft } from 'lucide-react';
 import { eventOccursOnDay, getRecurrenceType, getOccurrenceTimes } from '../../lib/recurrence';
 
-const HOUR_HEIGHT = 42; // px per hour (기존 48 대비 살짝 축소)
+const HOUR_HEIGHT = 38; // px per hour (기존 42 대비 살짝 축소 — 그리드 전체 높이를 조금 줄임)
 const ALL_HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SCROLL_TO_HOUR = 6; // 탭 진입 시 06시 위치로 스크롤 (위아래로 스크롤하면 00~24시 전체 확인 가능)
-const WEEK_VISIBLE_HOURS = 15; // 주별보기에서 스크롤 없이 기본으로 보여줄 시간 범위(06~20시)
+const WEEK_VISIBLE_HOURS_FALLBACK = 13; // availableHeight를 아직 측정 못했을 때(첫 렌더)만 쓰는 기본값
 
 function isAllDayConvention(start: Date, end: Date) {
   return start.getHours() === 0 && start.getMinutes() === 0 && end.getHours() === 23 && end.getMinutes() === 59;
@@ -59,8 +59,10 @@ function layoutColumns(items: { event: any; start: Date; end: Date }[]) {
  * 하루 단위 시간표(00시~23시)를 여러 날짜(days)에 대해 나란히 렌더링.
  * days.length === 1 이면 일별보기, 7이면 주별보기로 쓰인다.
  */
-export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEventClick, onDayHeaderClick }: any) {
+export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEventClick, onDayHeaderClick, availableHeight }: any) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const topSectionRef = useRef<HTMLDivElement>(null);
+  const [topSectionHeight, setTopSectionHeight] = useState(0);
   const HOURS: number[] = ALL_HOURS;
   const isWeekView = days.length > 1;
   // 주별보기도 일별보기와 동일하게 최소 폭을 두지 않고 화면 너비에 맞춰 7칸이 균등하게 눌려 들어가게 함
@@ -87,6 +89,20 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
   // 시간대 배치 대상: 단일일 일정(반복 포함), 종일 컨벤션 제외
   const timedEvents = (events || []).filter((e: any) => !e.endDate && !isAllDayConvention(e.start, e.end));
 
+  // 주별보기 시간표 본문 높이: 요일헤더+종일영역을 뺀 "화면에 실제로 남는 만큼"을 계산해서
+  // 그 안에서 경계가 보이고, 넘치는 시간대는 내부 스크롤로 확인하게 함.
+  useEffect(() => {
+    if (!isWeekView) return;
+    const el = topSectionRef.current;
+    if (el) setTopSectionHeight(el.getBoundingClientRect().height);
+  }, [isWeekView, allDayEvents.length, availableHeight]);
+  const MIN_BODY_HEIGHT = 180;
+  const weekBodyMaxHeight = isWeekView
+    ? (availableHeight != null && topSectionHeight > 0
+        ? Math.max(availableHeight - topSectionHeight - 4, MIN_BODY_HEIGHT)
+        : WEEK_VISIBLE_HOURS_FALLBACK * HOUR_HEIGHT)
+    : '65vh';
+
   return (
     <div className="flex flex-col border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm bg-white/70 dark:bg-slate-900/20">
       {/* data-hscroll: 이 영역 안에서 좌우로 밀면 그리드 자체가 스크롤되고(탭 순환 아님), 영역 밖에서 밀면 탭이 순환됨.
@@ -96,6 +112,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
           바깥은 x/y 모두 허용해 두고, 실제 축 구분은 안쪽(scrollRef=touch-pan-y, 헤더/종일 영역=상속된 양축)에서 맡김 */}
       <div data-hscroll className="overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y">
         <div style={innerMinWidth ? { minWidth: innerMinWidth } : undefined}>
+          <div ref={topSectionRef}>
           {/* 헤더: 구글 캘린더 스타일로 요일(작게)을 위에, 날짜(크게, 오늘은 원형 배지)를 아래에 */}
           <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60">
             <div className="w-9 shrink-0" />
@@ -134,11 +151,12 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
               ))}
             </div>
           )}
+          </div>
 
-          {/* 시간표 본문: 주별보기는 기본으로 06~20시 정도만 보이는 높이로 제한하고(스크롤 시 00~24시 전체 확인 가능), 일별보기는 화면 비율 기준.
-              touch-pan-x도 함께 허용해서, 이 영역 안에서 시작한 좌우 스와이프가 바깥(data-hscroll)의 가로 스크롤로
-              정상적으로 이어지게 함 — pan-y만 허용했을 때는 이 영역에서 시작한 좌우 스크롤이 먹통이었음. */}
-          <div ref={scrollRef} className="flex overflow-y-auto touch-pan-x touch-pan-y" style={{ maxHeight: isWeekView ? WEEK_VISIBLE_HOURS * HOUR_HEIGHT : '65vh' }}>
+          {/* 시간표 본문: 주별보기는 화면에 실제로 남는 높이에 맞춰 경계를 두고(내부는 스크롤로 00~24시 전체 확인 가능),
+              일별보기는 화면 비율 기준. touch-pan-x도 함께 허용해서, 이 영역 안에서 시작한 좌우 스와이프가
+              바깥(data-hscroll)의 가로 스크롤로 정상적으로 이어지게 함 — pan-y만 허용했을 때는 먹통이었음. */}
+          <div ref={scrollRef} className="flex overflow-y-auto touch-pan-x touch-pan-y" style={{ maxHeight: weekBodyMaxHeight }}>
             <div className="w-9 shrink-0">
               {HOURS.map((h) => (
                 <div key={h} style={{ height: HOUR_HEIGHT }} className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-right pr-1 -translate-y-1.5 border-t border-slate-50 dark:border-slate-800/40">{h === 0 ? '' : `${h}시`}</div>
