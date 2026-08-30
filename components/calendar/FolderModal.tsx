@@ -25,7 +25,12 @@ export default function FolderModal({ folder, onSave, onClose }: { folder?: any;
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4"
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+    >
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-sm rounded-3xl shadow-2xl p-6 space-y-5">
         <div className="flex justify-between items-center">
           <h3 className="font-bold text-lg text-slate-900 dark:text-white">{folder ? '폴더 이름 변경' : '새 폴더'}</h3>
@@ -51,7 +56,7 @@ export default function FolderModal({ folder, onSave, onClose }: { folder?: any;
                   type="button"
                   onClick={() => { setColor(key); commit(key); }}
                   title={key}
-                  className={`w-14 h-14 rounded-full shrink-0 ${c.dot} transition ${selected ? 'ring-4 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ring-slate-400 dark:ring-slate-500 scale-105' : 'opacity-70 hover:opacity-100'}`}
+                  className={`w-8 h-8 rounded-full shrink-0 transition ${c.dot} ${selected ? 'ring-4 ring-slate-900 dark:ring-white scale-110' : 'opacity-40 hover:opacity-80'}`}
                 />
               );
             })}

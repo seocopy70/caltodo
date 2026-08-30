@@ -212,8 +212,9 @@ export default function Home() {
       if (!atRelevantEdge) return; // 아직 스크롤할 여지가 있으면 탭 순환은 무시하고 그리드 스크롤만
     }
 
-    // 화면 폭 1/4 제한은 삭제 — 실수로 탭 넘김되지 않을 정도의 최소 이동거리만 확인(짧은 탭/떨림 방지)
-    const MIN_SWIPE_PX = 32;
+    // 화면 폭 1/4라는 큰 제한은 삭제했지만, 손가락이 살짝 삐끗한 정도(탭 중 미세한 흔들림)까지
+    // 스와이프로 오인하지 않도록 최소 이동거리는 넉넉하게 잡아둠
+    const MIN_SWIPE_PX = 60;
     if (Math.abs(deltaX) < MIN_SWIPE_PX) return;
     const idx = tabs.findIndex(([key]) => key === view);
     if (idx === -1) return;
