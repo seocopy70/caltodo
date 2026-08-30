@@ -2,12 +2,15 @@
 // 사용자가 직접 고른 색(folder.color, 팔레트 키 문자열)이 있으면 그걸 최우선으로 쓰고,
 // 아직 고르지 않은(기존) 폴더는 예전처럼 폴더 id를 해시해서 항상 같은 색으로 보이게 한다.
 
-export const PALETTE_KEYS = ['rose', 'orange', 'amber', 'lime', 'emerald', 'teal', 'sky', 'indigo', 'violet', 'pink'] as const;
-export type FolderColorKey = typeof PALETTE_KEYS[number];
+// 색깔원 선택창(폴더 만들기/이름변경)에 실제로 보여주는 7가지 색.
+export const PALETTE_KEYS = ['rose', 'orange', 'lime', 'emerald', 'sky', 'indigo', 'violet'] as const;
+export type FolderColorKey = typeof PALETTE_KEYS[number] | 'amber' | 'teal' | 'pink';
 
 const PALETTE_BY_KEY: Record<FolderColorKey, { text: string; bg: string; activeBg: string; dot: string }> = {
   rose: { text: 'text-rose-500 dark:text-rose-400', bg: 'bg-rose-100 dark:bg-rose-500/15', activeBg: 'bg-rose-500', dot: 'bg-rose-500' },
   orange: { text: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-500/15', activeBg: 'bg-orange-500', dot: 'bg-orange-500' },
+  // amber/teal/pink는 색깔원 선택 목록에서는 뺐지만, 예전에 해시로 이미 배정되어 있었거나
+  // 저장돼 있는 폴더가 있을 수 있어 조회용으로는 계속 남겨둔다(그래야 그 폴더들 색이 안 바뀜).
   amber: { text: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-500/15', activeBg: 'bg-amber-500', dot: 'bg-amber-500' },
   lime: { text: 'text-lime-600 dark:text-lime-400', bg: 'bg-lime-100 dark:bg-lime-500/15', activeBg: 'bg-lime-500', dot: 'bg-lime-500' },
   emerald: { text: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-500/15', activeBg: 'bg-emerald-500', dot: 'bg-emerald-500' },
@@ -18,8 +21,9 @@ const PALETTE_BY_KEY: Record<FolderColorKey, { text: string; bg: string; activeB
   pink: { text: 'text-pink-500 dark:text-pink-400', bg: 'bg-pink-100 dark:bg-pink-500/15', activeBg: 'bg-pink-500', dot: 'bg-pink-500' },
 };
 
-// 배열 형태(기존 해시 배정용 순서)도 그대로 유지
-const PALETTE = PALETTE_KEYS.map((k) => PALETTE_BY_KEY[k]);
+// 해시로 자동 배정할 때 쓰는 전체 색 목록(선택 화면에는 없는 색도 포함해 예전 배정과 최대한 어긋나지 않게 함)
+const ALL_KEYS: FolderColorKey[] = ['rose', 'orange', 'amber', 'lime', 'emerald', 'teal', 'sky', 'indigo', 'violet', 'pink'];
+const PALETTE = ALL_KEYS.map((k) => PALETTE_BY_KEY[k]);
 
 const DEFAULT_COLOR = PALETTE_BY_KEY.amber;
 
