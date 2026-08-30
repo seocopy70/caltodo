@@ -46,7 +46,7 @@ export default function FolderModal({ folder, onSave, onClose }: { folder?: any;
         />
         <div>
           <p className="text-[11px] font-bold text-slate-500 mb-2">색깔 (좌우로 넘기면 더 있어요)</p>
-          <div className="flex gap-3 overflow-x-auto pb-1">
+          <div className="flex gap-2 overflow-x-auto pb-1">
             {PALETTE_KEYS.map((key) => {
               const c = getColorByKey(key);
               const selected = color === key;
@@ -56,7 +56,7 @@ export default function FolderModal({ folder, onSave, onClose }: { folder?: any;
                   type="button"
                   onClick={() => { setColor(key); commit(key); }}
                   title={key}
-                  className={`w-8 h-8 rounded-full shrink-0 transition ${c.dot} ${selected ? 'ring-4 ring-slate-900 dark:ring-white scale-110' : 'opacity-40 hover:opacity-80'}`}
+                  className={`w-7 h-7 rounded-full shrink-0 transition ${c.dot} ${selected ? 'ring-4 ring-slate-900 dark:ring-white scale-110' : 'opacity-40 hover:opacity-80'}`}
                 />
               );
             })}

@@ -53,8 +53,8 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
           {folderPickerOpen && (
             <>
               <ModalBackCloseGuard onClose={() => setFolderPickerOpen(false)} />
-              <div className="fixed inset-0 z-40" onClick={() => setFolderPickerOpen(false)} />
-              <div className="fixed top-28 left-2 z-50 w-64 max-h-80 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 space-y-0.5">
+              <div className="fixed inset-0 z-40" onClick={() => setFolderPickerOpen(false)} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
+              <div className="fixed top-28 left-2 z-50 w-64 max-h-80 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 space-y-0.5" onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                 <button onClick={() => { setActiveFolderId('all'); setFolderPickerOpen(false); }} className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-bold">
                   <span>전체</span>{activeFolderId === 'all' && <Check className="w-4 h-4 text-blue-500" />}
                 </button>

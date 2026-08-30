@@ -250,8 +250,8 @@ export default function TodoListPanel({
       {quickActionsFor && (
         <>
           <ModalBackCloseGuard onClose={() => setQuickActionsFor(null)} />
-          <div className="fixed inset-0 z-40" onClick={() => setQuickActionsFor(null)} />
-          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-4 space-y-3">
+          <div className="fixed inset-0 z-40" onClick={() => setQuickActionsFor(null)} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
+          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-4 space-y-3" onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
             <p className="text-sm font-bold truncate text-slate-800 dark:text-slate-200">{quickActionsFor.title}</p>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500 w-12 shrink-0">색깔</span>
@@ -297,8 +297,8 @@ export default function TodoListPanel({
       {folderPickerFor && (
         <>
           <ModalBackCloseGuard onClose={() => setFolderPickerFor(null)} />
-          <div className="fixed inset-0 z-40" onClick={() => setFolderPickerFor(null)} />
-          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-4 space-y-2">
+          <div className="fixed inset-0 z-40" onClick={() => setFolderPickerFor(null)} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
+          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-4 space-y-2" onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
             <p className="text-sm font-bold truncate text-slate-800 dark:text-slate-200 mb-1">{folderPickerFor.title}</p>
             <button
               onClick={() => applyFolderChange(null)}
