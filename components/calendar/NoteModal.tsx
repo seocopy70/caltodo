@@ -29,7 +29,7 @@ function AutocompleteDropdown({ suggestions, onSelect }: { suggestions: string[]
   );
 }
 
-export default function NoteModal({ note, folders = [], secureFolderId, initialFocus, initialLineIndex, onClose, onRefresh, onNotify }: any) {
+export default function NoteModal({ note, folders = [], secureFolderId, initialFocus, initialLineIndex, initialCharOffset, onClose, onRefresh, onNotify }: any) {
   useModalBackClose(onClose);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -60,9 +60,16 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
         if (format === 'plain') {
           contentRef.current?.focus();
           const len = contentRef.current?.value.length || 0;
-          contentRef.current?.setSelectionRange(len, len);
+          // 실제로 탭한 글자 위치가 넘어왔으면 그 자리에, 없으면(예: 빈 영역 탭) 예전처럼 맨 끝에 커서를 둠
+          const pos = initialCharOffset != null ? Math.max(0, Math.min(initialCharOffset, len)) : len;
+          contentRef.current?.setSelectionRange(pos, pos);
         } else if (initialLineIndex != null) {
-          lineInputRefs.current[initialLineIndex]?.focus();
+          const input = lineInputRefs.current[initialLineIndex];
+          input?.focus();
+          if (initialCharOffset != null) {
+            const pos = Math.max(0, Math.min(initialCharOffset, input?.value.length || 0));
+            input?.setSelectionRange(pos, pos);
+          }
         }
       } else {
         titleRef.current?.focus();

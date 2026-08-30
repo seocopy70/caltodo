@@ -9,8 +9,8 @@ import NoteContent from './NoteContent';
 export default function NoteViewModal({ note, editable = true, onClose, onEdit, onToggleLine }: any) {
   useModalBackClose(onClose);
 
-  // 제목을 탭했는지, 내용(및 몇 번째 줄)을 탭했는지에 따라 수정창에서 그 위치에 커서가 놓이도록 함
-  const openEditAt = (focus: 'title' | 'content', lineIndex?: number) => editable && onEdit?.(note, focus, lineIndex);
+  // 제목을 탭했는지, 내용(및 몇 번째 줄·글자 위치)을 탭했는지에 따라 수정창에서 그 위치에 커서가 놓이도록 함
+  const openEditAt = (focus: 'title' | 'content', lineIndex?: number, charOffset?: number) => editable && onEdit?.(note, focus, lineIndex, charOffset);
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
@@ -29,7 +29,7 @@ export default function NoteViewModal({ note, editable = true, onClose, onEdit, 
                 content={note.content}
                 format={note.format}
                 onToggleLine={onToggleLine ? (idx: number) => onToggleLine(note, idx) : undefined}
-                onLineClick={(idx: number) => openEditAt('content', idx)}
+                onLineClick={(idx: number, charOffset?: number) => openEditAt('content', idx, charOffset)}
               />
             : <span className="text-slate-400 dark:text-slate-600">내용이 없습니다.</span>}
         </div>

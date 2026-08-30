@@ -218,7 +218,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
                     const shown = isLong && !isExpanded ? contentLines.slice(0, 15).join('\n') : note.content;
                     return (
                       <>
-                        <NoteContent content={shown} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} onLineClick={(idx: number) => onEditNote?.(note, 'content', idx)} />
+                        <NoteContent content={shown} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} onLineClick={(idx: number, charOffset?: number) => onEditNote?.(note, 'content', idx, charOffset)} />
                         {isLong && (
                           <button
                             onClick={(e) => { e.stopPropagation(); toggleCardExpanded(note.id); }}
@@ -286,7 +286,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
       </div>}
     </section>
 
-    {viewingNote && <NoteViewModal note={viewingNote} editable onClose={() => setViewingNote(null)} onEdit={(n: any, focus?: 'title' | 'content', lineIndex?: number) => { setViewingNote(null); onEditNote?.(n, focus, lineIndex); }} onToggleLine={toggleLine} />}
+    {viewingNote && <NoteViewModal note={viewingNote} editable onClose={() => setViewingNote(null)} onEdit={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setViewingNote(null); onEditNote?.(n, focus, lineIndex, charOffset); }} onToggleLine={toggleLine} />}
     {viewingDeletedNote && <NoteViewModal note={viewingDeletedNote} editable={false} onClose={() => setViewingDeletedNote(null)} />}
     {secureModal && <SecureFolderModal folder={secureModal.folder} mode={secureModal.mode} onClose={() => setSecureModal(null)} onSuccess={onSecureSuccess} onNotify={notify} />}
     {folderModal && <FolderModal folder={folderModal.mode === 'rename' ? folderModal.folder : null} onSave={saveFolderModal} onClose={() => setFolderModal(null)} />}

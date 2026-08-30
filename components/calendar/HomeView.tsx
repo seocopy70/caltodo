@@ -154,7 +154,7 @@ function TodayNoteCard({ note, noteFolders = [], onRefresh, onNotify, onEditNote
 
       <div className="text-base text-slate-600 dark:text-slate-400 leading-relaxed overflow-y-auto [overflow-wrap:anywhere]" style={{ maxHeight: NOTE_CARD_CONTENT_MAX_HEIGHT }} onClick={(e) => e.stopPropagation()}>
         {/* 체크박스는 토글만, 글자 부분을 눌러야 수정창이 열림(onLineClick) */}
-        <NoteContent content={content} format={note.format} onToggleLine={toggleLine} onLineClick={() => onEditNote?.(note)} />
+        <NoteContent content={content} format={note.format} onToggleLine={toggleLine} onLineClick={(idx: number, charOffset?: number) => onEditNote?.(note, 'content', idx, charOffset)} />
       </div>
     </div>
   );
