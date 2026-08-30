@@ -183,36 +183,36 @@ export default function TodoListPanel({
   };
 
   return (
-    <section className={`rounded-2xl border border-slate-700/50 bg-slate-900/30 overflow-hidden ${compact ? '' : 'shadow-xl'}`}>
+    <section className={`rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden ${compact ? '' : 'shadow-sm dark:shadow-xl'}`}>
       {maxVisible && activeTodos.length > 0 && (
-        <button onClick={() => setExpanded((v) => !v)} title={expanded ? '접기' : `펼치기 (${activeTodos.length})`} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-400 transition">
+        <button onClick={() => setExpanded((v) => !v)} title={expanded ? '접기' : `펼치기 (${activeTodos.length})`} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-100 dark:border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition">
           {!expanded && <span>{activeTodos.length}</span>}
           {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
       )}
 
-      <div ref={listRef} className={`divide-y divide-slate-700/30 ${maxVisible && expanded ? 'max-h-[50vh] overflow-y-auto' : ''}`}>
+      <div ref={listRef} className={`divide-y divide-slate-100 dark:divide-slate-700/30 ${maxVisible && expanded ? 'max-h-[50vh] overflow-y-auto' : ''}`}>
         {visibleTodos.map((todo: any) => (
           <div
             key={todo.id}
             data-todo-id={todo.id}
-            className={`group flex items-center gap-3 px-4 py-3 hover:bg-slate-800/20 transition ${dragId === todo.id ? 'opacity-40' : ''}`}
+            className={`group flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/20 transition ${dragId === todo.id ? 'opacity-40' : ''}`}
           >
             <CheckButton priority={todo.priority} onClick={() => toggleTodo(todo.id, true)} />
             <div onClick={() => setEditingTodo(todo)} className="flex-1 min-w-0 cursor-pointer flex items-center gap-3">
-              <span className="text-base font-medium truncate">{todo.title}</span>
-              {todo.dueDate && (() => { const d = dueDateLabel(todo.dueDate, showRelativeDates); return <span className={`text-base font-medium shrink-0 ${d.isNear ? 'text-orange-400' : 'text-slate-400'}`}>{d.text}</span>; })()}
+              <span className="text-base font-medium truncate text-slate-900 dark:text-slate-100">{todo.title}</span>
+              {todo.dueDate && (() => { const d = dueDateLabel(todo.dueDate, showRelativeDates); return <span className={`text-base font-medium shrink-0 ${d.isNear ? 'text-orange-500 dark:text-orange-400' : 'text-slate-400'}`}>{d.text}</span>; })()}
             </div>
-            <button onClick={() => setFolderPickerFor(todo)} className="text-slate-600 hover:text-blue-400 transition shrink-0 flex items-center gap-1 max-w-[6.5rem]" title="폴더 선택">
+            <button onClick={() => setFolderPickerFor(todo)} className="text-slate-400 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400 transition shrink-0 flex items-center gap-1 max-w-[6.5rem]" title="폴더 선택">
               <Folder className="w-4 h-4 shrink-0" />
               <span className="hidden sm:inline text-xs truncate">{folders.find((f: any) => f.id === todo.folderId)?.name || '미분류'}</span>
             </button>
-            <button onClick={() => removeTodo(todo.id)} className="text-slate-600 hover:text-rose-500 transition shrink-0" title="삭제">
+            <button onClick={() => removeTodo(todo.id)} className="text-slate-400 dark:text-slate-600 hover:text-rose-500 transition shrink-0" title="삭제">
               <Trash2 className="w-4 h-4" />
             </button>
             <button
               onPointerDown={(e) => { e.preventDefault(); startDrag(todo.id, e); }}
-              className="shrink-0 touch-none cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300"
+              className="shrink-0 touch-none cursor-grab active:cursor-grabbing text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300"
               title="누른 채로 끌면 순서 변경, 짧게 탭하면 빠른 메뉴"
             >
               <GripVertical className="w-6 h-6" />
@@ -221,16 +221,16 @@ export default function TodoListPanel({
         ))}
       </div>
 
-      {activeTodos.length === 0 && <div className="px-4 py-6 text-center text-sm text-slate-600">할 일이 없습니다.</div>}
+      {activeTodos.length === 0 && <div className="px-4 py-6 text-center text-sm text-slate-400 dark:text-slate-600">할 일이 없습니다.</div>}
 
       {!hideCompleted && completedTodos.length > 0 && (
-        <div className="border-t border-slate-700/40">
-          <button onClick={() => setShowCompleted((v) => !v)} className="w-full flex items-center gap-2 px-4 py-3 text-xs font-bold text-slate-500 hover:text-slate-300">
+        <div className="border-t border-slate-100 dark:border-slate-700/40">
+          <button onClick={() => setShowCompleted((v) => !v)} className="w-full flex items-center gap-2 px-4 py-3 text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
             {showCompleted ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4 rotate-90" />}
-            완료됨 <span className="bg-slate-700 px-1.5 rounded">{completedTodos.length}</span>
+            완료됨 <span className="bg-slate-100 dark:bg-slate-700 px-1.5 rounded">{completedTodos.length}</span>
           </button>
           {showCompleted && (
-            <div className="divide-y divide-slate-700/20 opacity-55">
+            <div className="divide-y divide-slate-100 dark:divide-slate-700/20 opacity-70 dark:opacity-55">
               {completedTodos.map((todo: any) => (
                 <div key={todo.id} className="flex items-center gap-3 px-4 py-3">
                   <button onClick={() => toggleTodo(todo.id, false)} className="shrink-0"><CheckCircle2 className="w-5 h-5 text-blue-500" /></button>
@@ -238,7 +238,7 @@ export default function TodoListPanel({
                     <span className="text-base line-through text-slate-500 truncate">{todo.title}</span>
                     {todo.completedAt && <span className="text-base text-slate-500 shrink-0">{format(todo.completedAt, 'M/d')}</span>}
                   </div>
-                  <button onClick={() => removeTodo(todo.id)} className="text-slate-700 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={() => removeTodo(todo.id)} className="text-slate-300 dark:text-slate-700 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>
@@ -251,15 +251,15 @@ export default function TodoListPanel({
         <>
           <ModalBackCloseGuard onClose={() => setQuickActionsFor(null)} />
           <div className="fixed inset-0 z-40" onClick={() => setQuickActionsFor(null)} />
-          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-4 space-y-3">
-            <p className="text-sm font-bold truncate text-slate-200">{quickActionsFor.title}</p>
+          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-4 space-y-3">
+            <p className="text-sm font-bold truncate text-slate-800 dark:text-slate-200">{quickActionsFor.title}</p>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500 w-12 shrink-0">색깔</span>
               {PRIORITIES.map((p) => (
                 <button
                   key={p.key}
                   onClick={() => { applyQuickAction({ priority: quickActionsFor.priority === p.key ? null : p.key }); setQuickActionsFor(null); }}
-                  className={`w-6 h-6 rounded-full ${p.dot} transition ${quickActionsFor.priority === p.key ? `ring-2 ring-offset-2 ring-offset-slate-900 ${p.ring}` : 'opacity-50 hover:opacity-90'}`}
+                  className={`w-6 h-6 rounded-full ${p.dot} transition ${quickActionsFor.priority === p.key ? `ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ${p.ring}` : 'opacity-50 hover:opacity-90'}`}
                 />
               ))}
             </div>
@@ -273,7 +273,7 @@ export default function TodoListPanel({
                   applyQuickAction({ dueDate: e.target.value ? new Date(e.target.value).toISOString() : null, ...(autoPriority ? { priority: autoPriority } : {}) });
                   setQuickActionsFor(null);
                 }}
-                className="flex-1 bg-slate-800 rounded-lg px-2 py-1.5 text-sm outline-none"
+                className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-2 py-1.5 text-sm outline-none"
               />
             </div>
             {folders.length > 0 && (
@@ -282,14 +282,14 @@ export default function TodoListPanel({
                 <select
                   defaultValue={quickActionsFor.folderId || ''}
                   onChange={(e) => { applyQuickAction({ folderId: e.target.value || null }); setQuickActionsFor(null); }}
-                  className="flex-1 bg-slate-800 rounded-lg px-2 py-1.5 text-sm outline-none"
+                  className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-2 py-1.5 text-sm outline-none"
                 >
                   <option value="">미분류</option>
                   {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
                 </select>
               </div>
             )}
-            <button onClick={() => setQuickActionsFor(null)} className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold text-slate-300">닫기</button>
+            <button onClick={() => setQuickActionsFor(null)} className="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-bold text-slate-600 dark:text-slate-300">닫기</button>
           </div>
         </>
       )}
@@ -298,11 +298,11 @@ export default function TodoListPanel({
         <>
           <ModalBackCloseGuard onClose={() => setFolderPickerFor(null)} />
           <div className="fixed inset-0 z-40" onClick={() => setFolderPickerFor(null)} />
-          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-4 space-y-2">
-            <p className="text-sm font-bold truncate text-slate-200 mb-1">{folderPickerFor.title}</p>
+          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-4 space-y-2">
+            <p className="text-sm font-bold truncate text-slate-800 dark:text-slate-200 mb-1">{folderPickerFor.title}</p>
             <button
               onClick={() => applyFolderChange(null)}
-              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold ${!folderPickerFor.folderId ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold ${!folderPickerFor.folderId ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
             >
               미분류
             </button>
@@ -310,7 +310,7 @@ export default function TodoListPanel({
               <button
                 key={f.id}
                 onClick={() => applyFolderChange(f.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold ${folderPickerFor.folderId === f.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold ${folderPickerFor.folderId === f.id ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
               >
                 {f.name}
               </button>

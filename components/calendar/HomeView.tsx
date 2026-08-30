@@ -140,7 +140,7 @@ function TodayNoteCard({ note, onRefresh, onNotify, onEditNote, onPatchNote }: a
   };
 
   return (
-    <div onClick={() => onEditNote?.(note)} className="rounded-xl border p-4 transition border-amber-200 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/5 hover:bg-amber-100/60 dark:hover:bg-amber-500/10 cursor-pointer">
+    <div onClick={() => onEditNote?.(note)} className="rounded-xl border p-4 transition border-slate-200 dark:border-slate-700/30 bg-white dark:bg-slate-800/30 hover:border-blue-400 dark:hover:border-blue-500/50 shadow-sm dark:shadow-none cursor-pointer">
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="flex-1 min-w-0 flex items-center gap-1.5">
           <StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} />
