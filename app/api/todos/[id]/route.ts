@@ -52,9 +52,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       // 날짜 변경 -> 연동된 일정 날짜도 동기화
       await syncLinkedEvent(uid, linkedEventId, { title: body.title, dueDateMs: newDueMs });
     } else if (newDueMs !== null && !linkedEventId) {
-      // 날짜가 새로 생김 -> 연동 일정 새로 생성
-      linkedEventId = await createLinkedEventForTodo(uid, body.title ?? existing.title, newDueMs);
-      sets.push('linked_event_id = ?'); args.push(linkedEventId);
+      // 날짜가 새로 생김 -> 사용자가 연동을 원할 때만(skipLink가 아닐 때만) 연동 일정 새로 생성
+      if (!body.skipLink) {
+        linkedEventId = await createLinkedEventForTodo(uid, body.title ?? existing.title, newDueMs);
+        sets.push('linked_event_id = ?'); args.push(linkedEventId);
+      }
     }
   } else if (body.title !== undefined && linkedEventId) {
     // 날짜는 그대로, 제목만 변경 -> 연동된 일정 제목도 동기화
