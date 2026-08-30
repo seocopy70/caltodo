@@ -224,42 +224,47 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
             <textarea className="bg-transparent flex-1 outline-none text-sm h-20 resize-none" placeholder="메모" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
 
-          {/* 종료시간 + 반복 + 반복횟수를 한 줄로 */}
-          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
-            {showTime && (
+          {/* 끝나는 시간과 반복 일정을 각각 별도 영역으로 분리(전엔 한 줄에 몰려있어 좁은 화면에서 들쑥날쑥했음) */}
+          {showTime && (
+            <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
+              <label className="text-[9px] text-slate-500 font-bold block mb-1">끝나는 시간</label>
               <input
                 type="time"
                 value={endTime}
                 onChange={(e) => handleEndTimeChange(e.target.value)}
-                title="종료 시간"
-                className="w-[4.5rem] shrink-0 bg-white dark:bg-slate-900 text-sm rounded-lg px-1.5 py-1.5 outline-none border border-slate-300 dark:border-slate-700"
+                className="w-full bg-transparent outline-none text-sm"
               />
-            )}
-            <Repeat className="w-4 h-4 text-slate-500 shrink-0" />
-            <select
-              className="flex-1 min-w-0 bg-white dark:bg-slate-900 text-sm rounded-lg px-2 py-1.5 outline-none border border-slate-300 dark:border-slate-700"
-              value={recurrenceType}
-              onChange={(e) => { const v = e.target.value as RecurrenceType; setRecurrenceType(v); if (v !== 'none') setMultiDay(false); }}
-              disabled={multiDay}
-            >
-              <option value="none">반복 안 함</option>
-              <option value="weekly">매주</option>
-              <option value="monthly">매월</option>
-              <option value="yearly">매년</option>
-            </select>
-            {recurrenceType !== 'none' && (
-              <>
-                <input
-                  type="number"
-                  min={1}
-                  placeholder="계속"
-                  value={recurrenceCount}
-                  onChange={(e) => setRecurrenceCount(e.target.value)}
-                  className="w-14 shrink-0 bg-white dark:bg-slate-900 text-sm text-right rounded-lg px-1.5 py-1.5 outline-none border border-slate-300 dark:border-slate-700"
-                />
-                <span className="text-xs text-slate-500 shrink-0">회</span>
-              </>
-            )}
+            </div>
+          )}
+          <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
+            <label className="text-[9px] text-slate-500 font-bold block mb-1">반복 일정</label>
+            <div className="flex items-center gap-2">
+              <Repeat className="w-4 h-4 text-slate-500 shrink-0" />
+              <select
+                className="flex-1 min-w-0 bg-white dark:bg-slate-900 text-sm rounded-lg px-2 py-1.5 outline-none border border-slate-300 dark:border-slate-700"
+                value={recurrenceType}
+                onChange={(e) => { const v = e.target.value as RecurrenceType; setRecurrenceType(v); if (v !== 'none') setMultiDay(false); }}
+                disabled={multiDay}
+              >
+                <option value="none">반복 안 함</option>
+                <option value="weekly">매주</option>
+                <option value="monthly">매월</option>
+                <option value="yearly">매년</option>
+              </select>
+              {recurrenceType !== 'none' && (
+                <>
+                  <input
+                    type="number"
+                    min={1}
+                    placeholder="계속"
+                    value={recurrenceCount}
+                    onChange={(e) => setRecurrenceCount(e.target.value)}
+                    className="w-14 shrink-0 bg-white dark:bg-slate-900 text-sm text-right rounded-lg px-1.5 py-1.5 outline-none border border-slate-300 dark:border-slate-700"
+                  />
+                  <span className="text-xs text-slate-500 shrink-0">회</span>
+                </>
+              )}
+            </div>
           </div>
           {multiDay && <p className="text-[11px] text-slate-500 -mt-2">며칠간 이어지는 일정은 반복을 설정할 수 없어요.</p>}
           {recurrenceType !== 'none' && !recurrenceCount.trim() && <p className="text-[11px] text-slate-500 -mt-2">횟수를 비워두면 계속 반복돼요.</p>}

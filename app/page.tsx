@@ -19,7 +19,7 @@ import NoteModal from '../components/calendar/NoteModal';
 import VersionModal from '../components/calendar/VersionModal';
 import HelpModal from '../components/calendar/HelpModal';
 import { LogIn, Menu, Search, CalendarSearch } from 'lucide-react';
-import { ModalBackCloseGuard, isAnyModalOpen } from '../lib/useModalBackClose';
+import { ModalBackCloseGuard, isAnyModalOpen, consumeProgrammaticPop } from '../lib/useModalBackClose';
 
 // 앱을 다시 열었을 때 "빈 오늘탭 → 잠시 후 데이터로 채워짐"으로 깜빡이는 대신, 지난번에 불러온
 // 데이터를 즉시 화면에 먼저 보여주고(약간 오래된 상태일 수 있음) 그 사이 서버에서 최신 데이터를
@@ -95,6 +95,34 @@ export default function Home() {
     };
     document.addEventListener('contextmenu', handler);
     return () => document.removeEventListener('contextmenu', handler);
+  }, []);
+
+  // 뒤로가기를 눌렀을 때 열려있는 모달/메뉴/키보드처럼 "눈에 보이는 것"을 닫는 경우가 아니면
+  // 곧바로 앱이 종료되지 않도록, 항상 히스토리에 '가드' 항목을 하나 미리 쌓아둔다.
+  // 모달이 열려있을 때는 useModalBackClose가 그 위에 자기 항목을 쌓았다가 스스로 정리하므로
+  // 이 가드와는 서로 겹치지 않는다(모달을 닫는 뒤로가기는 isAnyModalOpen()으로 걸러서 무시).
+  useEffect(() => {
+    window.history.pushState({ __rootGuard: true }, '');
+    let lastWarnAt = 0;
+
+    const handlePop = () => {
+      if (consumeProgrammaticPop()) return; // 모달 내부 정리용 popstate는 실제 사용자 동작이 아니므로 무시
+      if (isAnyModalOpen()) return; // 모달을 닫기 위한 뒤로가기였음 - 모달 쪽 리스너가 이미 처리함
+
+      const now = Date.now();
+      const isRepeat = now - lastWarnAt < 2000;
+      lastWarnAt = now;
+
+      if (isRepeat) return; // 2초 안에 다시 누르면 가드를 다시 세우지 않아 그대로 앱이 종료되게 둠
+
+      // 처음 누른 뒤로가기: 경고만 보여주고 가드를 즉시 다시 세워 앱이 실제로 닫히지 않게 함
+      notify('한 번 더 뒤로가기를 누르면 앱이 종료됩니다', 'success');
+      window.history.pushState({ __rootGuard: true }, '');
+    };
+
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const refreshData = useCallback(async () => {
