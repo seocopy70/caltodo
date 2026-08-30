@@ -13,7 +13,7 @@ import TodoListPanel from './TodoListPanel';
 
 const EXPANDED_WINDOW_DAYS = 7; // 펼치면 오늘부터 7일 이내 일정까지 가까운 순서로 모두 표시
 
-export default function HomeView({ events, todos, notes = [], todoFolders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onPatchNote, onNewNote, onEditNote }: any) {
+export default function HomeView({ events, todos, notes = [], todoFolders = [], noteFolders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onPatchNote, onNewNote, onEditNote }: any) {
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isNewTodoOpen, setIsNewTodoOpen] = useState(false);
@@ -68,7 +68,7 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
 
     {notes.length > 0 && (
       <div className="grid grid-cols-2 gap-2 sm:gap-3 items-start">
-        {notes.map((note: any) => <TodayNoteCard key={note.id} note={note} onRefresh={onRefresh} onNotify={notify} onEditNote={onEditNote} onPatchNote={onPatchNote} />)}
+        {notes.map((note: any) => <TodayNoteCard key={note.id} note={note} noteFolders={noteFolders} onRefresh={onRefresh} onNotify={notify} onEditNote={onEditNote} onPatchNote={onPatchNote} />)}
       </div>
     )}
 
@@ -101,12 +101,12 @@ const NOTE_CARD_CONTENT_MAX_HEIGHT = 260; // text-base leading-relaxed 기준 �
 
 // 오늘 탭의 메모 카드: 카드 자체에서 제목/본문을 고쳐쓰지 않고, 탭하면 전체 메모 수정창(모달)을 띄움.
 // 체크리스트 체크박스만은 예외적으로 카드에서 바로 토글(빠른 확인/체크 용도).
-function TodayNoteCard({ note, onRefresh, onNotify, onEditNote, onPatchNote }: any) {
+function TodayNoteCard({ note, noteFolders = [], onRefresh, onNotify, onEditNote, onPatchNote }: any) {
   const [content, setContent] = useState(note.content);
   // 체크박스를 연달아 빠르게 누를 때 React 렌더 타이밍에 의존하지 않고 항상 "가장 최신" content를 기준으로
   // 다음 토글을 계산하기 위한 ref (state만 쓰면 연속 탭 시 이전 토글이 유실되는 경우가 있었음)
   const latestContentRef = useRef(content);
-  const folderColor = note.folderId ? getFolderColor(note.folderId) : null;
+  const folderColor = note.folderId ? getFolderColor(note.folderId, noteFolders) : null;
   const iconColorClass = folderColor ? folderColor.text : 'text-amber-500 dark:text-amber-400';
 
   useEffect(() => { setContent(note.content); latestContentRef.current = note.content; }, [note.content]);

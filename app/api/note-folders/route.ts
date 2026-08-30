@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     isSecure: Number(row.is_secure || 0) === 1,
     lockType: row.lock_type || null,
     isLocked: Number(row.is_locked || 0) === 1,
+    color: row.color || null,
     // lock_hash, reset_code_* 는 클라이언트로 절대 보내지 않음 (서버에서만 검증)
   }));
 
@@ -37,8 +38,8 @@ export async function POST(req: NextRequest) {
   const id = randomUUID();
   const now = Date.now();
   await turso.execute({
-    sql: 'INSERT INTO note_folders (id, user_id, name, order_index, created_at) VALUES (?, ?, ?, ?, ?)',
-    args: [id, uid, name, body.orderIndex ?? now, now],
+    sql: 'INSERT INTO note_folders (id, user_id, name, order_index, created_at, color) VALUES (?, ?, ?, ?, ?, ?)',
+    args: [id, uid, name, body.orderIndex ?? now, now, body.color || null],
   });
 
   return NextResponse.json({ id });

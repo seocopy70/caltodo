@@ -49,8 +49,8 @@ export const api = {
   },
   noteFolders: {
     list: () => request('/api/note-folders'),
-    create: (name: string) => request('/api/note-folders', { method: 'POST', body: JSON.stringify({ name }) }),
-    rename: (id: string, name: string) => request(`/api/note-folders/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+    create: (name: string, color?: string | null) => request('/api/note-folders', { method: 'POST', body: JSON.stringify({ name, color }) }),
+    rename: (id: string, name: string, color?: string | null) => request(`/api/note-folders/${id}`, { method: 'PUT', body: JSON.stringify({ name, color }) }),
     remove: (id: string) => request(`/api/note-folders/${id}`, { method: 'DELETE' }),
     setupSecure: (id: string, lockType: string, code: string) => request(`/api/note-folders/${id}/secure`, { method: 'POST', body: JSON.stringify({ lockType, code }) }),
     verifySecure: (id: string, code: string) => request(`/api/note-folders/${id}/secure`, { method: 'PUT', body: JSON.stringify({ code }) }),
@@ -60,8 +60,8 @@ export const api = {
   },
   todoFolders: {
     list: () => request('/api/todo-folders'),
-    create: (name: string) => request('/api/todo-folders', { method: 'POST', body: JSON.stringify({ name }) }),
-    rename: (id: string, name: string) => request(`/api/todo-folders/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+    create: (name: string, color?: string | null) => request('/api/todo-folders', { method: 'POST', body: JSON.stringify({ name, color }) }),
+    rename: (id: string, name: string, color?: string | null) => request(`/api/todo-folders/${id}`, { method: 'PUT', body: JSON.stringify({ name, color }) }),
     remove: (id: string) => request(`/api/todo-folders/${id}`, { method: 'DELETE' }),
   },
   backup: {

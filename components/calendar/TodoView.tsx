@@ -7,6 +7,7 @@ import { getFolderColor } from '../../lib/folderColor';
 import { ModalBackCloseGuard } from '../../lib/useModalBackClose';
 import TodoListPanel from './TodoListPanel';
 import TodoModal from './TodoModal';
+import FolderModal from './FolderModal';
 
 export default function TodoView({ todos, folders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo }: any) {
   const [activeFolderId, setActiveFolderId] = useState<string | 'all' | 'none'>('all');
@@ -21,18 +22,19 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
       : todos.filter((t: any) => t.folderId === activeFolderId);
 
   const currentFolderLabel = activeFolderId === 'all' ? '전체' : activeFolderId === 'none' ? '미분류' : (folders.find((f: any) => f.id === activeFolderId)?.name || '전체');
-  const currentFolderColor = activeFolderId !== 'all' && activeFolderId !== 'none' ? getFolderColor(activeFolderId) : null;
+  const currentFolderColor = activeFolderId !== 'all' && activeFolderId !== 'none' ? getFolderColor(activeFolderId, folders) : null;
   const composerFolderId = activeFolderId !== 'all' && activeFolderId !== 'none' ? activeFolderId : null;
 
-  const addFolder = () => {
-    const name = prompt('새 폴더 이름을 입력하세요.');
-    if (!name || !name.trim()) return;
-    api.todoFolders.create(name.trim()).then(() => { notify('폴더가 생성되었습니다.'); onRefresh?.(); }).catch((err: any) => notify(`폴더 생성 실패: ${err.message || err}`, 'error'));
-  };
-  const renameFolder = (folder: any) => {
-    const name = prompt('폴더 이름 변경', folder.name);
-    if (!name || !name.trim() || name.trim() === folder.name) return;
-    api.todoFolders.rename(folder.id, name.trim()).then(() => onRefresh?.()).catch((err: any) => notify(`이름 변경 실패: ${err.message || err}`, 'error'));
+  const [folderModal, setFolderModal] = useState<{ mode: 'add' | 'rename'; folder?: any } | null>(null);
+  const saveFolderModal = (name: string, color: string | null) => {
+    if (folderModal?.mode === 'rename' && folderModal.folder) {
+      const f = folderModal.folder;
+      if (name === f.name && color === (f.color || null)) { setFolderModal(null); return; }
+      api.todoFolders.rename(f.id, name, color).then(() => onRefresh?.()).catch((err: any) => notify(`저장 실패: ${err.message || err}`, 'error'));
+    } else {
+      api.todoFolders.create(name, color).then(() => { notify('폴더가 생성되었습니다.'); onRefresh?.(); }).catch((err: any) => notify(`폴더 생성 실패: ${err.message || err}`, 'error'));
+    }
+    setFolderModal(null);
   };
   const removeFolder = (folder: any) => {
     if (!confirm(`"${folder.name}" 폴더를 삭제할까요? 폴더 안의 할일은 삭제되지 않고 '미분류'로 이동합니다.`)) return;
@@ -61,7 +63,7 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
                 </button>
                 {folders.length > 0 && <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />}
                 {folders.map((f: any) => {
-                  const c = getFolderColor(f.id);
+                  const c = getFolderColor(f.id, folders);
                   return (
                     <div key={f.id} className="w-full flex items-center gap-1 px-1 py-0.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
                       <button onClick={() => { setActiveFolderId(f.id); setFolderPickerOpen(false); }} className="flex-1 flex items-center gap-2 px-2 py-1.5 text-sm font-bold text-left min-w-0">
@@ -69,13 +71,13 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
                         <span className={`truncate ${c.text}`}>{f.name}</span>
                       </button>
                       {activeFolderId === f.id && <Check className="w-4 h-4 text-blue-500 shrink-0" />}
-                      <button onClick={() => renameFolder(f)} title="이름 변경" className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0"><Pencil className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setFolderModal({ mode: 'rename', folder: f })} title="이름 변경" className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0"><Pencil className="w-3.5 h-3.5" /></button>
                       <button onClick={() => removeFolder(f)} title="폴더 삭제" className="p-1.5 text-slate-400 hover:text-rose-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                     </div>
                   );
                 })}
                 <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
-                <button onClick={addFolder} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-bold text-blue-500 dark:text-blue-400"><FolderPlus className="w-4 h-4" /> 새 폴더</button>
+                <button onClick={() => setFolderModal({ mode: 'add' })} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-bold text-blue-500 dark:text-blue-400"><FolderPlus className="w-4 h-4" /> 새 폴더</button>
               </div>
             </>
           )}
@@ -97,6 +99,7 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
       />
 
       {isNewTodoOpen && <TodoModal todo={null} folders={folders} defaultFolderId={composerFolderId} notify={notify} onClose={() => setIsNewTodoOpen(false)} onRefresh={onRefresh} />}
+      {folderModal && <FolderModal folder={folderModal.mode === 'rename' ? folderModal.folder : null} onSave={saveFolderModal} onClose={() => setFolderModal(null)} />}
     </div>
   );
 }

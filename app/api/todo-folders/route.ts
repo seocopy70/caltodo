@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     name: row.name,
     orderIndex: Number(row.order_index || 0),
     createdAt: new Date(Number(row.created_at)).toISOString(),
+    color: row.color || null,
   }));
 
   return NextResponse.json({ folders });
@@ -33,8 +34,8 @@ export async function POST(req: NextRequest) {
   const id = randomUUID();
   const now = Date.now();
   await turso.execute({
-    sql: 'INSERT INTO todo_folders (id, user_id, name, order_index, created_at) VALUES (?, ?, ?, ?, ?)',
-    args: [id, uid, name, body.orderIndex ?? now, now],
+    sql: 'INSERT INTO todo_folders (id, user_id, name, order_index, created_at, color) VALUES (?, ?, ?, ?, ?, ?)',
+    args: [id, uid, name, body.orderIndex ?? now, now, body.color || null],
   });
 
   return NextResponse.json({ id });

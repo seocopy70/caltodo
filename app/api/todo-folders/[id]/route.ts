@@ -17,7 +17,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const name = String(body.name || '').trim();
   if (!name) return NextResponse.json({ error: '폴더 이름을 입력하세요.' }, { status: 400 });
 
-  await turso.execute({ sql: 'UPDATE todo_folders SET name = ? WHERE id = ?', args: [name, params.id] });
+  if (body.color !== undefined) {
+    await turso.execute({ sql: 'UPDATE todo_folders SET name = ?, color = ? WHERE id = ?', args: [name, body.color || null, params.id] });
+  } else {
+    await turso.execute({ sql: 'UPDATE todo_folders SET name = ? WHERE id = ?', args: [name, params.id] });
+  }
   return NextResponse.json({ ok: true });
 }
 

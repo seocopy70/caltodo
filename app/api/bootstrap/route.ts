@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
     isSecure: Number(row.is_secure || 0) === 1,
     lockType: row.lock_type || null,
     isLocked: Number(row.is_locked || 0) === 1,
+    color: row.color || null,
   }));
 
   const todoFolders = todoFoldersResult.rows.map((row: any) => ({
@@ -82,6 +83,7 @@ export async function GET(req: NextRequest) {
     name: row.name,
     orderIndex: Number(row.order_index || 0),
     createdAt: new Date(Number(row.created_at)).toISOString(),
+    color: row.color || null,
   }));
 
   return NextResponse.json({ events, todos, notes, noteFolders, todoFolders });

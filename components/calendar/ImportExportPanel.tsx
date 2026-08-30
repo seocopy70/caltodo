@@ -36,8 +36,8 @@ export default function ImportExportPanel({ events, todos, notes, folders, todoF
       events: events.map((e: any) => ({ ...e, start: e.start?.toISOString?.(), end: e.end?.toISOString?.(), endDate: e.endDate?.toISOString?.() ?? null, updatedAt: e.updatedAt?.toISOString?.() })),
       todos: todos.map((t: any) => ({ ...t, dueDate: t.dueDate?.toISOString?.() ?? null, completedAt: t.completedAt?.toISOString?.() ?? null, createdAt: t.createdAt?.toISOString?.() })),
       notes: (notes || []).map((n: any) => ({ ...n, updatedAt: n.updatedAt?.toISOString?.(), createdAt: n.createdAt?.toISOString?.(), deletedAt: n.deletedAt?.toISOString?.() ?? null })),
-      noteFolders: (folders || []).map((f: any) => ({ id: f.id, name: f.name, orderIndex: f.orderIndex ?? 0, wasSecure: !!f.isSecure })),
-      todoFolders: (todoFolders || []).map((f: any) => ({ id: f.id, name: f.name, orderIndex: f.orderIndex ?? 0 })),
+      noteFolders: (folders || []).map((f: any) => ({ id: f.id, name: f.name, orderIndex: f.orderIndex ?? 0, wasSecure: !!f.isSecure, color: f.color || null })),
+      todoFolders: (todoFolders || []).map((f: any) => ({ id: f.id, name: f.name, orderIndex: f.orderIndex ?? 0, color: f.color || null })),
     };
     downloadTextFile(`cal2do-backup-${Date.now()}.json`, JSON.stringify(backup, null, 2), 'application/json');
     notify('전체 데이터를 JSON 백업 파일로 내보냈어요.');
@@ -92,7 +92,7 @@ export default function ImportExportPanel({ events, todos, notes, folders, todoF
       const restoredSecureNames: string[] = [];
       for (const f of pendingJsonImport.noteFolders) {
         try {
-          const result = await api.noteFolders.create(f.name);
+          const result = await api.noteFolders.create(f.name, f.color || null);
           if (result?.id) folderIdMap.set(f.id, result.id);
           if (f.wasSecure) restoredSecureNames.push(f.name);
           count++;
@@ -101,7 +101,7 @@ export default function ImportExportPanel({ events, todos, notes, folders, todoF
       const todoFolderIdMap = new Map<string, string>();
       for (const f of pendingJsonImport.todoFolders) {
         try {
-          const result = await api.todoFolders.create(f.name);
+          const result = await api.todoFolders.create(f.name, f.color || null);
           if (result?.id) todoFolderIdMap.set(f.id, result.id);
           count++;
         } catch (err) { console.error('할일 폴더 복원 실패:', f.name, err); }

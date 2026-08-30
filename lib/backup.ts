@@ -73,12 +73,14 @@ export async function buildUserBackupJson(uid: string): Promise<string> {
     name: row.name,
     orderIndex: Number(row.order_index || 0),
     wasSecure: Number(row.is_secure || 0) === 1,
+    color: row.color || null,
   }));
 
   const todoFolders = todoFoldersResult.rows.map((row: any) => ({
     id: row.id,
     name: row.name,
     orderIndex: Number(row.order_index || 0),
+    color: row.color || null,
   }));
 
   const backup = { version: 2, exportedAt: new Date().toISOString(), events, todos, notes, noteFolders, todoFolders };

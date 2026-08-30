@@ -7,6 +7,7 @@ import { ko } from 'date-fns/locale';
 import { Plus, Trash2, StickyNote, Archive, RotateCcw, Star, LayoutGrid, List, Folder, FolderPlus, Pencil, X, ChevronDown, Check, ShieldCheck, ShieldOff, Lock, Search as SearchIcon } from 'lucide-react';
 import NoteViewModal from './NoteViewModal';
 import SecureFolderModal from './SecureFolderModal';
+import FolderModal from './FolderModal';
 import NoteContent, { toggleChecklistLine } from './NoteContent';
 import { getFolderColor } from '../../lib/folderColor';
 import { ModalBackCloseGuard } from '../../lib/useModalBackClose';
@@ -57,7 +58,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     : activeNotesBeforeSearch;
 
   const currentFolderLabel = activeFolderId === 'all' ? '전체' : activeFolderId === 'none' ? '미분류' : (folders.find((f: any) => f.id === activeFolderId)?.name || '전체');
-  const currentFolderColor = activeFolderId !== 'all' && activeFolderId !== 'none' ? getFolderColor(activeFolderId) : null;
+  const currentFolderColor = activeFolderId !== 'all' && activeFolderId !== 'none' ? getFolderColor(activeFolderId, folders) : null;
   const isViewingLockedSecure = activeFolderId === secureFolder?.id && unlockedSecureId !== secureFolder?.id;
 
   const remove = (id: string) => {
@@ -82,15 +83,16 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     api.notes.update(note.id, { title: note.title, content: newContent, showToday: note.showToday, folderId: note.folderId || null, format: note.format }).catch((err: any) => { notify(`저장 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 
-  const addFolder = () => {
-    const name = prompt('새 폴더 이름을 입력하세요.');
-    if (!name || !name.trim()) return;
-    api.noteFolders.create(name.trim()).then(() => { notify('폴더가 생성되었습니다.'); onRefresh?.(); }).catch((err: any) => notify(`폴더 생성 실패: ${err.message || err}`, 'error'));
-  };
-  const renameFolder = (folder: any) => {
-    const name = prompt('폴더 이름 변경', folder.name);
-    if (!name || !name.trim() || name.trim() === folder.name) return;
-    api.noteFolders.rename(folder.id, name.trim()).then(() => onRefresh?.()).catch((err: any) => notify(`이름 변경 실패: ${err.message || err}`, 'error'));
+  const [folderModal, setFolderModal] = useState<{ mode: 'add' | 'rename'; folder?: any } | null>(null);
+  const saveFolderModal = (name: string, color: string | null) => {
+    if (folderModal?.mode === 'rename' && folderModal.folder) {
+      const f = folderModal.folder;
+      if (name === f.name && color === (f.color || null)) { setFolderModal(null); return; }
+      api.noteFolders.rename(f.id, name, color).then(() => onRefresh?.()).catch((err: any) => notify(`저장 실패: ${err.message || err}`, 'error'));
+    } else {
+      api.noteFolders.create(name, color).then(() => { notify('폴더가 생성되었습니다.'); onRefresh?.(); }).catch((err: any) => notify(`폴더 생성 실패: ${err.message || err}`, 'error'));
+    }
+    setFolderModal(null);
   };
   const removeFolder = (folder: any) => {
     if (folder.isSecure) { notify('보안폴더는 먼저 해제한 뒤 삭제할 수 있어요.', 'error'); return; }
@@ -140,7 +142,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
               </button>
               {folders.length > 0 && <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />}
               {folders.map((f: any) => {
-                const c = getFolderColor(f.id);
+                const c = getFolderColor(f.id, folders);
                 return (
                   <div key={f.id} className="w-full flex items-center gap-1 px-1 py-0.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
                     <button onClick={() => selectFolder(f.id)} className="flex-1 flex items-center gap-2 px-2 py-1.5 text-sm font-bold text-left min-w-0">
@@ -154,13 +156,13 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
                     {f.isSecure && (
                       <button onClick={() => setSecureModal({ folder: f, mode: 'disable' })} title="보안폴더 해제" className="p-1.5 text-slate-400 hover:text-rose-500 shrink-0"><ShieldOff className="w-3.5 h-3.5" /></button>
                     )}
-                    <button onClick={() => renameFolder(f)} title="이름 변경" className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0"><Pencil className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => setFolderModal({ mode: 'rename', folder: f })} title="이름 변경" className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0"><Pencil className="w-3.5 h-3.5" /></button>
                     <button onClick={() => removeFolder(f)} title="폴더 삭제" className="p-1.5 text-slate-400 hover:text-rose-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 );
               })}
               <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
-              <button onClick={addFolder} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-bold text-blue-500 dark:text-blue-400"><FolderPlus className="w-4 h-4" /> 새 폴더</button>
+              <button onClick={() => setFolderModal({ mode: 'add' })} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-bold text-blue-500 dark:text-blue-400"><FolderPlus className="w-4 h-4" /> 새 폴더</button>
             </div>
           </>
         )}
@@ -196,7 +198,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
       {layoutMode === 'card' ? (
         <div className="columns-2 gap-2 sm:gap-3 [column-fill:_balance]">
           {activeNotes.map((note: any) => {
-            const folderColor = note.folderId ? getFolderColor(note.folderId) : null;
+            const folderColor = note.folderId ? getFolderColor(note.folderId, folders) : null;
             const isSecureNote = !!secureFolder && note.folderId === secureFolder.id;
             const iconColorClass = folderColor ? folderColor.text : 'text-amber-500 dark:text-amber-400';
             return (
@@ -250,7 +252,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
       ) : (
         <div className="rounded-2xl border border-slate-200 dark:border-slate-700/40 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-transparent">
           {activeNotes.map((note: any) => {
-            const folderColor = note.folderId ? getFolderColor(note.folderId) : null;
+            const folderColor = note.folderId ? getFolderColor(note.folderId, folders) : null;
             const iconColorClass = folderColor ? folderColor.text : 'text-amber-500 dark:text-amber-400';
             return (
               <button key={note.id} onClick={() => setViewingNote(note)} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-left">
@@ -287,5 +289,6 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     {viewingNote && <NoteViewModal note={viewingNote} editable onClose={() => setViewingNote(null)} onEdit={(n: any, focus?: 'title' | 'content', lineIndex?: number) => { setViewingNote(null); onEditNote?.(n, focus, lineIndex); }} onToggleLine={toggleLine} />}
     {viewingDeletedNote && <NoteViewModal note={viewingDeletedNote} editable={false} onClose={() => setViewingDeletedNote(null)} />}
     {secureModal && <SecureFolderModal folder={secureModal.folder} mode={secureModal.mode} onClose={() => setSecureModal(null)} onSuccess={onSecureSuccess} onNotify={notify} />}
+    {folderModal && <FolderModal folder={folderModal.mode === 'rename' ? folderModal.folder : null} onSave={saveFolderModal} onClose={() => setFolderModal(null)} />}
   </div>;
 }
