@@ -37,7 +37,6 @@ export default function NoteViewModal({ note, editable = true, onClose, onEdit, 
         <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 shrink-0 flex items-center justify-between text-xs text-slate-500">
           {!editable && <span className="flex items-center gap-1"><Archive className="w-3.5 h-3.5" /> 보관함 (읽기 전용)</span>}
           {editable && note.updatedAt && <span>{format(note.updatedAt, 'yyyy년 M월 d일 HH:mm', { locale: ko })} 수정됨</span>}
-          {editable && <span className="text-blue-500 dark:text-blue-400">탭하면 그 위치에서 수정할 수 있어요</span>}
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, format } from 'date-fns';
-import { Plus, MapPin, AlignLeft, Repeat, CalendarRange, StickyNote, Star, Trash2 } from 'lucide-react';
+import { Plus, MapPin, AlignLeft, StickyNote, Star, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { eventOccursOnDay, getRecurrenceType } from '../../lib/recurrence';
 import { api } from '../../lib/api-client';
 import NoteContent, { toggleChecklistLine } from './NoteContent';
@@ -35,12 +35,12 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
 
-  // 접으면 오늘·내일 일정만, 펼치면 7일 내 전체(가까운 순서)
-  const collapsedEvents = useMemo(() => windowEvents.filter((e: any) => {
-    const diff = Math.round((e.__day.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000);
-    return diff <= 1;
+  // 접으면 "지금 시각" 기준으로 지난 일정은 제외하고 가장 가까운 3개만, 펼치면 7일 내 전체(가까운 순서)
+  const collapsedEvents = useMemo(() => {
+    const now = new Date();
+    return windowEvents.filter((e: any) => e.start.getTime() >= now.getTime()).slice(0, 3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [windowEvents]);
+  }, [windowEvents]);
   const visibleEvents = eventsExpanded ? windowEvents : collapsedEvents;
 
   return <div className="max-w-5xl mx-auto space-y-4 p-2">
@@ -55,8 +55,9 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
 
     <section className="rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden">
       {windowEvents.length > collapsedEvents.length && (
-        <button onClick={() => setEventsExpanded((v) => !v)} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-100 dark:border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition">
-          {eventsExpanded ? '접기' : `펼치기 (7일 내 ${windowEvents.length}개)`}
+        <button onClick={() => setEventsExpanded((v) => !v)} title={eventsExpanded ? '접기' : `펼치기 (7일 내 ${windowEvents.length}개)`} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-100 dark:border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition">
+          {!eventsExpanded && <span>{`7일 내 ${windowEvents.length}개`}</span>}
+          {eventsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       )}
       <div className={`divide-y divide-slate-100 dark:divide-slate-700/30 ${eventsExpanded ? 'max-h-[50vh] overflow-y-auto' : ''}`}>
@@ -66,7 +67,7 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
     </section>
 
     {notes.length > 0 && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 items-start">
         {notes.map((note: any) => <TodayNoteCard key={note.id} note={note} onRefresh={onRefresh} onNotify={notify} onEditNote={onEditNote} onPatchNote={onPatchNote} />)}
       </div>
     )}
@@ -78,7 +79,6 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
 
 function EventRow({ event, onEdit }: any) {
   const repeated = getRecurrenceType(event) !== 'none';
-  const multi = !!event.endDate;
   const today = new Date();
   const diffDays = Math.round((new Date(event.__day.getFullYear(), event.__day.getMonth(), event.__day.getDate()).getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000);
   const dayLabel = diffDays === 0 ? '오늘' : diffDays === 1 ? '내일' : format(event.__day, 'M/d');
@@ -89,7 +89,7 @@ function EventRow({ event, onEdit }: any) {
       <span className="text-sm font-bold text-slate-400 dark:text-slate-500">{format(event.start, 'HH:mm')}</span>
     </div>
     <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-      <div className="flex items-center gap-1.5 min-w-0">{repeated && <Repeat className="w-3 h-3 text-violet-400 shrink-0" />}{multi && <CalendarRange className="w-3 h-3 text-slate-500 shrink-0" />}<span className="font-bold text-sm truncate">{event.title}</span></div>
+      <div className="flex items-center gap-1.5 min-w-0"><span className="font-bold text-sm truncate">{event.title}</span></div>
       {event.location ? <span className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0"><MapPin className="w-3.5 h-3.5" />{event.location}</span> : event.description ? <span className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0 truncate"><AlignLeft className="w-3.5 h-3.5 shrink-0" />{event.description}</span> : null}
     </div>
   </div>;

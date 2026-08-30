@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../../lib/api-client';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -16,6 +16,12 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const [viewingNote, setViewingNote] = useState<any>(null);
   const [viewingDeletedNote, setViewingDeletedNote] = useState<any>(null);
   const [layoutMode, setLayoutMode] = useState<'card' | 'title'>('card');
+  // 폰 좁은 화면(약 480px 이하)에서는 카드 2열보다 목록형이 읽기 편해서 기본값으로 사용.
+  // 최초 마운트 시 1회만 화면 폭을 확인(이후 사용자가 직접 바꾸면 그 선택을 존중).
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 480) setLayoutMode('title');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [activeFolderId, setActiveFolderId] = useState<string | 'all' | 'none'>('all');
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [secureModal, setSecureModal] = useState<{ folder: any; mode: 'setup' | 'unlock' | 'disable' } | null>(null);
@@ -163,7 +169,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
       <button onClick={() => onNewNote?.()} className="flex-1 flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-xl text-slate-500 dark:text-slate-400 hover:border-blue-500/50 transition font-bold text-sm"><Plus className="w-5 h-5" /> 새 메모</button>
 
       <button onClick={() => setLayoutMode((m) => (m === 'card' ? 'title' : 'card'))} title={layoutMode === 'card' ? '제목 목록으로 보기' : '카드형으로 보기'} className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shrink-0 text-slate-500">
-        {layoutMode === 'card' ? <LayoutGrid className="w-5 h-5" /> : <List className="w-5 h-5" />}
+        {layoutMode === 'card' ? <List className="w-5 h-5" /> : <LayoutGrid className="w-5 h-5" />}
       </button>
     </div>
 
@@ -188,15 +194,15 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
       {activeNotes.length === 0 && <div className="text-center text-slate-500 py-16 text-sm">{secureQuery ? '검색 결과가 없어요.' : activeFolderId === 'all' ? '작성된 메모가 없어요.' : '이 폴더에는 메모가 없어요.'}</div>}
 
       {layoutMode === 'card' ? (
-        <div className="columns-1 sm:columns-2 gap-3 [column-fill:_balance]">
+        <div className="columns-2 gap-2 sm:gap-3 [column-fill:_balance]">
           {activeNotes.map((note: any) => {
             const folderColor = note.folderId ? getFolderColor(note.folderId) : null;
             const isSecureNote = !!secureFolder && note.folderId === secureFolder.id;
             const iconColorClass = folderColor ? folderColor.text : 'text-amber-500 dark:text-amber-400';
             return (
-              <div key={note.id} onClick={() => setViewingNote(note)} className="break-inside-avoid mb-3 group relative bg-white dark:bg-slate-800/30 p-4 rounded-xl border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none hover:border-blue-500/50 transition cursor-pointer">
+              <div key={note.id} onClick={() => onEditNote?.(note, 'content')} className="break-inside-avoid mb-2 sm:mb-3 group relative bg-white dark:bg-slate-800/30 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none hover:border-blue-500/50 transition cursor-pointer">
                 <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <h4 className="font-bold text-lg truncate flex items-center gap-1.5 text-slate-900 dark:text-white min-w-0"><StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} /><span className="truncate">{note.title}</span></h4>
+                  <h4 onClick={(e) => { e.stopPropagation(); onEditNote?.(note, 'title'); }} className="font-bold text-lg truncate flex items-center gap-1.5 text-slate-900 dark:text-white min-w-0 cursor-text"><StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} /><span className="truncate">{note.title}</span></h4>
                   <div className="flex items-center gap-1 shrink-0">
                     {!isSecureNote && <button title={note.showToday ? '오늘 탭에서 숨기기' : '오늘 탭에 표시'} onClick={(e) => { e.stopPropagation(); toggleStar(note); }} className={`p-1 ${note.showToday ? 'text-amber-400' : 'text-slate-400 dark:text-slate-600 hover:text-amber-400'}`}><Star className="w-3.5 h-3.5" fill={note.showToday ? 'currentColor' : 'none'} /></button>}
                     <button title="보관함으로 이동" onClick={(e) => { e.stopPropagation(); remove(note.id); }} className="text-slate-400 dark:text-slate-600 hover:text-rose-500 transition"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -210,7 +216,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
                     const shown = isLong && !isExpanded ? contentLines.slice(0, 15).join('\n') : note.content;
                     return (
                       <>
-                        <NoteContent content={shown} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} onLineClick={() => setViewingNote(note)} />
+                        <NoteContent content={shown} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} onLineClick={(idx: number) => onEditNote?.(note, 'content', idx)} />
                         {isLong && (
                           <button
                             onClick={(e) => { e.stopPropagation(); toggleCardExpanded(note.id); }}

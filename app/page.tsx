@@ -19,7 +19,7 @@ import NoteModal from '../components/calendar/NoteModal';
 import VersionModal from '../components/calendar/VersionModal';
 import HelpModal from '../components/calendar/HelpModal';
 import { LogIn, Menu, Search, CalendarSearch } from 'lucide-react';
-import { ModalBackCloseGuard } from '../lib/useModalBackClose';
+import { ModalBackCloseGuard, isAnyModalOpen } from '../lib/useModalBackClose';
 
 // 앱을 다시 열었을 때 "빈 오늘탭 → 잠시 후 데이터로 채워짐"으로 깜빡이는 대신, 지난번에 불러온
 // 데이터를 즉시 화면에 먼저 보여주고(약간 오래된 상태일 수 있음) 그 사이 서버에서 최신 데이터를
@@ -161,7 +161,9 @@ export default function Home() {
     hscrollElRef.current = (e.target as HTMLElement).closest('[data-hscroll]') as HTMLElement | null;
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null || touchStartY.current === null || anyOverlayOpen) { touchStartX.current = null; touchStartY.current = null; return; }
+    // 입력창/수정창 등 모달이 하나라도 열려있으면(useModalBackClose로 추적) 그 안에서의 좌우 스크롤이
+    // 탭 순환으로 이어지지 않도록 함 — 이전에는 개별 상태(anyOverlayOpen)만 확인해서 놓치는 모달이 있었음
+    if (touchStartX.current === null || touchStartY.current === null || anyOverlayOpen || isAnyModalOpen()) { touchStartX.current = null; touchStartY.current = null; return; }
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
     touchStartX.current = null;
@@ -182,9 +184,9 @@ export default function Home() {
       if (!atRelevantEdge) return; // 아직 스크롤할 여지가 있으면 탭 순환은 무시하고 그리드 스크롤만
     }
 
-    // 화면 폭의 1/4 이상 밀었을 때만 탭 순환 (짧은 밀기는 무시)
-    const threshold = window.innerWidth / 4;
-    if (Math.abs(deltaX) < threshold) return;
+    // 화면 폭 1/4 제한은 삭제 — 실수로 탭 넘김되지 않을 정도의 최소 이동거리만 확인(짧은 탭/떨림 방지)
+    const MIN_SWIPE_PX = 32;
+    if (Math.abs(deltaX) < MIN_SWIPE_PX) return;
     const idx = tabs.findIndex(([key]) => key === view);
     if (idx === -1) return;
     // 왼쪽으로 밀면 다음 탭, 오른쪽으로 밀면 이전 탭
@@ -259,7 +261,7 @@ export default function Home() {
         <button onClick={() => signOut(auth)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">로그아웃</button>
       </div>
     </>}
-    <main className="max-w-7xl mx-auto p-2.5 sm:p-4">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onPatchNote={patchNoteLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any) => setEditingNote(n)} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex }); }} onPatchNote={patchNoteLocal} />}</main>
+    <main className="max-w-7xl mx-auto p-2.5 sm:p-4">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onPatchNote={patchNoteLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any) => { setEditingNote(n); setEditingNoteFocus({ focus: 'content' }); }} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex }); }} onPatchNote={patchNoteLocal} />}</main>
     {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} folders={noteFolders} todoFolders={todoFolders} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {isEmailBackupOpen && <EmailBackupPanel user={user} onClose={() => setIsEmailBackupOpen(false)} onNotify={notify} />}
     {isDataManagementOpen && <DataManagementPanel events={events} user={user} onClose={() => setIsDataManagementOpen(false)} onRefresh={refreshData} onNotify={notify} />}

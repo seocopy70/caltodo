@@ -68,6 +68,7 @@ export default function TodoListPanel({
   const [dragId, setDragId] = useState<string | null>(null);
   const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
   const [quickActionsFor, setQuickActionsFor] = useState<any>(null);
+  const [folderPickerFor, setFolderPickerFor] = useState<any>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const notify = onNotify || (() => {});
 
@@ -172,11 +173,21 @@ export default function TodoListPanel({
     api.todos.update(id, extra).catch((err: any) => { notify(`업데이트 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 
+  // 폴더 아이콘 전용 메뉴(색깔/날짜 없이 폴더만) — quickActionsFor(색/날짜/폴더 통합 메뉴)와는 별개의 진입점
+  const applyFolderChange = (folderId: string | null) => {
+    if (!folderPickerFor) return;
+    const id = folderPickerFor.id;
+    onPatchTodo?.(id, { folderId });
+    api.todos.update(id, { folderId }).catch((err: any) => { notify(`업데이트 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
+    setFolderPickerFor(null);
+  };
+
   return (
     <section className={`rounded-2xl border border-slate-700/50 bg-slate-900/30 overflow-hidden ${compact ? '' : 'shadow-xl'}`}>
       {maxVisible && activeTodos.length > 0 && (
-        <button onClick={() => setExpanded((v) => !v)} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-400 transition">
-          {expanded ? <><ChevronUp className="w-3.5 h-3.5" /> 접기</> : <><ChevronDown className="w-3.5 h-3.5" /> 펼치기 ({activeTodos.length})</>}
+        <button onClick={() => setExpanded((v) => !v)} title={expanded ? '접기' : `펼치기 (${activeTodos.length})`} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-400 transition">
+          {!expanded && <span>{activeTodos.length}</span>}
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
       )}
 
@@ -192,8 +203,9 @@ export default function TodoListPanel({
               <span className="text-base font-medium truncate">{todo.title}</span>
               {todo.dueDate && (() => { const d = dueDateLabel(todo.dueDate, showRelativeDates); return <span className={`text-base font-medium shrink-0 ${d.isNear ? 'text-orange-400' : 'text-slate-400'}`}>{d.text}</span>; })()}
             </div>
-            <button onClick={() => setQuickActionsFor(todo)} className="text-slate-600 hover:text-blue-400 transition shrink-0" title="폴더 선택 등 빠른 메뉴">
-              <Folder className="w-4 h-4" />
+            <button onClick={() => setFolderPickerFor(todo)} className="text-slate-600 hover:text-blue-400 transition shrink-0 flex items-center gap-1 max-w-[6.5rem]" title="폴더 선택">
+              <Folder className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline text-xs truncate">{folders.find((f: any) => f.id === todo.folderId)?.name || '미분류'}</span>
             </button>
             <button onClick={() => removeTodo(todo.id)} className="text-slate-600 hover:text-rose-500 transition shrink-0" title="삭제">
               <Trash2 className="w-4 h-4" />
@@ -278,6 +290,31 @@ export default function TodoListPanel({
               </div>
             )}
             <button onClick={() => setQuickActionsFor(null)} className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold text-slate-300">닫기</button>
+          </div>
+        </>
+      )}
+
+      {folderPickerFor && (
+        <>
+          <ModalBackCloseGuard onClose={() => setFolderPickerFor(null)} />
+          <div className="fixed inset-0 z-40" onClick={() => setFolderPickerFor(null)} />
+          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-4 space-y-2">
+            <p className="text-sm font-bold truncate text-slate-200 mb-1">{folderPickerFor.title}</p>
+            <button
+              onClick={() => applyFolderChange(null)}
+              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold ${!folderPickerFor.folderId ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+            >
+              미분류
+            </button>
+            {folders.map((f: any) => (
+              <button
+                key={f.id}
+                onClick={() => applyFolderChange(f.id)}
+                className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold ${folderPickerFor.folderId === f.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+              >
+                {f.name}
+              </button>
+            ))}
           </div>
         </>
       )}

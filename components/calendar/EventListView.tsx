@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { format, getYear, isToday } from 'date-fns';
-import { ChevronDown, ChevronRight, Repeat, CalendarRange, ListCollapse, ListTree, Locate, MapPin, AlignLeft } from 'lucide-react';
+import { ChevronDown, ChevronRight, ListCollapse, ListTree, Locate, MapPin, AlignLeft } from 'lucide-react';
 import EventModal from './EventModal';
 import { getRecurrenceType } from '../../lib/recurrence';
 
@@ -76,8 +76,6 @@ export default function EventListView({ events, user, onNotify, onRefresh }: any
                       <div className="w-14 shrink-0 text-xs font-bold text-slate-500">{format(event.start, 'HH:mm')}</div>
                       <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          {repeated && <Repeat className="w-3.5 h-3.5 text-violet-400 shrink-0" />}
-                          {!!event.endDate && <CalendarRange className="w-3.5 h-3.5 text-slate-500 shrink-0" />}
                           <span className="font-bold truncate">{event.title}</span>
                         </div>
                         {event.location ? <span className="text-[11px] text-slate-500 flex items-center gap-1 shrink-0"><MapPin className="w-3.5 h-3.5" />{event.location}</span> : event.description ? <span className="text-[11px] text-slate-500 flex items-center gap-1 shrink-0 truncate"><AlignLeft className="w-3.5 h-3.5 shrink-0" />{event.description}</span> : null}

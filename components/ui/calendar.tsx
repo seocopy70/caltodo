@@ -109,9 +109,8 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   const jumpTo = (year: number, month: number) => { setCurrentDate(new Date(year, month, 1)); setIsDatePickerOpen(false); };
 
   const handleDayClick = (day: Date) => {
-    const hasEvents = events.some((e: any) => eventOccursOnDay(e, day));
-    if (hasEvents) setDayViewDate(day);
-    else openNewEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0));
+    // 일정 유무와 상관없이 날짜를 탭하면 항상 일별보기를 띄움(일정 없는 날에도 그 안에서 새 일정 추가 가능)
+    setDayViewDate(day);
   };
 
   const handleSlotClick = (day: Date, hour: number) => {
@@ -138,14 +137,14 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           <CalendarDays className="w-5 h-5 text-slate-400 group-hover:text-blue-500 shrink-0" />
         </button>
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* 월별/주별보기 전환: 메모탭 보기옵션처럼 한 칸짜리 아이콘 토글(현재 모드의 아이콘을 보여줌) */}
+          {/* 월별/주별보기 전환: 메모탭 보기옵션처럼 한 칸짜리 아이콘 토글(탭하면 전환될 모드의 아이콘을 보여줌) */}
           <button
             type="button"
             onClick={() => setCalView((v) => (v === 'month' ? 'week' : 'month'))}
             title={view === 'month' ? '탭하면 주별보기로' : '탭하면 월별보기로'}
             className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0"
           >
-            {view === 'month' ? <Grid3x3 className="w-5 h-5" /> : <Rows3 className="w-5 h-5" />}
+            {view === 'month' ? <Rows3 className="w-5 h-5" /> : <Grid3x3 className="w-5 h-5" />}
           </button>
           <div className="flex gap-1.5 sm:gap-2"><button onClick={() => setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronLeft/></button><button onClick={() => setCurrentDate(new Date())} className="px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 whitespace-nowrap">오늘</button><button onClick={() => setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronRight/></button></div>
         </div>

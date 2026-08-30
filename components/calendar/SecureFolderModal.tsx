@@ -12,7 +12,9 @@ export default function SecureFolderModal({ folder, mode, onClose, onSuccess, on
   useModalBackClose(onClose);
   const notify = onNotify || (() => {});
   const [step, setStep] = useState<'main' | 'forgot-sent' | 'forgot-confirm'>('main');
-  const [lockType, setLockType] = useState<'pin' | 'pattern'>('pin');
+  // 신규 설정/재설정은 PIN만 지원(패턴 옵션 삭제). 단, 기존에 패턴으로 이미 지정된 폴더는
+  // 해제/잠금해제 시 folder.lockType을 그대로 참조해 계속 동작하도록 유지(기존 데이터 보존).
+  const lockType: 'pin' = 'pin';
   const [error, setError] = useState('');
   const [remaining, setRemaining] = useState<number | null>(null);
   const [locked, setLocked] = useState(!!folder?.isLocked);
@@ -79,12 +81,8 @@ export default function SecureFolderModal({ folder, mode, onClose, onSuccess, on
 
           {mode === 'setup' && step === 'main' && (
             <>
-              <p className="text-sm text-slate-500">이 폴더에 넣은 메모는 PIN 또는 패턴을 입력해야 볼 수 있어요. 별표(오늘 탭 표시)는 사용할 수 없어요.</p>
-              <div className="flex items-center gap-1.5">
-                <button onClick={() => setLockType('pin')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${lockType === 'pin' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>PIN 번호</button>
-                <button onClick={() => setLockType('pattern')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${lockType === 'pattern' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>패턴</button>
-              </div>
-              {lockType === 'pin' ? <PinInput label="새 PIN 번호를 입력하세요" onSubmit={handleSetup} submitLabel="설정 완료" /> : <PatternInput label="새 패턴을 그려주세요" onSubmit={handleSetup} submitLabel="설정 완료" />}
+              <p className="text-sm text-slate-500">이 폴더에 넣은 메모는 PIN 번호를 입력해야 볼 수 있어요. 별표(오늘 탭 표시)는 사용할 수 없어요.</p>
+              <PinInput label="새 PIN 번호를 입력하세요" onSubmit={handleSetup} submitLabel="설정 완료" />
             </>
           )}
 
@@ -120,12 +118,8 @@ export default function SecureFolderModal({ folder, mode, onClose, onSuccess, on
 
           {step === 'forgot-confirm' && (
             <div className="space-y-3">
-              <p className="text-sm text-slate-500">새로 사용할 PIN 또는 패턴을 설정하세요.</p>
-              <div className="flex items-center gap-1.5">
-                <button onClick={() => setLockType('pin')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${lockType === 'pin' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>PIN 번호</button>
-                <button onClick={() => setLockType('pattern')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${lockType === 'pattern' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>패턴</button>
-              </div>
-              {lockType === 'pin' ? <PinInput label="새 PIN 번호" onSubmit={confirmReset} submitLabel="재설정 완료" /> : <PatternInput label="새 패턴" onSubmit={confirmReset} submitLabel="재설정 완료" />}
+              <p className="text-sm text-slate-500">새로 사용할 PIN 번호를 설정하세요.</p>
+              <PinInput label="새 PIN 번호" onSubmit={confirmReset} submitLabel="재설정 완료" />
             </div>
           )}
 

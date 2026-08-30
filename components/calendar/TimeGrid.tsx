@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { Repeat, CalendarRange, MapPin, AlignLeft } from 'lucide-react';
+import { MapPin, AlignLeft } from 'lucide-react';
 import { eventOccursOnDay, getRecurrenceType, getOccurrenceTimes } from '../../lib/recurrence';
 
 const HOUR_HEIGHT = 38; // px per hour (기존 42 대비 살짝 축소 — 그리드 전체 높이를 조금 줄임)
@@ -144,7 +144,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                 <div key={i} style={{ minHeight: HOUR_HEIGHT, ...colStyle }} className="flex-1 min-w-0 border-l border-slate-50 dark:border-slate-800/40 first:border-l-0 p-1 space-y-1">
                   {allDayEvents.filter((e: any) => eventOccursOnDay(e, day)).map((e: any, idx: number) => (
                     <div key={idx} onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }} className={`px-1.5 py-0.5 rounded-full text-sm font-bold truncate flex items-center gap-1 cursor-pointer ${colorClasses(e)}`}>
-                      <CalendarRange className="w-2.5 h-2.5 shrink-0" /><span className="truncate">{e.title}</span>
+                      <span className="truncate">{e.title}</span>
                     </div>
                   ))}
                 </div>
@@ -205,7 +205,6 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                         className={`px-1.5 py-0.5 rounded-lg text-sm font-bold cursor-pointer overflow-hidden flex flex-col justify-center border-l-4 ${colorClasses(e)}`}
                       >
                         <div className="flex items-center gap-1.5 min-w-0">
-                          {getRecurrenceType(e) !== 'none' && <Repeat className="w-2.5 h-2.5 shrink-0" />}
                           <span className="truncate">{e.title}</span>
                           {showBeside && <span className="flex items-center gap-0.5 text-sm font-medium opacity-70 truncate shrink-0"><ExtraIcon className="w-3 h-3 shrink-0" />{extraInfo}</span>}
                         </div>
