@@ -5,6 +5,7 @@ import { format, isToday } from 'date-fns';
 import { CheckCircle2, Circle, ChevronDown, ChevronUp, GripVertical, Trash2, Folder } from 'lucide-react';
 import { api } from '../../lib/api-client';
 import { autoPriorityForDueDate } from '../../lib/todoAutoColor';
+import { getFolderColor } from '../../lib/folderColor';
 import { ModalBackCloseGuard } from '../../lib/useModalBackClose';
 import TodoModal from './TodoModal';
 
@@ -61,9 +62,18 @@ export default function TodoListPanel({
   hideCompleted = false,
   largePlaceholder = false,
   showRelativeDates = false,
+  expanded: expandedProp,
+  onExpandedChange,
 }: any) {
   const [editingTodo, setEditingTodo] = useState<any>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expandedState, setExpandedState] = useState(false);
+  // 오늘탭에서는 할일/일정 중 하나만 펼쳐지도록 부모(HomeView)가 expanded를 직접 제어할 수 있게 함.
+  // 다른 곳(할일 탭 등)에서는 그런 prop을 안 넘기므로 예전처럼 내부 상태로 알아서 동작.
+  const expanded = expandedProp !== undefined ? expandedProp : expandedState;
+  const setExpanded = (v: boolean | ((prev: boolean) => boolean)) => {
+    const next = typeof v === 'function' ? (v as (prev: boolean) => boolean)(expanded) : v;
+    if (onExpandedChange) onExpandedChange(next); else setExpandedState(next);
+  };
   const [showCompleted, setShowCompleted] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
@@ -203,9 +213,13 @@ export default function TodoListPanel({
               <span className="text-base font-medium truncate text-slate-900 dark:text-slate-100">{todo.title}</span>
               {todo.dueDate && (() => { const d = dueDateLabel(todo.dueDate, showRelativeDates); return <span className={`text-base font-medium shrink-0 ${d.isNear ? 'text-orange-500 dark:text-orange-400' : 'text-slate-400'}`}>{d.text}</span>; })()}
             </div>
-            <button onClick={() => setFolderPickerFor(todo)} className="text-slate-400 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400 transition shrink-0 flex items-center gap-1 max-w-[6.5rem]" title="폴더 선택">
-              <Folder className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline text-xs truncate">{folders.find((f: any) => f.id === todo.folderId)?.name || '미분류'}</span>
+            <button onClick={() => setFolderPickerFor(todo)} className="transition shrink-0 flex items-center gap-1 max-w-[6.5rem]" title="폴더 선택">
+              {(() => { const fc = todo.folderId ? getFolderColor(todo.folderId, folders) : null; return (
+                <>
+                  <Folder className={`w-4 h-4 shrink-0 ${fc ? fc.text : 'text-slate-400 dark:text-slate-600'}`} />
+                  <span className={`hidden sm:inline text-xs truncate ${fc ? fc.text : 'text-slate-400 dark:text-slate-600'}`}>{folders.find((f: any) => f.id === todo.folderId)?.name || '미분류'}</span>
+                </>
+              ); })()}
             </button>
             <button onClick={() => removeTodo(todo.id)} className="text-slate-400 dark:text-slate-600 hover:text-rose-500 transition shrink-0" title="삭제">
               <Trash2 className="w-4 h-4" />
@@ -302,19 +316,24 @@ export default function TodoListPanel({
             <p className="text-sm font-bold truncate text-slate-800 dark:text-slate-200 mb-1">{folderPickerFor.title}</p>
             <button
               onClick={() => applyFolderChange(null)}
-              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold ${!folderPickerFor.folderId ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 ${!folderPickerFor.folderId ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
             >
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0" />
               미분류
             </button>
-            {folders.map((f: any) => (
-              <button
-                key={f.id}
-                onClick={() => applyFolderChange(f.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold ${folderPickerFor.folderId === f.id ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
-              >
-                {f.name}
-              </button>
-            ))}
+            {folders.map((f: any) => {
+              const fc = getFolderColor(f.id, folders);
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => applyFolderChange(f.id)}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 ${folderPickerFor.folderId === f.id ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${fc.dot}`} />
+                  {f.name}
+                </button>
+              );
+            })}
           </div>
         </>
       )}

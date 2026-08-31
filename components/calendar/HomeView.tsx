@@ -17,7 +17,14 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isNewTodoOpen, setIsNewTodoOpen] = useState(false);
-  const [eventsExpanded, setEventsExpanded] = useState(false);
+  // 할일 목록과 일정 중 하나를 펼치면 다른 하나는 자동으로 접히도록 펼침 상태를 하나로 관리
+  const [expandedSection, setExpandedSection] = useState<'todos' | 'events' | null>(null);
+  const todosExpanded = expandedSection === 'todos';
+  const eventsExpanded = expandedSection === 'events';
+  const setEventsExpanded = (v: boolean | ((prev: boolean) => boolean)) => {
+    const next = typeof v === 'function' ? (v as (prev: boolean) => boolean)(eventsExpanded) : v;
+    setExpandedSection(next ? 'events' : null);
+  };
   const notify = onNotify || (() => {});
   const today = new Date();
 
@@ -51,7 +58,22 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
       <button type="button" onClick={() => onNewNote?.()} className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition font-bold text-sm" title="새 메모"><Plus className="w-5 h-5" /><span>새 메모</span></button>
     </div>
 
-    <TodoListPanel todos={todos} folders={todoFolders} user={user} onNotify={onNotify} onRefresh={onRefresh} onPatchTodo={onPatchTodo} onRemoveTodo={onRemoveTodo} maxVisible={5} compact hideCompleted largePlaceholder showRelativeDates />
+    <TodoListPanel
+      todos={todos}
+      folders={todoFolders}
+      user={user}
+      onNotify={onNotify}
+      onRefresh={onRefresh}
+      onPatchTodo={onPatchTodo}
+      onRemoveTodo={onRemoveTodo}
+      maxVisible={5}
+      compact
+      hideCompleted
+      largePlaceholder
+      showRelativeDates
+      expanded={todosExpanded}
+      onExpandedChange={(v: boolean) => setExpandedSection(v ? 'todos' : null)}
+    />
 
     <section className="rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden">
       {windowEvents.length > collapsedEvents.length && (
