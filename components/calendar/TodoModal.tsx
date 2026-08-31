@@ -46,7 +46,7 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
   const [dueDate, setDueDate] = useState('');
   const [memo, setMemo] = useState('');
   const [priority, setPriority] = useState<string | null>(null);
-  const [folderId, setFolderId] = useState<string | null>(defaultFolderId);
+  const [folderId, setFolderId] = useState<string | null>(defaultFolderId ?? (folders.find((f: any) => f.name === '개인')?.id ?? null));
   const [titleSuggestOpen, setTitleSuggestOpen] = useState(false);
   // 현재 설정된 날짜를 실제로 일정에도 연동할지 여부. 기존에 이미 연동된 할일을 열면 'yes'로,
   // 날짜는 있지만 연동이 안 되어있던 할일은 'no'로 시작(둘 다 사용자에게 다시 묻지 않음).

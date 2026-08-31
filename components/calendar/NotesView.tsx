@@ -191,6 +191,27 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
       </div>
     </div>
 
+    {/* 실제로 만들어져 있는 폴더만 아이콘으로 보여줘서 탭 한 번으로 그 폴더만 보기(할일탭과 동일한 형식) */}
+    {folders.length > 0 && (
+      <div className="flex items-center justify-end gap-1 overflow-x-auto px-1 pb-0.5">
+        {folders.map((f: any) => {
+          const c = getFolderColor(f.id, folders);
+          const active = activeFolderId === f.id;
+          return (
+            <button
+              key={f.id}
+              onClick={() => selectFolder(active ? 'all' : f.id)}
+              title={f.name}
+              className={`shrink-0 flex items-center gap-1 px-1.5 py-1 rounded-lg transition max-w-[6rem] ${active ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+            >
+              {f.isSecure ? <Lock className={`w-4 h-4 shrink-0 ${c.text} ${active ? '' : 'opacity-60'}`} /> : <Folder className={`w-4 h-4 shrink-0 ${c.text} ${active ? '' : 'opacity-60'}`} />}
+              <span className={`hidden sm:inline text-xs font-bold truncate ${c.text} ${active ? '' : 'opacity-60'}`}>{f.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    )}
+
     {isViewingLockedSecure ? (
       <div className="text-center text-slate-500 py-16 text-sm flex flex-col items-center gap-2">
         <Lock className="w-8 h-8 text-slate-300 dark:text-slate-700" />

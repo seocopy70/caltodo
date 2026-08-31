@@ -219,10 +219,10 @@ export default function TodoListPanel({
         </button>
       )}
 
-      {/* 실제로 존재하는 폴더 색만 원으로 보여줘서 탭 한 번으로 그 폴더만 보기. 오늘탭처럼 접힌 상태에선
+      {/* 실제로 존재하는 폴더만 아이콘으로 보여줘서 탭 한 번으로 그 폴더만 보기. 오늘탭처럼 접힌 상태에선
           자리를 아끼려고 숨기고, 펼쳤을 때만(또는 maxVisible 없이 쓰는 할일 탭에서는 항상) 보여줌. */}
       {showFolderFilter && folders.length > 0 && (!maxVisible || expanded) && (
-        <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 border-b border-slate-100 dark:border-slate-700/40">
+        <div className="flex items-center justify-end gap-1 overflow-x-auto px-3 py-2 border-b border-slate-100 dark:border-slate-700/40">
           {folders.map((f: any) => {
             const c = getFolderColor(f.id, folders);
             const active = colorFilterId === f.id;
@@ -231,8 +231,11 @@ export default function TodoListPanel({
                 key={f.id}
                 onClick={() => setColorFilterId(active ? 'all' : f.id)}
                 title={f.name}
-                className={`w-5 h-5 rounded-full shrink-0 transition ${c.dot} ${active ? 'ring-4 ring-slate-900 dark:ring-white scale-110' : 'opacity-50 hover:opacity-90'}`}
-              />
+                className={`shrink-0 flex items-center gap-1 px-1.5 py-1 rounded-lg transition max-w-[6rem] ${active ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+              >
+                <Folder className={`w-4 h-4 shrink-0 ${c.text} ${active ? '' : 'opacity-60'}`} />
+                <span className={`hidden sm:inline text-xs font-bold truncate ${c.text} ${active ? '' : 'opacity-60'}`}>{f.name}</span>
+              </button>
             );
           })}
         </div>

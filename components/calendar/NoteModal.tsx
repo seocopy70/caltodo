@@ -49,8 +49,10 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
     setTitle(note?.title || '');
     setContent(note?.content || '');
     setShowToday(!!note?.showToday);
-    setFolderId(note?.folderId || null);
+    // 새 메모를 만들 때는 "개인" 폴더가 있으면 기본으로 거기에 담기게 함(기존 메모 수정 시엔 그 메모의 폴더 그대로)
+    setFolderId(note ? (note.folderId || null) : (folders.find((f: any) => f.name === '개인')?.id ?? null));
     setFormat((note?.format as NoteFormat) || 'plain');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note]);
 
   // 어디를 탭해서 들어왔는지에 따라 제목이 아니라 실제 탭한 위치(내용)에 커서를 둠

@@ -86,9 +86,9 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
         </div>
       </div>
 
-      {/* 실제로 만들어져 있는 폴더 색깔만 원으로 보여줘서 탭 한 번으로 그 폴더만 보기 */}
+      {/* 실제로 만들어져 있는 폴더만 아이콘으로 보여줘서 탭 한 번으로 그 폴더만 보기 */}
       {folders.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto px-1 pb-0.5">
+        <div className="flex items-center justify-end gap-1 overflow-x-auto px-1 pb-0.5">
           {folders.map((f: any) => {
             const c = getFolderColor(f.id, folders);
             const active = activeFolderId === f.id;
@@ -97,8 +97,11 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
                 key={f.id}
                 onClick={() => setActiveFolderId(active ? 'all' : f.id)}
                 title={f.name}
-                className={`w-6 h-6 rounded-full shrink-0 transition ${c.dot} ${active ? 'ring-4 ring-slate-900 dark:ring-white scale-110' : 'opacity-50 hover:opacity-90'}`}
-              />
+                className={`shrink-0 flex items-center gap-1 px-1.5 py-1 rounded-lg transition max-w-[6rem] ${active ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+              >
+                <Folder className={`w-4 h-4 shrink-0 ${c.text} ${active ? '' : 'opacity-60'}`} />
+                <span className={`hidden sm:inline text-xs font-bold truncate ${c.text} ${active ? '' : 'opacity-60'}`}>{f.name}</span>
+              </button>
             );
           })}
         </div>

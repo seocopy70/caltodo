@@ -65,6 +65,7 @@ export default function Home() {
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const hscrollElRef = useRef<HTMLElement | null>(null);
+  const noTabCycleRef = useRef<boolean>(false);
 
   const notify = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -164,6 +165,14 @@ export default function Home() {
   // 탭을 바꿀 때 이전 탭에서의 스크롤 위치가 남아있으면, 새 탭(특히 캘린더)의 "화면에 맞춰 높이 계산"
   // 로직이 잘못된 위치를 기준으로 계산해버려 레이아웃이 어긋나는 문제가 있었음 — 탭 전환 시 항상 맨 위로.
   const go = (next: typeof view) => { setView(next); setMenuOpen(false); window.scrollTo(0, 0); };
+  // 메인메뉴 항목을 눌러 모달을 열 때, "메뉴 닫기"와 "모달 열기"가 같은 클릭에서 동시에 일어나면
+  // 메뉴 자신의 뒤로가기 정리 로직(useModalBackClose)이 자기 히스토리 항목을 못 지우고 남겨버리는
+  //문제가 있었음(메인메뉴에서 창을 열었다가 닫은 뒤 화면이 예상 못하게 초기화되던 원인으로 추정).
+  // 메뉴를 먼저 완전히 닫고(그 정리가 끝난 뒤) 다음 틱에 모달을 열어서 이 둘이 겹치지 않게 함.
+  const openFromMenu = (openFn: () => void) => {
+    setMenuOpen(false);
+    setTimeout(openFn, 0);
+  };
   // 목록 탭은 메인메뉴로 이동했으므로 탭바/스와이프 순환에서는 제외 (view 상태 자체는 유지)
   const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['calendar', '일정'], ['todo', '할일'], ['notes', '메모']];
   const activeNotes = notes.filter((n: any) => !n.deletedAt);
@@ -178,11 +187,14 @@ export default function Home() {
     // 일정표(월/주별보기) 영역 안이면 해당 스크롤 요소를 기억해뒀다가, 끝에 도달한 상태에서
     // 그 방향으로 더 밀었을 때만 탭 순환으로 이어지도록 함
     hscrollElRef.current = (e.target as HTMLElement).closest('[data-hscroll]') as HTMLElement | null;
+    // 일정탭 "넓게보기" 상태에서는 끝까지 밀어도 탭 순환으로 이어지면 안 되므로 아예 별도로 표시
+    noTabCycleRef.current = !!(e.target as HTMLElement).closest('[data-no-tab-cycle]');
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
     // 입력창/수정창 등 모달이 하나라도 열려있으면(useModalBackClose로 추적) 그 안에서의 좌우 스크롤이
     // 탭 순환으로 이어지지 않도록 함 — 이전에는 개별 상태(anyOverlayOpen)만 확인해서 놓치는 모달이 있었음
-    if (touchStartX.current === null || touchStartY.current === null || anyOverlayOpen || isAnyModalOpen()) { touchStartX.current = null; touchStartY.current = null; return; }
+    if (touchStartX.current === null || touchStartY.current === null || anyOverlayOpen || isAnyModalOpen()) { touchStartX.current = null; touchStartY.current = null; noTabCycleRef.current = false; return; }
+    if (noTabCycleRef.current) { touchStartX.current = null; touchStartY.current = null; noTabCycleRef.current = false; return; }
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
     touchStartX.current = null;
@@ -267,16 +279,16 @@ export default function Home() {
       <ModalBackCloseGuard onClose={() => setMenuOpen(false)} />
       <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
       <div className="fixed top-14 left-2 z-50 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-2">
-        <button onClick={() => { setIsImportExportOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">가져오기 / 내보내기</button>
-        <button onClick={() => { setIsEmailBackupOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">이메일 백업</button>
+        <button onClick={() => openFromMenu(() => setIsImportExportOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">가져오기 / 내보내기</button>
+        <button onClick={() => openFromMenu(() => setIsEmailBackupOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">이메일 백업</button>
         <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
         <button onClick={() => go('list')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">일정 목록 보기</button>
-        <button onClick={() => { setIsDataManagementOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">일정데이터 관리</button>
-        <button onClick={() => { setIsAnniversaryOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">기념일 관리</button>
+        <button onClick={() => openFromMenu(() => setIsDataManagementOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">일정데이터 관리</button>
+        <button onClick={() => openFromMenu(() => setIsAnniversaryOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">기념일 관리</button>
         <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
-        <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">{isDarkMode ? '밝은 모드' : '다크 모드'}</button>
-        <button onClick={() => { setIsHelpOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">도움말</button>
-        <button onClick={() => { setIsVersionOpen(true); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">버전 정보</button>
+        <button onClick={() => { setIsDarkMode(!isDarkMode); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">{isDarkMode ? '밝은 모드' : '다크 모드'}</button>
+        <button onClick={() => openFromMenu(() => setIsHelpOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">도움말</button>
+        <button onClick={() => openFromMenu(() => setIsVersionOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">버전 정보</button>
         <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
         <button onClick={() => signOut(auth)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">로그아웃</button>
       </div>
