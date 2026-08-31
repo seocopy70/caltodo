@@ -19,7 +19,7 @@ import NoteModal from '../components/calendar/NoteModal';
 import VersionModal from '../components/calendar/VersionModal';
 import HelpModal from '../components/calendar/HelpModal';
 import { LogIn, Menu, Search, CalendarSearch } from 'lucide-react';
-import { ModalBackCloseGuard, isAnyModalOpen, consumeProgrammaticPop } from '../lib/useModalBackClose';
+import { ModalBackCloseGuard, isAnyModalOpen } from '../lib/useModalBackClose';
 
 // 앱을 다시 열었을 때 "빈 오늘탭 → 잠시 후 데이터로 채워짐"으로 깜빡이는 대신, 지난번에 불러온
 // 데이터를 즉시 화면에 먼저 보여주고(약간 오래된 상태일 수 있음) 그 사이 서버에서 최신 데이터를
@@ -46,7 +46,6 @@ export default function Home() {
   const [isVersionOpen, setIsVersionOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [searchDate, setSearchDate] = useState('');
   const searchDateRef = useRef<HTMLInputElement>(null);
@@ -98,32 +97,15 @@ export default function Home() {
     return () => document.removeEventListener('contextmenu', handler);
   }, []);
 
-  // 뒤로가기를 눌렀는데 닫을 모달/메뉴가 하나도 없으면(=눈에 보이는 동작이 없으면) 바로 앱이
-  // 꺼지는 대신 "종료할까요?" 확인창을 띄운다. 최대한 단순하게: 타이머나 재시도 카운트 없이,
-  // 이 화면이 열려있는 동안만 뒤로가기를 다시 누르면 그게 곧 '취소'가 되도록 한다.
-  // 히스토리에 가드 항목을 하나 쌓아둬야만 애초에 이 popstate를 가로챌 수 있어서 그렇게 해둔다.
+  // 뒤로가기를 눌렀을 때 곧바로 앱이 꺼지지 않도록, 앱을 시작할 때 딱 한 번만 히스토리에
+  // 여분 항목을 하나 쌓아둔다. 재시도/재무장/확인창 같은 추가 로직은 전혀 없음 - 그런 걸
+  // 넣을수록 다른 모달들의 뒤로가기 처리(useModalBackClose)와 얽혀서 예상 못한 순간에
+  // 화면이 초기화되는 문제가 반복됐기 때문에, 이번엔 최대한 단순하게 이것만 한다.
+  // (그래서 실수로 뒤로가기 한 번 누른 건 막아주지만, 연달아 여러 번 누르면 결국 종료된다.)
   useEffect(() => {
-    window.history.pushState({ __rootGuard: true }, '');
-    const handlePop = () => {
-      if (consumeProgrammaticPop()) return; // 모달 내부 정리용 popstate는 실제 사용자 동작이 아니므로 무시
-      if (isAnyModalOpen()) return; // 모달을 닫는 뒤로가기였음 - 그 모달 쪽에서 이미 처리함
-      setExitConfirmOpen(true);
-    };
-    window.addEventListener('popstate', handlePop);
-    return () => window.removeEventListener('popstate', handlePop);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    window.history.pushState(null, '');
   }, []);
 
-  const cancelExit = () => {
-    setExitConfirmOpen(false);
-    // 취소했으면 다음에 또 뒤로가기를 눌렀을 때 다시 물어볼 수 있도록 가드를 즉시 다시 세워둠
-    window.history.pushState({ __rootGuard: true }, '');
-  };
-  const confirmExit = () => {
-    setExitConfirmOpen(false);
-    try { window.close(); } catch { /* 스크립트로 연 창이 아니면 대부분 실패하는데, 그건 정상 */ }
-    // 가드를 다시 세우지 않음 - window.close()가 안 먹히는 환경이면, 다음 뒤로가기에 실제로 종료됨
-  };
 
   const refreshData = useCallback(async () => {
     if (!auth.currentUser) return;
@@ -179,7 +161,7 @@ export default function Home() {
   // 수정할 때마다(체크박스 토글 등으로 updatedAt이 바뀔 때마다) 카드 위치가 요동치지 않도록,
   // 오늘 탭에서는 항상 생성순으로 고정 정렬한다 (activeNotes는 updatedAt 내림차순이라 그대로 쓰면 안 됨).
   const todayNotes = [...activeNotes].filter((n: any) => n.showToday).sort((a: any, b: any) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
-  const anyOverlayOpen = menuOpen || exitConfirmOpen || isImportExportOpen || isEmailBackupOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim() || !!searchDate;
+  const anyOverlayOpen = menuOpen || isImportExportOpen || isEmailBackupOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim() || !!searchDate;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -300,21 +282,5 @@ export default function Home() {
     {editingTodo && <TodoModal todo={editingTodo} folders={todoFolders} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
     {(editingNote || isNewNoteOpen) && <NoteModal note={editingNote} folders={noteFolders} secureFolderId={noteFolders.find((f: any) => f.isSecure)?.id || null} initialFocus={editingNoteFocus?.focus} initialLineIndex={editingNoteFocus?.lineIndex} initialCharOffset={editingNoteFocus?.charOffset} onClose={() => { setEditingNote(null); setIsNewNoteOpen(false); setEditingNoteFocus(null); }} onRefresh={refreshData} onNotify={notify} />}
     {toast && <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold ${toast.type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>{toast.message}</div>}
-    {exitConfirmOpen && (
-      <div
-        className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4"
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => e.stopPropagation()}
-      >
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-xs rounded-2xl shadow-2xl p-5 space-y-4">
-          <p className="text-sm font-bold text-slate-900 dark:text-white">앱을 종료할까요?</p>
-          <div className="flex gap-2">
-            <button onClick={cancelExit} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-bold text-slate-600 dark:text-slate-300">아니요</button>
-            <button onClick={confirmExit} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-bold text-white">종료</button>
-          </div>
-        </div>
-      </div>
-    )}
   </div>;
 }

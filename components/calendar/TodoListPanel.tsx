@@ -79,6 +79,17 @@ export default function TodoListPanel({
   const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
   const [quickActionsFor, setQuickActionsFor] = useState<any>(null);
   const [folderPickerFor, setFolderPickerFor] = useState<any>(null);
+  const [folderPickerAnchor, setFolderPickerAnchor] = useState<{ top: number; left: number } | null>(null);
+  const openFolderPicker = (todo: any, e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    // 버튼 근처(바로 아래, 화면 밖으로 안 나가게 보정)에 뜨도록 위치를 같이 저장
+    const width = 176; // w-44
+    let left = rect.left;
+    if (left + width > window.innerWidth - 8) left = window.innerWidth - width - 8;
+    if (left < 8) left = 8;
+    setFolderPickerAnchor({ top: rect.bottom + 6, left });
+    setFolderPickerFor(todo);
+  };
   const listRef = useRef<HTMLDivElement>(null);
   const notify = onNotify || (() => {});
 
@@ -213,7 +224,7 @@ export default function TodoListPanel({
               <span className="text-base font-medium truncate text-slate-900 dark:text-slate-100">{todo.title}</span>
               {todo.dueDate && (() => { const d = dueDateLabel(todo.dueDate, showRelativeDates); return <span className={`text-base font-medium shrink-0 ${d.isNear ? 'text-orange-500 dark:text-orange-400' : 'text-slate-400'}`}>{d.text}</span>; })()}
             </div>
-            <button onClick={() => setFolderPickerFor(todo)} className="transition shrink-0 flex items-center gap-1 max-w-[6.5rem]" title="폴더 선택">
+            <button onClick={(e) => openFolderPicker(todo, e)} className="transition shrink-0 flex items-center gap-1 max-w-[6.5rem]" title="폴더 선택">
               {(() => { const fc = todo.folderId ? getFolderColor(todo.folderId, folders) : null; return (
                 <>
                   <Folder className={`w-4 h-4 shrink-0 ${fc ? fc.text : 'text-slate-400 dark:text-slate-600'}`} />
@@ -308,15 +319,20 @@ export default function TodoListPanel({
         </>
       )}
 
-      {folderPickerFor && (
+      {folderPickerFor && folderPickerAnchor && (
         <>
           <ModalBackCloseGuard onClose={() => setFolderPickerFor(null)} />
           <div className="fixed inset-0 z-40" onClick={() => setFolderPickerFor(null)} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
-          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-4 space-y-2" onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
-            <p className="text-sm font-bold truncate text-slate-800 dark:text-slate-200 mb-1">{folderPickerFor.title}</p>
+          <div
+            style={{ top: folderPickerAnchor.top, left: folderPickerAnchor.left, width: 176 }}
+            className="fixed z-50 max-h-72 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 space-y-0.5"
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => applyFolderChange(null)}
-              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 ${!folderPickerFor.folderId ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              className={`w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${!folderPickerFor.folderId ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
             >
               <span className="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0" />
               미분류
@@ -327,10 +343,10 @@ export default function TodoListPanel({
                 <button
                   key={f.id}
                   onClick={() => applyFolderChange(f.id)}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 ${folderPickerFor.folderId === f.id ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                  className={`w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${folderPickerFor.folderId === f.id ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
                 >
                   <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${fc.dot}`} />
-                  {f.name}
+                  <span className="truncate">{f.name}</span>
                 </button>
               );
             })}

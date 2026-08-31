@@ -26,6 +26,16 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const [activeFolderId, setActiveFolderId] = useState<string | 'all' | 'none'>('all');
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [noteFolderPickerFor, setNoteFolderPickerFor] = useState<any>(null);
+  const [noteFolderPickerAnchor, setNoteFolderPickerAnchor] = useState<{ top: number; left: number } | null>(null);
+  const openNoteFolderPicker = (note: any, e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const width = 176;
+    let left = rect.left;
+    if (left + width > window.innerWidth - 8) left = window.innerWidth - width - 8;
+    if (left < 8) left = 8;
+    setNoteFolderPickerAnchor({ top: rect.bottom + 6, left });
+    setNoteFolderPickerFor(note);
+  };
   const [secureModal, setSecureModal] = useState<{ folder: any; mode: 'setup' | 'unlock' | 'disable' } | null>(null);
   const [unlockedSecureId, setUnlockedSecureId] = useState<string | null>(null);
   const [secureSearchQuery, setSecureSearchQuery] = useState('');
@@ -236,7 +246,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
                   {note.updatedAt && <p className="text-[10px] text-slate-400 dark:text-slate-600 shrink-0">{format(note.updatedAt, 'M월 d일 HH:mm', { locale: ko })}</p>}
                   {folders.length > 0 && (() => { const fc = note.folderId ? getFolderColor(note.folderId, folders) : null; return (
                     <button
-                      onClick={(e) => { e.stopPropagation(); setNoteFolderPickerFor(note); }}
+                      onClick={(e) => { e.stopPropagation(); openNoteFolderPicker(note, e); }}
                       className="flex items-center gap-1 shrink-0 max-w-[7rem]"
                       title="폴더 선택"
                     >
@@ -290,15 +300,20 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     {viewingDeletedNote && <NoteViewModal note={viewingDeletedNote} editable={false} onClose={() => setViewingDeletedNote(null)} />}
     {secureModal && <SecureFolderModal folder={secureModal.folder} mode={secureModal.mode} onClose={() => setSecureModal(null)} onSuccess={onSecureSuccess} onNotify={notify} />}
     {folderModal && <FolderModal folder={folderModal.mode === 'rename' ? folderModal.folder : null} onSave={saveFolderModal} onClose={() => setFolderModal(null)} />}
-    {noteFolderPickerFor && (
+    {noteFolderPickerFor && noteFolderPickerAnchor && (
       <>
         <ModalBackCloseGuard onClose={() => setNoteFolderPickerFor(null)} />
         <div className="fixed inset-0 z-40" onClick={() => setNoteFolderPickerFor(null)} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
-        <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-4 space-y-2" onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
-          <p className="text-sm font-bold truncate text-slate-800 dark:text-slate-200 mb-1">{noteFolderPickerFor.title}</p>
+        <div
+          style={{ top: noteFolderPickerAnchor.top, left: noteFolderPickerAnchor.left, width: 176 }}
+          className="fixed z-50 max-h-72 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 space-y-0.5"
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
           <button
             onClick={() => { assignFolder(noteFolderPickerFor, null); setNoteFolderPickerFor(null); }}
-            className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 ${!noteFolderPickerFor.folderId ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+            className={`w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${!noteFolderPickerFor.folderId ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0" />
             미분류
@@ -309,10 +324,10 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
               <button
                 key={f.id}
                 onClick={() => { assignFolder(noteFolderPickerFor, f.id); setNoteFolderPickerFor(null); }}
-                className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 ${noteFolderPickerFor.folderId === f.id ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                className={`w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${noteFolderPickerFor.folderId === f.id ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
               >
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${fc.dot}`} />
-                {f.name}{f.isSecure ? ' 🔒' : ''}
+                <span className="truncate">{f.name}{f.isSecure ? ' 🔒' : ''}</span>
               </button>
             );
           })}

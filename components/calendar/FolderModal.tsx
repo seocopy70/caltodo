@@ -45,8 +45,7 @@ export default function FolderModal({ folder, onSave, onClose }: { folder?: any;
           onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
         />
         <div>
-          <p className="text-[11px] font-bold text-slate-500 mb-2">색깔 (좌우로 넘기면 더 있어요)</p>
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex justify-center gap-2 overflow-x-auto pb-1">
             {PALETTE_KEYS.map((key) => {
               const c = getColorByKey(key);
               const selected = color === key;
