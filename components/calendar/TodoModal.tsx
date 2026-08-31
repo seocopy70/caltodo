@@ -22,14 +22,14 @@ const PRIORITIES = [
 function AutocompleteDropdown({ suggestions, onSelect }: { suggestions: string[]; onSelect: (v: string) => void }) {
   if (suggestions.length === 0) return null;
   return (
-    <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden">
+    <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
       {suggestions.map((s) => (
         <button
           key={s}
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => onSelect(s)}
-          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-800 truncate"
+          className="w-full text-left px-3 py-2 text-sm text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 truncate"
         >
           {s}
         </button>
@@ -157,16 +157,16 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
         <div className="p-6 space-y-5">
           <div className="flex justify-between items-center">
-            <h3 className="font-bold text-xl text-white">{isEdit ? '할 일 수정' : '새 할 일'}</h3>
-            <button onClick={onClose} className="p-1 hover:bg-slate-800 rounded-full"><X/></button>
+            <h3 className="font-bold text-xl text-slate-900 dark:text-white">{isEdit ? '할 일 수정' : '새 할 일'}</h3>
+            <button onClick={onClose} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 dark:text-slate-300"><X/></button>
           </div>
           <div className="relative">
             <input
               autoFocus
-              className="w-full bg-transparent text-xl font-bold focus:outline-none border-b border-slate-700 pb-2"
+              className="w-full bg-transparent text-xl font-bold focus:outline-none border-b border-slate-200 dark:border-slate-700 pb-2 text-slate-900 dark:text-white"
               placeholder="할 일 내용"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -177,21 +177,21 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
             {titleSuggestOpen && <AutocompleteDropdown suggestions={suggestionsFor(title)} onSelect={(v) => { setTitle(v); setTitleSuggestOpen(false); }} />}
           </div>
 
-          <div className="flex items-center gap-3 bg-slate-800 p-3 rounded-2xl">
+          <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
             <CalIcon className="w-4 h-4 text-slate-500" />
-            <input type="date" className="bg-transparent flex-1 outline-none text-sm" value={dueDate} onChange={(e) => handleDueDateChange(e.target.value)} />
+            <input type="date" className="bg-transparent flex-1 outline-none text-sm text-slate-900 dark:text-slate-100" value={dueDate} onChange={(e) => handleDueDateChange(e.target.value)} />
             {dueDate && (
               <button onClick={() => setDueDate('')} className="text-[10px] text-slate-500 hover:text-rose-400">날짜 제거</button>
             )}
           </div>
-          <div className="flex items-start gap-3 bg-slate-800 p-3 rounded-2xl">
+          <div className="flex items-start gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
             <AlignLeft className="w-4 h-4 text-slate-500 mt-1" />
-            <textarea className="bg-transparent flex-1 outline-none text-sm h-16 resize-none" placeholder="메모" value={memo} onChange={(e) => setMemo(e.target.value)} />
+            <textarea className="bg-transparent flex-1 outline-none text-sm h-16 resize-none text-slate-900 dark:text-slate-100" placeholder="메모" value={memo} onChange={(e) => setMemo(e.target.value)} />
           </div>
           {folders.length > 0 && (
-            <div className="flex items-center gap-3 bg-slate-800 p-3 rounded-2xl">
+            <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-2xl">
               <Folder className="w-4 h-4 text-slate-500 shrink-0" />
-              <select className="bg-transparent flex-1 outline-none text-sm" value={folderId || ''} onChange={(e) => setFolderId(e.target.value || null)}>
+              <select className="bg-transparent flex-1 outline-none text-sm text-slate-900 dark:text-slate-100" value={folderId || ''} onChange={(e) => setFolderId(e.target.value || null)}>
                 <option value="">미분류</option>
                 {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
@@ -206,14 +206,14 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
                 type="button"
                 onClick={() => { const next = priority === p.key ? null : p.key; setPriority(next); save(next); }}
                 title={p.key === 'red' ? '긴급' : p.key === 'yellow' ? '보통' : '여유'}
-                className={`w-7 h-7 rounded-full ${p.dot} transition ${priority === p.key ? `ring-4 ring-offset-2 ring-offset-slate-900 ${p.ring} scale-110` : 'opacity-40 hover:opacity-80'}`}
+                className={`w-7 h-7 rounded-full ${p.dot} transition ${priority === p.key ? `ring-4 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ${p.ring} scale-110` : 'opacity-40 hover:opacity-80'}`}
               />
             ))}
           </div>
 
           <div className="flex gap-3 pt-4">
             {isEdit && <button onClick={remove} className="p-3 text-rose-500 hover:bg-rose-500/10 rounded-2xl"><Trash2/></button>}
-            <button onClick={onClose} className="flex-1 py-3 font-bold text-slate-400">취소</button>
+            <button onClick={onClose} className="flex-1 py-3 font-bold text-slate-500 dark:text-slate-400">취소</button>
             <button onClick={() => save()} className="flex-[2] py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold">{isEdit ? '저장' : '추가'}</button>
           </div>
         </div>
@@ -223,10 +223,10 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
         <>
           <ModalBackCloseGuard onClose={() => setLinkConfirm(null)} />
           <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-xs rounded-2xl shadow-2xl p-5 space-y-4">
-              <p className="text-sm font-bold text-white">일정으로도 저장할까요?</p>
-              <p className="text-xs text-slate-400">이 날짜를 하루 종일 일정으로도 캘린더에 함께 저장할 수 있어요.</p>
-              <label className="flex items-center gap-2 text-xs text-slate-400">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-xs rounded-2xl shadow-2xl p-5 space-y-4">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">일정으로도 저장할까요?</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">이 날짜를 하루 종일 일정으로도 캘린더에 함께 저장할 수 있어요.</p>
+              <label className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 <input
                   type="checkbox"
                   checked={linkConfirm.dontAskAgain}
@@ -236,7 +236,7 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
                 다시 묻지 않기
               </label>
               <div className="flex gap-2 pt-1">
-                <button onClick={() => resolveLinkConfirm('no')} className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold text-slate-300">아니요</button>
+                <button onClick={() => resolveLinkConfirm('no')} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-bold text-slate-600 dark:text-slate-300">아니요</button>
                 <button onClick={() => resolveLinkConfirm('yes')} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-bold text-white">네</button>
               </div>
             </div>

@@ -44,8 +44,10 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
 
   return (
     <div className="max-w-2xl mx-auto p-2 space-y-2">
-      {/* 메모탭 상단과 동일한 레이아웃: 폴더(아이콘만) + 새 할일 (카드/목록 토글만 없음) */}
+      {/* 메모탭 상단과 동일한 레이아웃: 새 할일 버튼 + 폴더(아이콘만, 오른쪽) */}
       <div className="flex items-center gap-2">
+        <button onClick={() => setIsNewTodoOpen(true)} className="flex-1 flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-xl text-slate-500 dark:text-slate-400 hover:border-blue-500/50 transition font-bold text-sm"><Plus className="w-5 h-5" /> 새 할일</button>
+
         <div className="relative shrink-0">
           <button onClick={() => setFolderPickerOpen(true)} title={currentFolderLabel} className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800">
             <Folder className={`w-6 h-6 ${currentFolderColor ? currentFolderColor.text : 'text-slate-500'}`} />
@@ -82,9 +84,25 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
             </>
           )}
         </div>
-
-        <button onClick={() => setIsNewTodoOpen(true)} className="flex-1 flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-xl text-slate-500 dark:text-slate-400 hover:border-blue-500/50 transition font-bold text-sm"><Plus className="w-5 h-5" /> 새 할일</button>
       </div>
+
+      {/* 실제로 만들어져 있는 폴더 색깔만 원으로 보여줘서 탭 한 번으로 그 폴더만 보기 */}
+      {folders.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto px-1 pb-0.5">
+          {folders.map((f: any) => {
+            const c = getFolderColor(f.id, folders);
+            const active = activeFolderId === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setActiveFolderId(active ? 'all' : f.id)}
+                title={f.name}
+                className={`w-6 h-6 rounded-full shrink-0 transition ${c.dot} ${active ? 'ring-4 ring-slate-900 dark:ring-white scale-110' : 'opacity-50 hover:opacity-90'}`}
+              />
+            );
+          })}
+        </div>
+      )}
 
       <TodoListPanel
         todos={visibleTodos}

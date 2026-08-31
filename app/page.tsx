@@ -30,7 +30,15 @@ const bootstrapCacheKey = (uid: string) => BOOTSTRAP_CACHE_PREFIX + uid;
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'today' | 'calendar' | 'list' | 'todo' | 'notes'>('today');
+  const [view, setView] = useState<'today' | 'calendar' | 'list' | 'todo' | 'notes'>(() => {
+    // 원인이 확실친 않지만(아마 백그라운드 상태에서 브라우저/WebView가 메모리 확보를 위해
+    // 페이지를 통째로 새로고침하는 경우로 추정) 가끔 앱이 예고 없이 재시작될 때가 있음.
+    // 그때 무조건 오늘탭으로 돌아가지 않도록, 마지막으로 보던 탭을 기억해뒀다가 복원.
+    if (typeof window === 'undefined') return 'today';
+    const saved = window.localStorage.getItem('cal2do-last-view');
+    if (saved === 'today' || saved === 'calendar' || saved === 'list' || saved === 'todo' || saved === 'notes') return saved;
+    return 'today';
+  });
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [events, setEvents] = useState<any[]>([]);
   const [todos, setTodos] = useState<any[]>([]);
@@ -139,6 +147,7 @@ export default function Home() {
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', handleVisibility); };
   }, [user, refreshData]);
   useEffect(() => { document.documentElement.classList.toggle('dark', isDarkMode); }, [isDarkMode]);
+  useEffect(() => { try { window.localStorage.setItem('cal2do-last-view', view); } catch { /* 저장 실패해도 무시(치명적이지 않음) */ } }, [view]);
 
   const handleLogin = async () => {
     setAuthError(null);

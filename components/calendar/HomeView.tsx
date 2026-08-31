@@ -73,6 +73,7 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
       showRelativeDates
       expanded={todosExpanded}
       onExpandedChange={(v: boolean) => setExpandedSection(v ? 'todos' : null)}
+      showFolderFilter
     />
 
     <section className="rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden">

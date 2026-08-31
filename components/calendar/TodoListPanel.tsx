@@ -64,6 +64,7 @@ export default function TodoListPanel({
   showRelativeDates = false,
   expanded: expandedProp,
   onExpandedChange,
+  showFolderFilter = false,
 }: any) {
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [expandedState, setExpandedState] = useState(false);
@@ -74,31 +75,37 @@ export default function TodoListPanel({
     const next = typeof v === 'function' ? (v as (prev: boolean) => boolean)(expanded) : v;
     if (onExpandedChange) onExpandedChange(next); else setExpandedState(next);
   };
+  const [colorFilterId, setColorFilterId] = useState<string | 'all'>('all');
   const [showCompleted, setShowCompleted] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
   const [quickActionsFor, setQuickActionsFor] = useState<any>(null);
   const [folderPickerFor, setFolderPickerFor] = useState<any>(null);
-  const [folderPickerAnchor, setFolderPickerAnchor] = useState<{ top: number; left: number } | null>(null);
+  const [folderPickerAnchor, setFolderPickerAnchor] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
   const openFolderPicker = (todo: any, e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    // 버튼 근처(바로 아래, 화면 밖으로 안 나가게 보정)에 뜨도록 위치를 같이 저장
+    // 버튼 근처(기본은 바로 아래, 아래쪽 공간이 부족하면 위로 뒤집어서)에 뜨도록 위치를 같이 저장
     const width = 176; // w-44
     let left = rect.left;
     if (left + width > window.innerWidth - 8) left = window.innerWidth - width - 8;
     if (left < 8) left = 8;
-    setFolderPickerAnchor({ top: rect.bottom + 6, left });
+    const spaceBelow = window.innerHeight - rect.bottom;
+    if (spaceBelow < 220 && rect.top > spaceBelow) {
+      setFolderPickerAnchor({ left, bottom: window.innerHeight - rect.top + 6 });
+    } else {
+      setFolderPickerAnchor({ left, top: rect.bottom + 6 });
+    }
     setFolderPickerFor(todo);
   };
   const listRef = useRef<HTMLDivElement>(null);
   const notify = onNotify || (() => {});
 
-  const activeTodosSorted = todos.filter((t: any) => !t.completed).sort(sortActive);
+  const activeTodosSorted = todos.filter((t: any) => !t.completed && (colorFilterId === 'all' || t.folderId === colorFilterId)).sort(sortActive);
   const activeTodos = previewOrder
     ? (previewOrder.map((id) => activeTodosSorted.find((t: any) => t.id === id)).filter(Boolean) as any[])
     : activeTodosSorted;
   const completedTodos = todos
-    .filter((t: any) => t.completed)
+    .filter((t: any) => t.completed && (colorFilterId === 'all' || t.folderId === colorFilterId))
     .sort((a: any, b: any) => {
       const at = a.completedAt?.getTime?.() ?? a.createdAt?.getTime?.() ?? 0;
       const bt = b.completedAt?.getTime?.() ?? b.createdAt?.getTime?.() ?? 0;
@@ -210,6 +217,25 @@ export default function TodoListPanel({
           {!expanded && <span>{activeTodos.length}</span>}
           {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
+      )}
+
+      {/* 실제로 존재하는 폴더 색만 원으로 보여줘서 탭 한 번으로 그 폴더만 보기. 오늘탭처럼 접힌 상태에선
+          자리를 아끼려고 숨기고, 펼쳤을 때만(또는 maxVisible 없이 쓰는 할일 탭에서는 항상) 보여줌. */}
+      {showFolderFilter && folders.length > 0 && (!maxVisible || expanded) && (
+        <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 border-b border-slate-100 dark:border-slate-700/40">
+          {folders.map((f: any) => {
+            const c = getFolderColor(f.id, folders);
+            const active = colorFilterId === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setColorFilterId(active ? 'all' : f.id)}
+                title={f.name}
+                className={`w-5 h-5 rounded-full shrink-0 transition ${c.dot} ${active ? 'ring-4 ring-slate-900 dark:ring-white scale-110' : 'opacity-50 hover:opacity-90'}`}
+              />
+            );
+          })}
+        </div>
       )}
 
       <div ref={listRef} className={`divide-y divide-slate-100 dark:divide-slate-700/30 ${maxVisible && expanded ? 'max-h-[50vh] overflow-y-auto' : ''}`}>
@@ -324,7 +350,7 @@ export default function TodoListPanel({
           <ModalBackCloseGuard onClose={() => setFolderPickerFor(null)} />
           <div className="fixed inset-0 z-40" onClick={() => setFolderPickerFor(null)} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
           <div
-            style={{ top: folderPickerAnchor.top, left: folderPickerAnchor.left, width: 176 }}
+            style={{ left: folderPickerAnchor.left, width: 176, ...(folderPickerAnchor.top !== undefined ? { top: folderPickerAnchor.top } : { bottom: folderPickerAnchor.bottom }) }}
             className="fixed z-50 max-h-72 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 space-y-0.5"
             onTouchStart={(e) => e.stopPropagation()}
             onTouchMove={(e) => e.stopPropagation()}

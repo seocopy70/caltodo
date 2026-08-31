@@ -26,14 +26,19 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const [activeFolderId, setActiveFolderId] = useState<string | 'all' | 'none'>('all');
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [noteFolderPickerFor, setNoteFolderPickerFor] = useState<any>(null);
-  const [noteFolderPickerAnchor, setNoteFolderPickerAnchor] = useState<{ top: number; left: number } | null>(null);
+  const [noteFolderPickerAnchor, setNoteFolderPickerAnchor] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
   const openNoteFolderPicker = (note: any, e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const width = 176;
     let left = rect.left;
     if (left + width > window.innerWidth - 8) left = window.innerWidth - width - 8;
     if (left < 8) left = 8;
-    setNoteFolderPickerAnchor({ top: rect.bottom + 6, left });
+    const spaceBelow = window.innerHeight - rect.bottom;
+    if (spaceBelow < 220 && rect.top > spaceBelow) {
+      setNoteFolderPickerAnchor({ left, bottom: window.innerHeight - rect.top + 6 });
+    } else {
+      setNoteFolderPickerAnchor({ left, top: rect.bottom + 6 });
+    }
     setNoteFolderPickerFor(note);
   };
   const [secureModal, setSecureModal] = useState<{ folder: any; mode: 'setup' | 'unlock' | 'disable' } | null>(null);
@@ -136,6 +141,12 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   return <div className="max-w-2xl mx-auto space-y-4 p-2">
     {/* 폴더(아이콘만) + 새 메모 + 카드/목록 토글을 한 줄로 */}
     <div className="flex items-center gap-2">
+      <button onClick={() => onNewNote?.()} className="flex-1 flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-xl text-slate-500 dark:text-slate-400 hover:border-blue-500/50 transition font-bold text-sm"><Plus className="w-5 h-5" /> 새 메모</button>
+
+      <button onClick={() => setLayoutMode((m) => (m === 'card' ? 'title' : 'card'))} title={layoutMode === 'card' ? '제목 목록으로 보기' : '카드형으로 보기'} className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shrink-0 text-slate-500">
+        {layoutMode === 'card' ? <List className="w-5 h-5" /> : <LayoutGrid className="w-5 h-5" />}
+      </button>
+
       <div className="relative shrink-0">
         <button onClick={() => setFolderPickerOpen(true)} title={currentFolderLabel} className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800">
           <Folder className={`w-6 h-6 ${currentFolderColor ? currentFolderColor.text : 'text-slate-500'}`} />
@@ -178,12 +189,6 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
           </>
         )}
       </div>
-
-      <button onClick={() => onNewNote?.()} className="flex-1 flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-xl text-slate-500 dark:text-slate-400 hover:border-blue-500/50 transition font-bold text-sm"><Plus className="w-5 h-5" /> 새 메모</button>
-
-      <button onClick={() => setLayoutMode((m) => (m === 'card' ? 'title' : 'card'))} title={layoutMode === 'card' ? '제목 목록으로 보기' : '카드형으로 보기'} className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shrink-0 text-slate-500">
-        {layoutMode === 'card' ? <List className="w-5 h-5" /> : <LayoutGrid className="w-5 h-5" />}
-      </button>
     </div>
 
     {isViewingLockedSecure ? (
@@ -305,7 +310,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
         <ModalBackCloseGuard onClose={() => setNoteFolderPickerFor(null)} />
         <div className="fixed inset-0 z-40" onClick={() => setNoteFolderPickerFor(null)} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
         <div
-          style={{ top: noteFolderPickerAnchor.top, left: noteFolderPickerAnchor.left, width: 176 }}
+          style={{ left: noteFolderPickerAnchor.left, width: 176, ...(noteFolderPickerAnchor.top !== undefined ? { top: noteFolderPickerAnchor.top } : { bottom: noteFolderPickerAnchor.bottom }) }}
           className="fixed z-50 max-h-72 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 space-y-0.5"
           onTouchStart={(e) => e.stopPropagation()}
           onTouchMove={(e) => e.stopPropagation()}
