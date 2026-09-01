@@ -15,6 +15,7 @@ import ImportExportPanel from '../components/calendar/ImportExportPanel';
 import EmailBackupPanel from '../components/calendar/EmailBackupPanel';
 import DataManagementPanel from '../components/calendar/DataManagementPanel';
 import AnniversaryModal from '../components/calendar/AnniversaryModal';
+import TodoEventLinkSettingsModal from '../components/calendar/TodoEventLinkSettingsModal';
 import TodoModal from '../components/calendar/TodoModal';
 import NoteModal from '../components/calendar/NoteModal';
 import VersionModal from '../components/calendar/VersionModal';
@@ -44,6 +45,7 @@ export default function Home() {
   const [isEmailBackupOpen, setIsEmailBackupOpen] = useState(false);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
   const [isAnniversaryOpen, setIsAnniversaryOpen] = useState(false);
+  const [isTodoLinkPrefOpen, setIsTodoLinkPrefOpen] = useState(false);
   const [isVersionOpen, setIsVersionOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -298,6 +300,7 @@ export default function Home() {
         <button onClick={() => go('list')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">일정 목록 보기</button>
         <button onClick={() => openFromMenu(() => setIsDataManagementOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">일정데이터 관리</button>
         <button onClick={() => openFromMenu(() => setIsAnniversaryOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">기념일 관리</button>
+        <button onClick={() => openFromMenu(() => setIsTodoLinkPrefOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">할일-일정 연동 설정</button>
         <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
         <button onClick={() => { setIsDarkMode(!isDarkMode); setMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">{isDarkMode ? '밝은 모드' : '다크 모드'}</button>
         <button onClick={() => openFromMenu(() => setIsHelpOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">도움말</button>
@@ -311,6 +314,7 @@ export default function Home() {
     {isEmailBackupOpen && <EmailBackupPanel user={user} onClose={() => setIsEmailBackupOpen(false)} onNotify={notify} />}
     {isDataManagementOpen && <DataManagementPanel events={events} user={user} onClose={() => setIsDataManagementOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {isAnniversaryOpen && <AnniversaryModal events={events} user={user} onClose={() => setIsAnniversaryOpen(false)} onRefresh={refreshData} onNotify={notify} />}
+    {isTodoLinkPrefOpen && <TodoEventLinkSettingsModal onClose={() => setIsTodoLinkPrefOpen(false)} />}
     {isVersionOpen && <VersionModal onClose={() => setIsVersionOpen(false)} />}
     {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
     {editingTodo && <TodoModal todo={editingTodo} folders={todoFolders} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}

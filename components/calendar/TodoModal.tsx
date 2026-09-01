@@ -7,10 +7,11 @@ import { autoPriorityForDueDate } from '../../lib/todoAutoColor';
 import { useModalBackClose, ModalBackCloseGuard } from '../../lib/useModalBackClose';
 import { useRecentInputs } from '../../lib/useRecentInputs';
 import { Calendar as CalIcon, Trash2, X, AlignLeft, Folder } from 'lucide-react';
+import { TODO_EVENT_LINK_PREF_KEY } from '../../lib/todoEventLinkPref';
 
 // 할일에 날짜를 설정할 때 "일정으로도 저장할까요?"를 매번 물어보지 않도록 하는 사용자 선택 저장 키.
 // 'ask'(기본, 매번 물어봄) | 'always'(항상 일정 연동) | 'never'(항상 연동 안 함)
-const LINK_PREF_KEY = 'cal2do-todo-event-link-pref';
+const LINK_PREF_KEY = TODO_EVENT_LINK_PREF_KEY;
 
 const PRIORITIES = [
   { key: 'red', dot: 'bg-rose-500', ring: 'ring-rose-500' },
@@ -240,6 +241,7 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
                 />
                 다시 묻지 않기
               </label>
+              <p className="text-[10px] text-slate-400 dark:text-slate-600">이 설정은 메인메뉴 → 할일-일정 연동 설정에서 나중에 다시 바꿀 수 있어요.</p>
               <div className="flex gap-2 pt-1">
                 <button onClick={() => resolveLinkConfirm('no')} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-bold text-slate-600 dark:text-slate-300">아니요</button>
                 <button onClick={() => resolveLinkConfirm('yes')} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-bold text-white">네</button>
