@@ -67,16 +67,18 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
   const notifyFn = notify || (() => {});
 
   // 저장/삭제 결과를 기다리지 않고 즉시 닫는다(낙관적 UI) - 캘린더 일정 모달과 동일한 방식.
-  // overridePriority: 색깔원 탭 시 setState가 아직 반영되기 전이라도 그 값으로 바로 저장하기 위함.
-  const save = (overridePriority?: string | null) => {
+  // overridePriority/overrideLinkDecision: 색깔원 탭이나 연동 확인창 응답 시 setState가 아직
+  // 반영되기 전이라도 그 값으로 바로 저장하기 위함(안 그러면 상태가 늦게 반영돼 한 박자 늦게 저장됨).
+  const save = (overridePriority?: string | null, overrideLinkDecision?: 'yes' | 'no' | null) => {
     if (!title.trim()) return;
     const t = title.trim();
     const d = dueDate;
     const m = memo;
     const p = overridePriority !== undefined ? overridePriority : priority;
     const f = folderId;
+    const effectiveLinkDecision = overrideLinkDecision !== undefined ? overrideLinkDecision : linkDecision;
     // 날짜가 있는데 아직 연동 여부를 결정 못한 경우(예: 자동완성으로 값이 채워진 경우) 안전하게 연동 안 함으로 처리
-    const skipLink = !!d && linkDecision !== 'yes';
+    const skipLink = !!d && effectiveLinkDecision !== 'yes';
     remember(t);
 
     if (!isEdit) {
@@ -153,6 +155,9 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
     }
     setLinkDecision(answer);
     setLinkConfirm(null);
+    // 여기서 바로 저장까지 됨(제목이 이미 있을 때만) - 안 그러면 이 확인창에 답한 것만으로는
+    // 아무 것도 저장되지 않고, 사용자가 "추가" 버튼을 따로 한 번 더 눌러야 해서 헷갈렸음.
+    save(undefined, answer);
   };
 
   return (
