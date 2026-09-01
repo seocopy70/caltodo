@@ -22,7 +22,17 @@ function priorityRank(t: any) {
   return 3;
 }
 
+function isOverdueTodo(t: any) {
+  if (t.completed || !t.dueDate) return false;
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  return t.dueDate.getTime() < startOfToday;
+}
+
 function sortActive(a: any, b: any) {
+  // 기한이 지난(아직 안 끝낸) 할일은 색깔과 상관없이 맨 위로
+  const aOverdue = isOverdueTodo(a), bOverdue = isOverdueTodo(b);
+  if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
   const pr = priorityRank(a) - priorityRank(b);
   if (pr !== 0) return pr;
   const aHas = !!a.dueDate, bHas = !!b.dueDate;
@@ -76,6 +86,8 @@ export default function TodoListPanel({
     if (onExpandedChange) onExpandedChange(next); else setExpandedState(next);
   };
   const [colorFilterId, setColorFilterId] = useState<string | 'all'>('all');
+  // 접히면(예: 오늘탭에서 일정 쪽을 펼쳐서 할일 쪽이 접힐 때) 폴더 필터를 전체보기로 초기화
+  useEffect(() => { if (!expanded) setColorFilterId('all'); }, [expanded]);
   const [showCompleted, setShowCompleted] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
@@ -222,7 +234,7 @@ export default function TodoListPanel({
       {/* 실제로 존재하는 폴더만 아이콘으로 보여줘서 탭 한 번으로 그 폴더만 보기. 오늘탭처럼 접힌 상태에선
           자리를 아끼려고 숨기고, 펼쳤을 때만(또는 maxVisible 없이 쓰는 할일 탭에서는 항상) 보여줌. */}
       {showFolderFilter && folders.length > 0 && (!maxVisible || expanded) && (
-        <div className="flex items-center justify-end gap-1 overflow-x-auto px-3 py-2 border-b border-slate-100 dark:border-slate-700/40">
+        <div className="flex items-center justify-end gap-1.5 overflow-x-auto px-3 py-2 border-b border-slate-100 dark:border-slate-700/40">
           {folders.map((f: any) => {
             const c = getFolderColor(f.id, folders);
             const active = colorFilterId === f.id;
@@ -231,27 +243,35 @@ export default function TodoListPanel({
                 key={f.id}
                 onClick={() => setColorFilterId(active ? 'all' : f.id)}
                 title={f.name}
-                className={`shrink-0 flex items-center gap-1 px-1.5 py-1 rounded-lg transition max-w-[6rem] ${active ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                className={`shrink-0 px-2.5 py-1 rounded-lg transition text-xs font-bold truncate max-w-[6rem] ${active ? `${c.activeBg} text-white` : `${c.bg} ${c.text}`}`}
               >
-                <Folder className={`w-4 h-4 shrink-0 ${c.text} ${active ? '' : 'opacity-60'}`} />
-                <span className={`hidden sm:inline text-xs font-bold truncate ${c.text} ${active ? '' : 'opacity-60'}`}>{f.name}</span>
+                {f.name}
               </button>
             );
           })}
+          <button
+            onClick={() => setColorFilterId('all')}
+            title="전체"
+            className={`shrink-0 px-2.5 py-1 rounded-lg transition text-xs font-bold ${colorFilterId === 'all' ? 'bg-slate-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}
+          >
+            전체
+          </button>
         </div>
       )}
 
       <div ref={listRef} className={`divide-y divide-slate-100 dark:divide-slate-700/30 ${maxVisible && expanded ? 'max-h-[50vh] overflow-y-auto' : ''}`}>
-        {visibleTodos.map((todo: any) => (
+        {visibleTodos.map((todo: any) => {
+          const overdue = isOverdueTodo(todo);
+          return (
           <div
             key={todo.id}
             data-todo-id={todo.id}
-            className={`group flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/20 transition ${dragId === todo.id ? 'opacity-40' : ''}`}
+            className={`group flex items-center gap-3 px-4 py-3 transition ${dragId === todo.id ? 'opacity-40' : ''} ${overdue ? 'bg-rose-50 dark:bg-rose-500/10 border-l-4 border-rose-500' : 'hover:bg-slate-50 dark:hover:bg-slate-800/20'}`}
           >
             <CheckButton priority={todo.priority} onClick={() => toggleTodo(todo.id, true)} />
             <div onClick={() => setEditingTodo(todo)} className="flex-1 min-w-0 cursor-pointer flex items-center gap-3">
               <span className="text-base font-medium truncate text-slate-900 dark:text-slate-100">{todo.title}</span>
-              {todo.dueDate && (() => { const d = dueDateLabel(todo.dueDate, showRelativeDates); return <span className={`text-base font-medium shrink-0 ${d.isNear ? 'text-orange-500 dark:text-orange-400' : 'text-slate-400'}`}>{d.text}</span>; })()}
+              {todo.dueDate && (() => { const d = dueDateLabel(todo.dueDate, showRelativeDates); return <span className={`text-base font-bold shrink-0 ${overdue ? 'text-rose-600 dark:text-rose-400' : d.isNear ? 'text-orange-500 dark:text-orange-400' : 'text-slate-400'}`}>{overdue ? '기한지남' : d.text}</span>; })()}
             </div>
             <button onClick={(e) => openFolderPicker(todo, e)} className="transition shrink-0 flex items-center gap-1 max-w-[6.5rem]" title="폴더 선택">
               {(() => { const fc = todo.folderId ? getFolderColor(todo.folderId, folders) : null; return (
@@ -272,7 +292,8 @@ export default function TodoListPanel({
               <GripVertical className="w-6 h-6" />
             </button>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {activeTodos.length === 0 && <div className="px-4 py-6 text-center text-sm text-slate-400 dark:text-slate-600">할 일이 없습니다.</div>}

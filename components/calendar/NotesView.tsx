@@ -141,15 +141,11 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   return <div className="max-w-2xl mx-auto space-y-4 p-2">
     {/* 폴더(아이콘만) + 새 메모 + 카드/목록 토글을 한 줄로 */}
     <div className="flex items-center gap-2">
-      <button onClick={() => onNewNote?.()} className="flex-1 flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-xl text-slate-500 dark:text-slate-400 hover:border-blue-500/50 transition font-bold text-sm"><Plus className="w-5 h-5" /> 새 메모</button>
-
-      <button onClick={() => setLayoutMode((m) => (m === 'card' ? 'title' : 'card'))} title={layoutMode === 'card' ? '제목 목록으로 보기' : '카드형으로 보기'} className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shrink-0 text-slate-500">
-        {layoutMode === 'card' ? <List className="w-5 h-5" /> : <LayoutGrid className="w-5 h-5" />}
-      </button>
+      <button onClick={() => onNewNote?.()} className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-xl text-slate-500 dark:text-slate-400 hover:border-blue-500/50 transition font-bold text-sm"><Plus className="w-5 h-5" /> 새 메모</button>
 
       <div className="relative shrink-0">
-        <button onClick={() => setFolderPickerOpen(true)} title={currentFolderLabel} className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800">
-          <Folder className={`w-6 h-6 ${currentFolderColor ? currentFolderColor.text : 'text-slate-500'}`} />
+        <button onClick={() => setFolderPickerOpen(true)} title={currentFolderLabel} className="px-2 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800">
+          <Folder className={`w-5 h-5 ${currentFolderColor ? currentFolderColor.text : 'text-slate-500'}`} />
         </button>
         {folderPickerOpen && (
           <>
@@ -189,11 +185,15 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
           </>
         )}
       </div>
+
+      <button onClick={() => setLayoutMode((m) => (m === 'card' ? 'title' : 'card'))} title={layoutMode === 'card' ? '제목 목록으로 보기' : '카드형으로 보기'} className="px-2 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shrink-0 text-slate-500">
+        {layoutMode === 'card' ? <List className="w-5 h-5" /> : <LayoutGrid className="w-5 h-5" />}
+      </button>
     </div>
 
-    {/* 실제로 만들어져 있는 폴더만 아이콘으로 보여줘서 탭 한 번으로 그 폴더만 보기(할일탭과 동일한 형식) */}
+    {/* 실제로 만들어져 있는 폴더만 이름이 있는 색깔버튼으로 보여줘서 탭 한 번으로 그 폴더만 보기(할일탭과 동일한 형식) */}
     {folders.length > 0 && (
-      <div className="flex items-center justify-end gap-1 overflow-x-auto px-1 pb-0.5">
+      <div className="flex items-center justify-end gap-1.5 overflow-x-auto px-1 pb-0.5">
         {folders.map((f: any) => {
           const c = getFolderColor(f.id, folders);
           const active = activeFolderId === f.id;
@@ -202,13 +202,19 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
               key={f.id}
               onClick={() => selectFolder(active ? 'all' : f.id)}
               title={f.name}
-              className={`shrink-0 flex items-center gap-1 px-1.5 py-1 rounded-lg transition max-w-[6rem] ${active ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+              className={`shrink-0 px-2.5 py-1 rounded-lg transition text-xs font-bold truncate max-w-[6rem] ${active ? `${c.activeBg} text-white` : `${c.bg} ${c.text}`}`}
             >
-              {f.isSecure ? <Lock className={`w-4 h-4 shrink-0 ${c.text} ${active ? '' : 'opacity-60'}`} /> : <Folder className={`w-4 h-4 shrink-0 ${c.text} ${active ? '' : 'opacity-60'}`} />}
-              <span className={`hidden sm:inline text-xs font-bold truncate ${c.text} ${active ? '' : 'opacity-60'}`}>{f.name}</span>
+              {f.isSecure ? '🔒 ' : ''}{f.name}
             </button>
           );
         })}
+        <button
+          onClick={() => selectFolder('all')}
+          title="전체"
+          className={`shrink-0 px-2.5 py-1 rounded-lg transition text-xs font-bold ${activeFolderId === 'all' ? 'bg-slate-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}
+        >
+          전체
+        </button>
       </div>
     )}
 

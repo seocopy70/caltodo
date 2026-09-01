@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { MapPin, AlignLeft } from 'lucide-react';
+import { MapPin, AlignLeft, Repeat, CalendarRange } from 'lucide-react';
 import { eventOccursOnDay, getRecurrenceType, getOccurrenceTimes } from '../../lib/recurrence';
 
 const HOUR_HEIGHT = 38; // px per hour (기존 42 대비 살짝 축소 — 그리드 전체 높이를 조금 줄임)
@@ -59,16 +59,18 @@ function layoutColumns(items: { event: any; start: Date; end: Date }[]) {
  * 하루 단위 시간표(00시~23시)를 여러 날짜(days)에 대해 나란히 렌더링.
  * days.length === 1 이면 일별보기, 7이면 주별보기로 쓰인다.
  */
-export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEventClick, onDayHeaderClick, availableHeight }: any) {
+export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEventClick, onDayHeaderClick, availableHeight, wideView }: any) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const topSectionRef = useRef<HTMLDivElement>(null);
   const [topSectionHeight, setTopSectionHeight] = useState(0);
   const HOURS: number[] = ALL_HOURS;
   const isWeekView = days.length > 1;
-  // 주별보기도 일별보기와 동일하게 최소 폭을 두지 않고 화면 너비에 맞춰 7칸이 균등하게 눌려 들어가게 함
-  // (좁은 화면에서 가로 스크롤 없이 한 화면에 다 보이도록).
+  // 주별보기는 기본적으로 최소 폭을 두지 않고 화면 너비에 맞춰 7칸이 균등하게 눌려 들어가게 함
+  // (좁은 화면에서 가로 스크롤 없이 한 화면에 다 보이도록). "넓게보기"를 켰을 때만 예외적으로
+  // 폰 넓은화면 기본 폭(640px)을 강제해서 이 컴포넌트가 이미 갖고 있던 data-hscroll 가로 스크롤이
+  // 실제로 동작하게 함(이 스크롤 영역 자체가 그 폭을 넘길 때만 스크롤이 생기므로).
   const colStyle: CSSProperties = {};
-  const innerMinWidth: number | undefined = undefined;
+  const innerMinWidth: number | undefined = wideView ? 640 : undefined;
 
   // 구글/삼성 캘린더의 "현재 시각" 빨간 줄. 1분마다 다시 계산해서 살아있게 유지.
   const [now, setNow] = useState(() => new Date());
@@ -110,7 +112,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
           바깥 컨테이너를 touch-pan-x만으로 제한하면 touch-action 교집합이 비어버려서(pan-x ∩ pan-y = none)
           본문 영역 대부분에서 세로 스크롤이 먹통이 되는 문제가 있었음(맨 위 경계 부근에서만 간헐적으로 동작).
           바깥은 x/y 모두 허용해 두고, 실제 축 구분은 안쪽(scrollRef=touch-pan-y, 헤더/종일 영역=상속된 양축)에서 맡김 */}
-      <div data-hscroll className="overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y">
+      <div data-hscroll data-no-tab-cycle={wideView || undefined} className="overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y">
         <div style={innerMinWidth ? { minWidth: innerMinWidth } : undefined}>
           <div ref={topSectionRef}>
           {/* 헤더: 구글 캘린더 스타일로 요일(작게)을 위에, 날짜(크게, 오늘은 원형 배지)를 아래에 */}
@@ -144,6 +146,9 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                 <div key={i} style={{ minHeight: HOUR_HEIGHT, ...colStyle }} className="flex-1 min-w-0 border-l border-slate-50 dark:border-slate-800/40 first:border-l-0 p-1 space-y-1">
                   {allDayEvents.filter((e: any) => eventOccursOnDay(e, day)).map((e: any, idx: number) => (
                     <div key={idx} onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }} className={`px-1.5 py-0.5 rounded-full text-sm font-bold truncate flex items-center gap-1 cursor-pointer ${colorClasses(e)}`}>
+                      {/* 일별보기에서만 반복/기간 표시 아이콘을 보여줌(월/주별보기는 자리가 좁아 생략) */}
+                      {!isWeekView && getRecurrenceType(e) !== 'none' && <Repeat className="w-2.5 h-2.5 shrink-0" />}
+                      {!isWeekView && !!e.endDate && <CalendarRange className="w-2.5 h-2.5 shrink-0" />}
                       <span className="truncate">{e.title}</span>
                     </div>
                   ))}
@@ -205,6 +210,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                         className={`px-1.5 py-0.5 rounded-lg text-sm font-bold cursor-pointer overflow-hidden flex flex-col justify-center border-l-4 ${colorClasses(e)}`}
                       >
                         <div className="flex items-center gap-1.5 min-w-0">
+                          {!isWeekView && getRecurrenceType(e) !== 'none' && <Repeat className="w-2.5 h-2.5 shrink-0" />}
                           <span className="truncate">{e.title}</span>
                           {showBeside && <span className="flex items-center gap-0.5 text-sm font-medium opacity-70 truncate shrink-0"><ExtraIcon className="w-3 h-3 shrink-0" />{extraInfo}</span>}
                         </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { auth, googleProvider } from '../lib/firebase';
 import { api } from '../lib/api-client';
+import { autoPriorityForDueDate } from '../lib/todoAutoColor';
 import { signInWithPopup, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import Calendar from '../components/ui/calendar';
 import HomeView from '../components/calendar/HomeView';
@@ -131,6 +132,27 @@ export default function Home() {
   const patchTodoLocal = useCallback((id: string, patch: any) => setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t))), []);
   const removeTodoLocal = useCallback((id: string) => setTodos((prev) => prev.filter((t) => t.id !== id)), []);
   const patchNoteLocal = useCallback((id: string, patch: any) => setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n))), []);
+
+  // 날짜가 바뀐 뒤 처음 앱을 열었을 때, 날짜가 지정된 할일들의 색깔원을 "새 할일 만들 때와 동일한 규칙"으로
+  // 다시 계산해줌(예: 어제는 여유였던 할일이 오늘 보니 5일 이내로 다가와서 급함으로 바뀌는 식).
+  // 하루에 한 번만 하면 되므로 localStorage에 마지막으로 계산한 날짜를 남겨서 그 이후엔 건너뜀.
+  useEffect(() => {
+    if (!user || todos.length === 0) return;
+    const todayStr = new Date().toDateString();
+    let lastStr: string | null = null;
+    try { lastStr = window.localStorage.getItem('cal2do-last-color-refresh'); } catch { /* 무시 */ }
+    if (lastStr === todayStr) return;
+    todos.forEach((t: any) => {
+      if (t.completed || !t.dueDate) return;
+      const newPriority = autoPriorityForDueDate(t.dueDate.toISOString());
+      if (newPriority && newPriority !== t.priority) {
+        patchTodoLocal(t.id, { priority: newPriority });
+        api.todos.update(t.id, { priority: newPriority }).catch(() => { /* 실패해도 다음 백그라운드 재조회 때 다시 맞춰짐 */ });
+      }
+    });
+    try { window.localStorage.setItem('cal2do-last-color-refresh', todayStr); } catch { /* 무시 */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todos, user]);
 
   // 백그라운드 자동 재조회: 다른 기기에서 바뀐 내용을 뒤늦게라도 반영하기 위한 용도라
   // 화면이 꺼져있거나(백그라운드 탭) 사용자가 뭔가 입력/수정 중일 때까지 굳이 자주 돌릴 필요는 없음.

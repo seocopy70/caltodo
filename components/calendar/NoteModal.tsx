@@ -110,6 +110,17 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
     setContent(arr.join('\n'));
     setTimeout(() => lineInputRefs.current[idx + 1]?.focus(), 0);
   };
+  // "항목 추가" 버튼: 체크리스트는 맨 위에 새로 할 일을 적는 게 자연스러워서 맨 윗줄에 추가하고,
+  // 번호매김은 순서대로 이어지는 게 자연스러워서 그대로 맨 아래에 추가함
+  const addItemViaButton = () => {
+    if (format === 'checklist') {
+      const arr = ['[ ] ', ...lines];
+      setContent(arr.join('\n'));
+      setTimeout(() => lineInputRefs.current[0]?.focus(), 0);
+    } else {
+      insertLineAfter(lines.length - 1);
+    }
+  };
   const removeLine = (idx: number) => { const arr = [...lines]; arr.splice(idx, 1); setContent(arr.join('\n')); };
 
   const toggleShowToday = (checked: boolean) => {
@@ -192,7 +203,7 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
                   </div>
                 );
               })}
-              <button onClick={() => insertLineAfter(lines.length - 1)} className="flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-400 mt-1"><Plus className="w-3.5 h-3.5" /> 항목 추가</button>
+              <button onClick={addItemViaButton} className="flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-400 mt-1"><Plus className="w-3.5 h-3.5" /> 항목 추가</button>
             </div>
           )}
 

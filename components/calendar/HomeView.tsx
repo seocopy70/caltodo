@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { addDays, format } from 'date-fns';
+import { addDays, format, isSameDay } from 'date-fns';
 import { Plus, MapPin, AlignLeft, StickyNote, Star, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { eventOccursOnDay, getRecurrenceType } from '../../lib/recurrence';
 import { api } from '../../lib/api-client';
@@ -42,10 +42,12 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
 
-  // 접으면 "지금 시각" 기준으로 지난 일정은 제외하고 가장 가까운 3개만, 펼치면 7일 내 전체(가까운 순서)
+  // 접으면 "지금 시각" 기준으로 지난 일정은 제외하고 가장 가까운 3개만, 펼치면 7일 내 전체(가까운 순서).
+  // 단, 오늘의 하루종일 일정은 시작 시각이 00:00이라 "지났다"고 잘못 걸러지던 문제가 있어 따로 포함시킴.
   const collapsedEvents = useMemo(() => {
     const now = new Date();
-    return windowEvents.filter((e: any) => e.start.getTime() >= now.getTime()).slice(0, 3);
+    const isAllDay = (e: any) => !!e.endDate || (e.start.getHours() === 0 && e.start.getMinutes() === 0 && e.end?.getHours() === 23 && e.end?.getMinutes() === 59);
+    return windowEvents.filter((e: any) => e.start.getTime() >= now.getTime() || (isAllDay(e) && isSameDay(e.__day, today))).slice(0, 3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowEvents]);
   const visibleEvents = eventsExpanded ? windowEvents : collapsedEvents;
