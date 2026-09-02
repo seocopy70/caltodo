@@ -6,6 +6,7 @@ import { CheckCircle2, Circle, ChevronDown, ChevronUp, GripVertical, Trash2, Fol
 import { api } from '../../lib/api-client';
 import { autoPriorityForDueDate } from '../../lib/todoAutoColor';
 import { getFolderColor } from '../../lib/folderColor';
+import { getTodoEventLinkPref } from '../../lib/todoEventLinkPref';
 import { ModalBackCloseGuard } from '../../lib/useModalBackClose';
 import TodoModal from './TodoModal';
 
@@ -345,7 +346,10 @@ export default function TodoListPanel({
                 defaultValue={quickActionsFor.dueDate ? format(quickActionsFor.dueDate, 'yyyy-MM-dd') : ''}
                 onChange={(e) => {
                   const autoPriority = autoPriorityForDueDate(e.target.value);
-                  applyQuickAction({ dueDate: e.target.value ? new Date(e.target.value).toISOString() : null, ...(autoPriority ? { priority: autoPriority } : {}) });
+                  // 빠른 메뉴는 확인창을 띄울 자리가 없어서, 설정이 "항상 연동"일 때만 자동으로 일정을 만들고
+                  // 그 외(기본값인 "매번 물어보기" 포함)에는 안전하게 연동하지 않음(할일 입력창의 확인창과 동일한 설정을 따름)
+                  const skipLink = getTodoEventLinkPref() !== 'always';
+                  applyQuickAction({ dueDate: e.target.value ? new Date(e.target.value).toISOString() : null, skipLink, ...(autoPriority ? { priority: autoPriority } : {}) });
                   setQuickActionsFor(null);
                 }}
                 className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-2 py-1.5 text-sm outline-none"

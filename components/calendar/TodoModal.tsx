@@ -7,11 +7,7 @@ import { autoPriorityForDueDate } from '../../lib/todoAutoColor';
 import { useModalBackClose, ModalBackCloseGuard } from '../../lib/useModalBackClose';
 import { useRecentInputs } from '../../lib/useRecentInputs';
 import { Calendar as CalIcon, Trash2, X, AlignLeft, Folder } from 'lucide-react';
-import { TODO_EVENT_LINK_PREF_KEY } from '../../lib/todoEventLinkPref';
-
-// 할일에 날짜를 설정할 때 "일정으로도 저장할까요?"를 매번 물어보지 않도록 하는 사용자 선택 저장 키.
-// 'ask'(기본, 매번 물어봄) | 'always'(항상 일정 연동) | 'never'(항상 연동 안 함)
-const LINK_PREF_KEY = TODO_EVENT_LINK_PREF_KEY;
+import { getTodoEventLinkPref, setTodoEventLinkPref } from '../../lib/todoEventLinkPref';
 
 const PRIORITIES = [
   { key: 'red', dot: 'bg-rose-500', ring: 'ring-rose-500' },
@@ -143,7 +139,7 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
     }
 
     // 처음으로 날짜를 설정하는 경우: 저장된 선호가 있으면 그대로 따르고, 없으면 물어봄
-    const pref = typeof window !== 'undefined' ? window.localStorage.getItem(LINK_PREF_KEY) : null;
+    const pref = getTodoEventLinkPref();
     setDueDate(value);
     if (pref === 'always') setLinkDecision('yes');
     else if (pref === 'never') setLinkDecision('no');
@@ -151,8 +147,8 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
   };
 
   const resolveLinkConfirm = (answer: 'yes' | 'no') => {
-    if (linkConfirm?.dontAskAgain && typeof window !== 'undefined') {
-      window.localStorage.setItem(LINK_PREF_KEY, answer === 'yes' ? 'always' : 'never');
+    if (linkConfirm?.dontAskAgain) {
+      setTodoEventLinkPref(answer === 'yes' ? 'always' : 'never');
     }
     setLinkDecision(answer);
     setLinkConfirm(null);

@@ -64,7 +64,8 @@ export async function GET(req: NextRequest) {
     format: row.format || 'plain',
     locked: Number(row.locked || 0) === 1,
     lockType: row.lock_type || null,
-    lockHash: row.lock_hash || null,
+    // lock_hash는 절대 클라이언트로 보내지 않음(오프라인 무차별 대입 위험) - 폴더 보안과 동일한 원칙.
+    // 참고로 메모 단위 잠금(locked/lockType) 자체가 현재 UI 어디에서도 쓰이지 않는 기능이라 안전함.
   }));
 
   const noteFolders = foldersResult.rows.map((row: any) => ({

@@ -59,7 +59,7 @@ export async function buildUserBackupJson(uid: string): Promise<string> {
     format: row.format || 'plain',
     locked: Number(row.locked || 0) === 1,
     lockType: row.lock_type || null,
-    lockHash: row.lock_hash || null,
+    // lock_hash는 백업 파일에도 포함하지 않음(파일이 외부로 유출되면 오프라인 무차별 대입에 노출될 수 있음)
     createdAt: safeIso(row.created_at),
     updatedAt: safeIso(row.updated_at),
     deletedAt: null,
