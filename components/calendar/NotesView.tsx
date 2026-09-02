@@ -14,6 +14,20 @@ import { ModalBackCloseGuard } from '../../lib/useModalBackClose';
 
 export default function NotesView({ notes, folders = [], user, onNotify, onRefresh, onNewNote, onEditNote, onPatchNote }: any) {
   const [showTrash, setShowTrash] = useState(false);
+  // 삭제된 메모는 매번 앱을 열 때마다 같이 안 불러오고, 보관함을 실제로 펼쳤을 때만 따로 불러옴
+  // (평소엔 안 쓰는 데이터라 매번 가져오면 그만큼 느려짐)
+  const [trashNotes, setTrashNotes] = useState<any[]>([]);
+  const [trashLoaded, setTrashLoaded] = useState(false);
+  const [trashLoading, setTrashLoading] = useState(false);
+  useEffect(() => {
+    if (!showTrash || trashLoaded) return;
+    setTrashLoading(true);
+    api.notes.list(true)
+      .then((res: any) => setTrashNotes((res.notes || []).filter((n: any) => !!n.deletedAt)))
+      .catch((err: any) => notify(`보관함 불러오기 실패: ${err.message || err}`, 'error'))
+      .finally(() => { setTrashLoaded(true); setTrashLoading(false); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showTrash, trashLoaded]);
   const [viewingNote, setViewingNote] = useState<any>(null);
   const [viewingDeletedNote, setViewingDeletedNote] = useState<any>(null);
   const [layoutMode, setLayoutMode] = useState<'card' | 'title'>('card');
@@ -54,8 +68,9 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const notify = onNotify || (() => {});
   const secureFolder = folders.find((f: any) => f.isSecure) || null;
 
+  // notes prop은 이제 삭제 안 된 메모만 들어있음(삭제된 건 보관함을 펼칠 때 trashNotes로 따로 불러옴)
   const allActiveNotes = (notes || []).filter((n: any) => !n.deletedAt);
-  const deletedNotes = (notes || []).filter((n: any) => !!n.deletedAt);
+  const deletedNotes = trashNotes;
   // 보안폴더 메모는 '전체' 보기 등에서는 숨기고, 그 폴더를 잠금 해제하고 들어갔을 때만 보여줌
   const visibleForAll = secureFolder ? allActiveNotes.filter((n: any) => n.folderId !== secureFolder.id) : allActiveNotes;
 
@@ -79,10 +94,21 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
 
   const remove = (id: string) => {
     if (!confirm('메모를 삭제하면 보관함으로 이동합니다. 계속할까요?')) return;
-    api.notes.remove(id).then(() => { notify('메모를 보관함으로 옮겼습니다.'); onRefresh?.(); }).catch((err: any) => notify(`삭제 실패: ${err.message || err}`, 'error'));
+    api.notes.remove(id).then(() => {
+      notify('메모를 보관함으로 옮겼습니다.');
+      onRefresh?.();
+      setTrashLoaded(false); // 보관함을 이미 한 번 봤어도 방금 옮긴 메모가 빠져있지 않도록 다음에 볼 때 다시 불러오게 함
+    }).catch((err: any) => notify(`삭제 실패: ${err.message || err}`, 'error'));
   };
-  const restore = (id: string) => api.notes.restore(id).then(() => { notify('메모를 복원했습니다.'); onRefresh?.(); }).catch((err: any) => notify(`복원 실패: ${err.message || err}`, 'error'));
-  const purge = (id: string) => { if (!confirm('이 메모를 완전히 삭제할까요? 되돌릴 수 없습니다.')) return; api.notes.purge(id).then(() => { notify('메모를 완전히 삭제했습니다.'); onRefresh?.(); }).catch((err: any) => notify(`완전 삭제 실패: ${err.message || err}`, 'error')); };
+  const restore = (id: string) => {
+    setTrashNotes((prev) => prev.filter((n) => n.id !== id));
+    api.notes.restore(id).then(() => { notify('메모를 복원했습니다.'); onRefresh?.(); }).catch((err: any) => notify(`복원 실패: ${err.message || err}`, 'error'));
+  };
+  const purge = (id: string) => {
+    if (!confirm('이 메모를 완전히 삭제할까요? 되돌릴 수 없습니다.')) return;
+    setTrashNotes((prev) => prev.filter((n) => n.id !== id));
+    api.notes.purge(id).then(() => { notify('메모를 완전히 삭제했습니다.'); }).catch((err: any) => { notify(`완전 삭제 실패: ${err.message || err}`, 'error'); setTrashLoaded(false); });
+  };
   const toggleStar = (note: any) => {
     if (secureFolder && note.folderId === secureFolder.id) return; // 보안폴더 메모는 별표 불가
     onPatchNote?.(note.id, { showToday: !note.showToday });

@@ -10,8 +10,8 @@ export default function VersionModal({ onClose }: any) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
-        <div className="p-6 space-y-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+        <div className="p-6 space-y-4 overflow-y-auto">
           <div className="flex justify-between items-center">
             <h3 className="font-black text-xl text-slate-900 dark:text-white">Cal2do</h3>
             <button onClick={onClose} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><X /></button>

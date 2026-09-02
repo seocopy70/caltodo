@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const [eventsResult, todosResult, notesResult, foldersResult, todoFoldersResult] = await Promise.all([
     turso.execute({ sql: 'SELECT * FROM events WHERE user_id = ? ORDER BY start ASC', args: [uid] }),
     turso.execute({ sql: 'SELECT * FROM todos WHERE user_id = ? ORDER BY completed ASC, order_index ASC, created_at ASC', args: [uid] }),
-    turso.execute({ sql: 'SELECT * FROM notes WHERE user_id = ? ORDER BY deleted_at IS NOT NULL, updated_at DESC', args: [uid] }),
+    // 삭제된(휴지통) 메모는 평소엔 안 쓰는 데이터라 기본 로딩에서 빼고, 보관함을 실제로 열 때만 따로 불러옴
+    turso.execute({ sql: 'SELECT * FROM notes WHERE user_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC', args: [uid] }),
     turso.execute({ sql: 'SELECT * FROM note_folders WHERE user_id = ? ORDER BY order_index ASC, created_at ASC', args: [uid] }).catch(() => ({ rows: [] as any[] })),
     turso.execute({ sql: 'SELECT * FROM todo_folders WHERE user_id = ? ORDER BY order_index ASC, created_at ASC', args: [uid] }).catch(() => ({ rows: [] as any[] })),
   ]);
