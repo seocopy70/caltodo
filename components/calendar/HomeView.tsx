@@ -13,7 +13,7 @@ import TodoListPanel from './TodoListPanel';
 
 const EXPANDED_WINDOW_DAYS = 7; // 펼치면 오늘부터 7일 이내 일정까지 가까운 순서로 모두 표시
 
-export default function HomeView({ events, todos, notes = [], todoFolders = [], noteFolders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onPatchNote, onNewNote, onEditNote }: any) {
+export default function HomeView({ events, todos, notes = [], todoFolders = [], noteFolders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onAddTodo, onReconcileTodo, onPatchNote, onAddNote, onReconcileNote, onAddEvent, onPatchEvent, onRemoveEvent, onReconcileEvent, onNewNote, onEditNote }: any) {
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isNewTodoOpen, setIsNewTodoOpen] = useState(false);
@@ -97,8 +97,8 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
       </div>
     )}
 
-    {(isEventModalOpen || editingEvent) && <EventModal date={new Date()} editingEvent={editingEvent} user={user} notify={notify} onClose={() => { setIsEventModalOpen(false); setEditingEvent(null); }} onRefresh={onRefresh} />}
-    {isNewTodoOpen && <TodoModal todo={null} folders={todoFolders} notify={notify} onClose={() => setIsNewTodoOpen(false)} onRefresh={onRefresh} />}
+    {(isEventModalOpen || editingEvent) && <EventModal date={new Date()} editingEvent={editingEvent} user={user} notify={notify} onClose={() => { setIsEventModalOpen(false); setEditingEvent(null); }} onRefresh={onRefresh} onAddLocal={onAddEvent} onPatchLocal={onPatchEvent} onRemoveLocal={onRemoveEvent} onReconcileLocal={onReconcileEvent} />}
+    {isNewTodoOpen && <TodoModal todo={null} folders={todoFolders} notify={notify} onClose={() => setIsNewTodoOpen(false)} onRefresh={onRefresh} onAddLocal={onAddTodo} onReconcileLocal={onReconcileTodo} />}
   </div>;
 }
 

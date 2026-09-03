@@ -29,7 +29,7 @@ function AutocompleteDropdown({ suggestions, onSelect }: { suggestions: string[]
   );
 }
 
-export default function NoteModal({ note, folders = [], secureFolderId, initialFocus, initialLineIndex, initialCharOffset, onClose, onRefresh, onNotify }: any) {
+export default function NoteModal({ note, folders = [], secureFolderId, initialFocus, initialLineIndex, initialCharOffset, onClose, onRefresh, onNotify, onAddLocal, onPatchLocal, onReconcileLocal, onRollbackLocal }: any) {
   useModalBackClose(onClose);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -139,17 +139,32 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
     const noteData = { title: title.trim() || '(제목 없음)', content, showToday: isInSecureFolder ? false : showToday, folderId, format };
     const targetId = note?.id;
     if (title.trim() && !isInSecureFolder) rememberTitle(title.trim()); // 보안폴더 메모 제목은 자동완성 기록에 남기지 않음
-    onClose();
-    const task = isEdit ? api.notes.update(targetId, noteData) : api.notes.create(noteData);
-    task.then(() => { notify(isEdit ? '메모가 수정되었습니다.' : '메모가 추가되었습니다.'); onRefresh?.(); })
-      .catch((err: any) => { console.error(err); notify(`저장 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
+
+    if (isEdit) {
+      // 수정: 저장 버튼 누르자마자 목록/카드에 바로 반영(서버 응답을 기다리지 않음)
+      onPatchLocal?.(targetId, { ...noteData, updatedAt: new Date() });
+      onClose();
+      api.notes.update(targetId, noteData)
+        .then(() => notify('메모가 수정되었습니다.'))
+        .catch((err: any) => { console.error(err); notify(`저장 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
+    } else {
+      // 새로 만들기: 임시 id로 바로 화면에 나타나게 하고, 서버가 진짜 id를 주면 그걸로 바꿔치기
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const now = new Date();
+      onAddLocal?.({ id: tempId, ...noteData, createdAt: now, updatedAt: now, deletedAt: null });
+      onClose();
+      api.notes.create(noteData)
+        .then((res: any) => { if (res?.id) onReconcileLocal?.(tempId, res.id); notify('메모가 추가되었습니다.'); })
+        .catch((err: any) => { console.error(err); notify(`저장 실패: ${err.message || err}`, 'error'); onRollbackLocal?.(tempId); onRefresh?.(); });
+    }
   };
 
   const remove = () => {
     if (!confirm('메모를 삭제하면 보관함으로 이동합니다. 계속할까요?')) return;
     const targetId = note.id;
+    onPatchLocal?.(targetId, { deletedAt: new Date() });
     onClose();
-    api.notes.remove(targetId).then(() => { notify('메모를 보관함으로 옮겼습니다.'); onRefresh?.(); })
+    api.notes.remove(targetId).then(() => notify('메모를 보관함으로 옮겼습니다.'))
       .catch((err: any) => { notify(`삭제 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 

@@ -36,7 +36,7 @@ function AutocompleteDropdown({ suggestions, onSelect }: { suggestions: string[]
 }
 
 // todo가 없으면(null) "새 할일 만들기" 모드, 있으면 수정 모드로 동작한다.
-export default function TodoModal({ todo, folders = [], defaultFolderId = null, notify, onClose, onRefresh }: any) {
+export default function TodoModal({ todo, folders = [], defaultFolderId = null, notify, onClose, onRefresh, onAddLocal, onPatchLocal, onRemoveLocal, onReconcileLocal, onRollbackLocal }: any) {
   useModalBackClose(onClose);
   const isEdit = !!todo;
   const [title, setTitle] = useState('');
@@ -79,15 +79,18 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
     remember(t);
 
     if (!isEdit) {
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      onAddLocal?.({ id: tempId, title: t, completed: false, dueDate: d ? new Date(d) : null, memo: m, priority: p, folderId: f, orderIndex: -Date.now(), createdAt: new Date() });
       onClose();
       api.todos.create({ title: t, completed: false, dueDate: d ? new Date(d).toISOString() : null, memo: m, priority: p, folderId: f, skipLink })
-        .then(() => { notifyFn('할 일이 추가되었습니다.'); onRefresh?.(); })
-        .catch((err: any) => { console.error(err); notifyFn(`추가 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
+        .then((res: any) => { if (res?.id) onReconcileLocal?.(tempId, res.id); notifyFn('할 일이 추가되었습니다.'); })
+        .catch((err: any) => { console.error(err); notifyFn(`추가 실패: ${err.message || err}`, 'error'); onRollbackLocal?.(tempId); onRefresh?.(); });
       return;
     }
 
     const id = todo.id;
     const priorityChanged = p !== (todo.priority || null);
+    onPatchLocal?.(id, { title: t, dueDate: d ? new Date(d) : null, memo: m, priority: p, folderId: f });
     onClose();
 
     api.todos.update(id, {
@@ -99,7 +102,7 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
       bumpToTop: priorityChanged && !!p,
       skipLink,
     })
-      .then(() => { notifyFn('할 일이 수정되었습니다.'); onRefresh?.(); })
+      .then(() => notifyFn('할 일이 수정되었습니다.'))
       .catch((err: any) => {
         console.error(err);
         notifyFn(`수정 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
@@ -110,10 +113,11 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
   const remove = () => {
     if (!todo || !confirm('삭제할까요?')) return;
     const id = todo.id;
+    onRemoveLocal?.(id);
     onClose();
 
     api.todos.remove(id)
-      .then(() => { notifyFn('할 일이 삭제되었습니다.'); onRefresh?.(); })
+      .then(() => notifyFn('할 일이 삭제되었습니다.'))
       .catch((err: any) => {
         console.error(err);
         notifyFn(`삭제 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');

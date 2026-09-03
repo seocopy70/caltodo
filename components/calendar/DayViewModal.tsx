@@ -9,7 +9,7 @@ import TimeGrid from './TimeGrid';
 import EventModal from './EventModal';
 import { eventOccursOnDay } from '../../lib/recurrence';
 
-export default function DayViewModal({ date, events, holidayMap, user, onNotify, onRefresh, onClose }: any) {
+export default function DayViewModal({ date, events, holidayMap, user, onNotify, onRefresh, onClose, onAddEvent, onPatchEvent, onRemoveEvent, onReconcileEvent }: any) {
   useModalBackClose(onClose);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
@@ -62,7 +62,7 @@ export default function DayViewModal({ date, events, holidayMap, user, onNotify,
           </button>
         </div>
       </div>
-      {isModalOpen && <EventModal date={prefillDate} editingEvent={editingEvent} user={user} notify={onNotify} onClose={closeEventModal} onRefresh={onRefresh} />}
+      {isModalOpen && <EventModal date={prefillDate} editingEvent={editingEvent} user={user} notify={onNotify} onClose={closeEventModal} onRefresh={onRefresh} onAddLocal={onAddEvent} onPatchLocal={onPatchEvent} onRemoveLocal={onRemoveEvent} onReconcileLocal={onReconcileEvent} />}
     </div>
   );
 }

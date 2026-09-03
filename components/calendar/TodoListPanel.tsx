@@ -322,7 +322,7 @@ export default function TodoListPanel({
         </div>
       )}
 
-      {editingTodo && <TodoModal todo={editingTodo} folders={folders} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={onRefresh} />}
+      {editingTodo && <TodoModal todo={editingTodo} folders={folders} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={onRefresh} onPatchLocal={onPatchTodo} onRemoveLocal={onRemoveTodo} />}
       {quickActionsFor && (
         <>
           <ModalBackCloseGuard onClose={() => setQuickActionsFor(null)} />

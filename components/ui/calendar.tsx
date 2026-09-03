@@ -67,7 +67,7 @@ function useFitAvailableHeight(active: boolean, ref: React.RefObject<HTMLElement
   return height;
 }
 
-export default function Calendar({ initialView = 'month', events, user, onNotify, onRefresh }: any) {
+export default function Calendar({ initialView = 'month', events, user, onNotify, onRefresh, onAddEvent, onPatchEvent, onRemoveEvent, onReconcileEvent }: any) {
   const [view, setCalView] = useState<'month' | 'week'>(initialView);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -231,8 +231,8 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
         </div>
       )}
 
-      {isModalOpen && <EventModal date={selectedDate} editingEvent={editingEvent} user={user} notify={onNotify} onClose={closeModal} onRefresh={onRefresh} />}
-      {dayViewDate && <DayViewModal date={dayViewDate} events={events} holidayMap={holidayMap} user={user} onNotify={onNotify} onRefresh={onRefresh} onClose={() => setDayViewDate(null)} />}
+      {isModalOpen && <EventModal date={selectedDate} editingEvent={editingEvent} user={user} notify={onNotify} onClose={closeModal} onRefresh={onRefresh} onAddLocal={onAddEvent} onPatchLocal={onPatchEvent} onRemoveLocal={onRemoveEvent} onReconcileLocal={onReconcileEvent} />}
+      {dayViewDate && <DayViewModal date={dayViewDate} events={events} holidayMap={holidayMap} user={user} onNotify={onNotify} onRefresh={onRefresh} onClose={() => setDayViewDate(null)} onAddEvent={onAddEvent} onPatchEvent={onPatchEvent} onRemoveEvent={onRemoveEvent} onReconcileEvent={onReconcileEvent} />}
     </div>
   );
 }

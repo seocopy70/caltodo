@@ -25,9 +25,6 @@ export async function GET(req: NextRequest) {
     showToday: Number(row.show_today || 0) === 1,
     folderId: row.folder_id || null,
     format: row.format || 'plain',
-    locked: Number(row.locked || 0) === 1,
-    lockType: row.lock_type || null,
-    // lock_hash는 절대 클라이언트로 보내지 않음(오프라인 무차별 대입 위험) - 폴더 보안과 동일한 원칙
   }));
 
   return NextResponse.json({ notes });
@@ -46,8 +43,8 @@ export async function POST(req: NextRequest) {
   const deletedAt = body.deletedAt ? new Date(body.deletedAt).getTime() : null;
 
   await turso.execute({
-    sql: `INSERT OR REPLACE INTO notes (id, user_id, title, content, created_at, updated_at, deleted_at, show_today, folder_id, format, locked, lock_type, lock_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, uid, body.title || '(제목 없음)', body.content || '', createdAt, updatedAt, deletedAt, body.showToday ? 1 : 0, body.folderId || null, body.format || 'plain', body.locked ? 1 : 0, body.locked ? (body.lockType || null) : null, body.locked ? (body.lockHash || null) : null],
+    sql: `INSERT OR REPLACE INTO notes (id, user_id, title, content, created_at, updated_at, deleted_at, show_today, folder_id, format) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, uid, body.title || '(제목 없음)', body.content || '', createdAt, updatedAt, deletedAt, body.showToday ? 1 : 0, body.folderId || null, body.format || 'plain'],
   });
 
   return NextResponse.json({ id });
