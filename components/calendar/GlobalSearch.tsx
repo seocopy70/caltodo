@@ -107,7 +107,7 @@ export default function GlobalSearch({ query, date, events, todos, notes, folder
           </section>}
           {results.todos.length > 0 && <section>
             <h4 className="text-xs font-black text-emerald-500 dark:text-emerald-400 mb-2 flex items-center gap-1.5"><CheckSquare className="w-4 h-4" />할 일</h4>
-            <div className="space-y-1.5">{results.todos.map((t: any) => <button key={t.id} onClick={() => onTodo(t)} className="w-full text-left p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800"><span className={`font-bold text-sm ${t.completed ? 'line-through text-slate-500' : ''}`}>{t.title}</span>{date ? (t.completed && <span className="block text-[11px] text-emerald-500">완료됨</span>) : (t.dueDate && <span className="block text-[11px] text-slate-500">기한 {t.dueDate.toLocaleDateString('ko-KR')}</span>)}</button>)}</div>
+            <div className="space-y-1.5">{results.todos.map((t: any) => <button key={t.id} onClick={() => onTodo(t)} className="w-full text-left p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800"><span className={`font-bold text-sm ${t.completed ? 'text-slate-500' : ''}`}>{t.title}</span>{date ? (t.completed && <span className="block text-[11px] text-emerald-500">완료됨</span>) : (t.dueDate && <span className="block text-[11px] text-slate-500">기한 {t.dueDate.toLocaleDateString('ko-KR')}</span>)}</button>)}</div>
           </section>}
           {results.notes.length > 0 && <section>
             <h4 className="text-xs font-black text-amber-500 dark:text-amber-400 mb-2 flex items-center gap-1.5"><FileText className="w-4 h-4" />메모</h4>

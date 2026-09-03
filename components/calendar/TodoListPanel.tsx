@@ -76,6 +76,7 @@ export default function TodoListPanel({
   expanded: expandedProp,
   onExpandedChange,
   showFolderFilter = false,
+  collapsedRedOnly = false,
 }: any) {
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [expandedState, setExpandedState] = useState(false);
@@ -125,7 +126,11 @@ export default function TodoListPanel({
       return bt - at;
     });
 
-  const visibleTodos = maxVisible && !expanded ? activeTodos.slice(0, maxVisible) : activeTodos;
+  // 접혔을 때 "빨강 목록"만 보이도록: 기한이 지난 할일(색깔 무관하게 빨갛게 표시됨) 또는 우선순위가 빨강인 할일만 남김
+  const isRedTodo = (t: any) => t.priority === 'red' || isOverdueTodo(t);
+  const visibleTodos = maxVisible && !expanded
+    ? (collapsedRedOnly ? activeTodos.filter(isRedTodo) : activeTodos.slice(0, maxVisible))
+    : activeTodos;
 
   const toggleTodo = (id: string, completed: boolean) => {
     onPatchTodo?.(id, { completed, completedAt: completed ? new Date() : null });
@@ -298,6 +303,9 @@ export default function TodoListPanel({
       </div>
 
       {activeTodos.length === 0 && <div className="px-4 py-6 text-center text-sm text-slate-400 dark:text-slate-600">할 일이 없습니다.</div>}
+      {activeTodos.length > 0 && visibleTodos.length === 0 && collapsedRedOnly && !expanded && (
+        <div className="px-4 py-6 text-center text-sm text-slate-400 dark:text-slate-600">급한 할 일이 없습니다.</div>
+      )}
 
       {!hideCompleted && completedTodos.length > 0 && (
         <div className="border-t border-slate-100 dark:border-slate-700/40">
@@ -311,7 +319,7 @@ export default function TodoListPanel({
                 <div key={todo.id} className="flex items-center gap-3 px-4 py-3">
                   <button onClick={() => toggleTodo(todo.id, false)} className="shrink-0"><CheckCircle2 className="w-5 h-5 text-blue-500" /></button>
                   <div onClick={() => setEditingTodo(todo)} className="flex-1 min-w-0 cursor-pointer flex items-center gap-3">
-                    <span className="text-base line-through text-slate-500 truncate">{todo.title}</span>
+                    <span className="text-base text-slate-500 truncate">{todo.title}</span>
                     {todo.completedAt && <span className="text-base text-slate-500 shrink-0">{format(todo.completedAt, 'M/d')}</span>}
                   </div>
                   <button onClick={() => removeTodo(todo.id)} className="text-slate-300 dark:text-slate-700 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>

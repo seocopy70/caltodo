@@ -11,7 +11,7 @@ import EventModal from './EventModal';
 import TodoModal from './TodoModal';
 import TodoListPanel from './TodoListPanel';
 
-const EXPANDED_WINDOW_DAYS = 7; // 펼치면 오늘부터 7일 이내 일정까지 가까운 순서로 모두 표시
+const EXPANDED_WINDOW_DAYS = 10; // 펼치면 오늘부터 10일 이내 일정까지 가까운 순서로 모두 표시
 
 export default function HomeView({ events, todos, notes = [], todoFolders = [], noteFolders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onAddTodo, onReconcileTodo, onPatchNote, onAddNote, onReconcileNote, onAddEvent, onPatchEvent, onRemoveEvent, onReconcileEvent, onNewNote, onEditNote }: any) {
   const [editingEvent, setEditingEvent] = useState<any>(null);
@@ -42,7 +42,7 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
 
-  // 접으면 "지금 시각" 기준으로 지난 일정은 제외하고 가장 가까운 3개만, 펼치면 7일 내 전체(가까운 순서).
+  // 접으면 "지금 시각" 기준으로 지난 일정은 제외하고 가장 가까운 3개만, 펼치면 10일 내 전체(가까운 순서).
   // 단, 오늘의 하루종일 일정은 시작 시각이 00:00이라 "지났다"고 잘못 걸러지던 문제가 있어 따로 포함시킴.
   const collapsedEvents = useMemo(() => {
     const now = new Date();
@@ -76,12 +76,13 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
       expanded={todosExpanded}
       onExpandedChange={(v: boolean) => setExpandedSection(v ? 'todos' : null)}
       showFolderFilter
+      collapsedRedOnly
     />
 
     <section className="rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden">
       {windowEvents.length > collapsedEvents.length && (
-        <button onClick={() => setEventsExpanded((v) => !v)} title={eventsExpanded ? '접기' : `펼치기 (7일 내 ${windowEvents.length}개)`} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-100 dark:border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition">
-          {!eventsExpanded && <span>{`7일 내 ${windowEvents.length}개`}</span>}
+        <button onClick={() => setEventsExpanded((v) => !v)} title={eventsExpanded ? '접기' : `펼치기 (10일 내 ${windowEvents.length}개)`} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-100 dark:border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition">
+          {!eventsExpanded && <span>{`10일 내 ${windowEvents.length}개`}</span>}
           {eventsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       )}

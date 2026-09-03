@@ -35,7 +35,8 @@ export function useRecentInputs(namespace: string) {
 
   const suggestionsFor = (query: string, limit = 5) => {
     const q = query.trim().toLowerCase();
-    if (!q) return [];
+    // 아직 아무것도 입력하지 않은 상태(포커스만 준 상태)에서도 최근 입력값을 후보로 보여줌(구글 검색창처럼)
+    if (!q) return items.slice(0, limit);
     return items.filter((v) => v.toLowerCase().includes(q) && v.toLowerCase() !== q).slice(0, limit);
   };
 
