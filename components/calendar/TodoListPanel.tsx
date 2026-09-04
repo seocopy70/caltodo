@@ -76,7 +76,7 @@ export default function TodoListPanel({
   expanded: expandedProp,
   onExpandedChange,
   showFolderFilter = false,
-  collapsedRedOnly = false,
+  redOnly = false, // 오늘탭 전용: 접기/펼치기 없이 항상 빨강(우선순위 빨강 또는 기한지남)만 보여줌
 }: any) {
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [expandedState, setExpandedState] = useState(false);
@@ -126,11 +126,12 @@ export default function TodoListPanel({
       return bt - at;
     });
 
-  // 접혔을 때 "빨강 목록"만 보이도록: 기한이 지난 할일(색깔 무관하게 빨갛게 표시됨) 또는 우선순위가 빨강인 할일만 남김
+  // redOnly면 접기/펼치기 개념 자체가 없이 항상 "빨강 목록"만: 기한이 지난 할일(색깔 무관하게 빨갛게 표시됨)
+  // 또는 우선순위가 빨강인 할일만 남김. 그 외에는 기존처럼 maxVisible+expanded 조합으로 자르거나 전체 표시.
   const isRedTodo = (t: any) => t.priority === 'red' || isOverdueTodo(t);
-  const visibleTodos = maxVisible && !expanded
-    ? (collapsedRedOnly ? activeTodos.filter(isRedTodo) : activeTodos.slice(0, maxVisible))
-    : activeTodos;
+  const visibleTodos = redOnly
+    ? activeTodos.filter(isRedTodo)
+    : (maxVisible && !expanded ? activeTodos.slice(0, maxVisible) : activeTodos);
 
   const toggleTodo = (id: string, completed: boolean) => {
     onPatchTodo?.(id, { completed, completedAt: completed ? new Date() : null });
@@ -230,7 +231,7 @@ export default function TodoListPanel({
 
   return (
     <section className={`rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden ${compact ? '' : 'shadow-sm dark:shadow-xl'}`}>
-      {maxVisible && activeTodos.length > 0 && (
+      {maxVisible && !redOnly && activeTodos.length > 0 && (
         <button onClick={() => setExpanded((v) => !v)} title={expanded ? '접기' : `펼치기 (${activeTodos.length})`} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-100 dark:border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition">
           {!expanded && <span>{activeTodos.length}</span>}
           {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -238,8 +239,8 @@ export default function TodoListPanel({
       )}
 
       {/* 실제로 존재하는 폴더만 아이콘으로 보여줘서 탭 한 번으로 그 폴더만 보기. 오늘탭처럼 접힌 상태에선
-          자리를 아끼려고 숨기고, 펼쳤을 때만(또는 maxVisible 없이 쓰는 할일 탭에서는 항상) 보여줌. */}
-      {showFolderFilter && folders.length > 0 && (!maxVisible || expanded) && (
+          자리를 아끼려고 숨기고, 펼쳤을 때만(또는 maxVisible 없이 쓰는 할일 탭·redOnly 목록에서는 항상) 보여줌. */}
+      {showFolderFilter && folders.length > 0 && (!maxVisible || expanded || redOnly) && (
         <div className="flex items-center justify-end gap-1.5 overflow-x-auto px-3 py-2 border-b border-slate-100 dark:border-slate-700/40">
           {folders.map((f: any) => {
             const c = getFolderColor(f.id, folders);
@@ -303,7 +304,7 @@ export default function TodoListPanel({
       </div>
 
       {activeTodos.length === 0 && <div className="px-4 py-6 text-center text-sm text-slate-400 dark:text-slate-600">할 일이 없습니다.</div>}
-      {activeTodos.length > 0 && visibleTodos.length === 0 && collapsedRedOnly && !expanded && (
+      {activeTodos.length > 0 && visibleTodos.length === 0 && redOnly && (
         <div className="px-4 py-6 text-center text-sm text-slate-400 dark:text-slate-600">급한 할 일이 없습니다.</div>
       )}
 

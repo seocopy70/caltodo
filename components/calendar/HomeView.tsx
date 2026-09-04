@@ -11,7 +11,7 @@ import EventModal from './EventModal';
 import TodoModal from './TodoModal';
 import TodoListPanel from './TodoListPanel';
 
-const EXPANDED_WINDOW_DAYS = 10; // 오늘탭 일정목록: 접기/펼치기 없이 오늘부터 10일 이내 일정을 가까운 순서로 항상 모두 표시
+const TODAY_TOMORROW_DAYS = 2; // 오늘탭 일정목록: 접기/펼치기 없이 오늘·내일 일정만 항상 표시
 
 export default function HomeView({ events, todos, notes = [], todoFolders = [], noteFolders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onAddTodo, onReconcileTodo, onPatchNote, onAddNote, onReconcileNote, onAddEvent, onPatchEvent, onRemoveEvent, onReconcileEvent, onNewNote, onEditNote }: any) {
   const [editingEvent, setEditingEvent] = useState<any>(null);
@@ -22,7 +22,7 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
 
   const windowEvents = useMemo(() => {
     const result: any[] = [];
-    for (let i = 0; i < EXPANDED_WINDOW_DAYS; i++) {
+    for (let i = 0; i < TODAY_TOMORROW_DAYS; i++) {
       const day = addDays(today, i);
       const dayEvents = events
         .filter((e: any) => eventOccursOnDay(e, day))
@@ -55,6 +55,7 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
       largePlaceholder
       showRelativeDates
       showFolderFilter
+      redOnly
     />
 
     <section className="rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden">
