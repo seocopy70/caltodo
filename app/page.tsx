@@ -43,6 +43,7 @@ export default function Home() {
   const [todoFolders, setTodoFolders] = useState<any[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [swipeModeHint, setSwipeModeHint] = useState<string | null>(null); // 일정탭 스와이프 모드 전환 안내(화면 중앙, 토스트보다 큼)
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const [isEmailBackupOpen, setIsEmailBackupOpen] = useState(false);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
@@ -59,6 +60,7 @@ export default function Home() {
   const [editingNoteFocus, setEditingNoteFocus] = useState<{ focus: 'title' | 'content'; lineIndex?: number; charOffset?: number } | null>(null);
   const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const swipeModeHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const hscrollElRef = useRef<HTMLElement | null>(null);
@@ -69,6 +71,13 @@ export default function Home() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message, type });
     toastTimer.current = setTimeout(() => setToast(null), 2500);
+  }, []);
+
+  // 일정탭 스와이프 모드가 바뀔 때 화면 중앙에 크게 잠깐 보여주는 안내(하단 토스트보다 눈에 잘 띄게)
+  const showSwipeModeHint = useCallback((message: string) => {
+    if (swipeModeHintTimer.current) clearTimeout(swipeModeHintTimer.current);
+    setSwipeModeHint(message);
+    swipeModeHintTimer.current = setTimeout(() => setSwipeModeHint(null), 1200);
   }, []);
 
   const applyBootstrapResult = useCallback((res: any) => {
@@ -282,7 +291,7 @@ export default function Home() {
         if (!isVerticalScrollAtEdge(vgrid, deltaY)) return; // 시간표가 아직 스크롤할 여지가 있으면 그 스크롤만
         const nextMode = calSwipeMode === 'date' ? 'tabs' : 'date';
         setCalSwipeMode(nextMode);
-        notify(nextMode === 'date' ? '↔ 좌우 스와이프 = 월/주 이동' : '↔ 좌우 스와이프 = 탭 이동');
+        showSwipeModeHint(nextMode === 'tabs' ? '좌우로 밀면 탭간 이동' : '좌우로 밀면 월(주) 이동');
         return;
       }
       if (isHorizontalDominant) {
@@ -386,5 +395,6 @@ export default function Home() {
     {editingTodo && <TodoModal todo={editingTodo} folders={todoFolders} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
     {(editingNote || isNewNoteOpen) && <NoteModal note={editingNote} folders={noteFolders} secureFolderId={noteFolders.find((f: any) => f.isSecure)?.id || null} initialFocus={editingNoteFocus?.focus} initialLineIndex={editingNoteFocus?.lineIndex} initialCharOffset={editingNoteFocus?.charOffset} onClose={() => { setEditingNote(null); setIsNewNoteOpen(false); setEditingNoteFocus(null); }} onRefresh={refreshData} onNotify={notify} onAddLocal={addNoteLocal} onPatchLocal={patchNoteLocal} onReconcileLocal={reconcileNoteLocal} onRollbackLocal={rollbackNoteLocal} />}
     {toast && <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold ${toast.type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>{toast.message}</div>}
+    {swipeModeHint && <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none px-6"><div className="bg-slate-900/90 dark:bg-slate-800/90 text-white text-xl sm:text-2xl font-black px-6 py-4 rounded-2xl shadow-2xl text-center animate-in fade-in zoom-in duration-150">{swipeModeHint}</div></div>}
   </div>;
 }
