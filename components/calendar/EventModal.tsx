@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { api } from '../../lib/api-client';
 import { MapPin, AlignLeft, Trash2, X, Repeat } from 'lucide-react';
@@ -30,7 +30,7 @@ function AutocompleteDropdown({ suggestions, onSelect }: { suggestions: string[]
   );
 }
 
-export default function EventModal({ date, editingEvent, user, notify, onClose, onRefresh, onAddLocal, onPatchLocal, onRemoveLocal, onReconcileLocal }: any) {
+export default function EventModal({ date, editingEvent, user, notify, onClose, onRefresh, onAddLocal, onPatchLocal, onRemoveLocal, onReconcileLocal, allEvents }: any) {
   useModalBackClose(onClose);
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -47,8 +47,35 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
   const endTouchedRef = useRef(false); // 사용자가 종료시간을 직접 만졌는지 (만지면 자동 동기화 중단)
   const [titleSuggestOpen, setTitleSuggestOpen] = useState(false);
   const [locationSuggestOpen, setLocationSuggestOpen] = useState(false);
-  const { remember: rememberTitle, suggestionsFor: titleSuggestionsFor } = useRecentInputs('event-title');
-  const { remember: rememberLocation, suggestionsFor: locationSuggestionsFor } = useRecentInputs('event-location');
+  // 자동완성 후보는 "이 기기에서 최근 저장한 값"뿐 아니라 "서버에 이미 저장돼 있는 기존 일정들의
+  // 제목/장소"에서도 뽑아온다 — 그래야 다른 기기에서 입력했거나 가져오기(import)로 들어온 데이터도
+  // 후보로 보인다. 최신 일정을 먼저 훑도록 시작시각 내림차순으로 정렬한 뒤 중복(대소문자 무시) 제거.
+  const historicalTitles = useMemo(() => {
+    const sorted = [...(allEvents || [])].sort((a: any, b: any) => (b?.start?.getTime?.() || 0) - (a?.start?.getTime?.() || 0));
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const e of sorted) {
+      const v = (e.title || '').trim();
+      if (!v || seen.has(v.toLowerCase())) continue;
+      seen.add(v.toLowerCase());
+      out.push(v);
+    }
+    return out;
+  }, [allEvents]);
+  const historicalLocations = useMemo(() => {
+    const sorted = [...(allEvents || [])].sort((a: any, b: any) => (b?.start?.getTime?.() || 0) - (a?.start?.getTime?.() || 0));
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const e of sorted) {
+      const v = (e.location || '').trim();
+      if (!v || seen.has(v.toLowerCase())) continue;
+      seen.add(v.toLowerCase());
+      out.push(v);
+    }
+    return out;
+  }, [allEvents]);
+  const { remember: rememberTitle, suggestionsFor: titleSuggestionsFor } = useRecentInputs('event-title', historicalTitles);
+  const { remember: rememberLocation, suggestionsFor: locationSuggestionsFor } = useRecentInputs('event-location', historicalLocations);
 
   useEffect(() => {
     if (editingEvent) {

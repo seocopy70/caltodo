@@ -89,7 +89,7 @@ export default function EventListView({ events, user, onNotify, onRefresh }: any
         );
       })}
 
-      {editingEvent && <EventModal date={editingEvent.start} editingEvent={editingEvent} user={user} notify={onNotify} onClose={() => setEditingEvent(null)} onRefresh={onRefresh} />}
+      {editingEvent && <EventModal date={editingEvent.start} editingEvent={editingEvent} user={user} notify={onNotify} onClose={() => setEditingEvent(null)} onRefresh={onRefresh} allEvents={events} />}
     </div>
   );
 }

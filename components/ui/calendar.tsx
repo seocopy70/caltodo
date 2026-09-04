@@ -255,7 +255,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
         </div>
       )}
 
-      {isModalOpen && <EventModal date={selectedDate} editingEvent={editingEvent} user={user} notify={onNotify} onClose={closeModal} onRefresh={onRefresh} onAddLocal={onAddEvent} onPatchLocal={onPatchEvent} onRemoveLocal={onRemoveEvent} onReconcileLocal={onReconcileEvent} />}
+      {isModalOpen && <EventModal date={selectedDate} editingEvent={editingEvent} user={user} notify={onNotify} onClose={closeModal} onRefresh={onRefresh} onAddLocal={onAddEvent} onPatchLocal={onPatchEvent} onRemoveLocal={onRemoveEvent} onReconcileLocal={onReconcileEvent} allEvents={events} />}
       {dayViewDate && <DayViewModal date={dayViewDate} events={events} holidayMap={holidayMap} user={user} onNotify={onNotify} onRefresh={onRefresh} onClose={() => setDayViewDate(null)} onAddEvent={onAddEvent} onPatchEvent={onPatchEvent} onRemoveEvent={onRemoveEvent} onReconcileEvent={onReconcileEvent} />}
     </div>
   );

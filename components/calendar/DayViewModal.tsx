@@ -62,7 +62,7 @@ export default function DayViewModal({ date, events, holidayMap, user, onNotify,
           </button>
         </div>
       </div>
-      {isModalOpen && <EventModal date={prefillDate} editingEvent={editingEvent} user={user} notify={onNotify} onClose={closeEventModal} onRefresh={onRefresh} onAddLocal={onAddEvent} onPatchLocal={onPatchEvent} onRemoveLocal={onRemoveEvent} onReconcileLocal={onReconcileEvent} />}
+      {isModalOpen && <EventModal date={prefillDate} editingEvent={editingEvent} user={user} notify={onNotify} onClose={closeEventModal} onRefresh={onRefresh} onAddLocal={onAddEvent} onPatchLocal={onPatchEvent} onRemoveLocal={onRemoveEvent} onReconcileLocal={onReconcileEvent} allEvents={events} />}
     </div>
   );
 }
