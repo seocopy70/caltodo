@@ -67,7 +67,7 @@ function useFitAvailableHeight(active: boolean, ref: React.RefObject<HTMLElement
   return height;
 }
 
-export default function Calendar({ initialView = 'month', events, user, onNotify, onRefresh, onAddEvent, onPatchEvent, onRemoveEvent, onReconcileEvent }: any) {
+export default function Calendar({ initialView = 'month', events, user, onNotify, onRefresh, onAddEvent, onPatchEvent, onRemoveEvent, onReconcileEvent, swipeMode = 'date' }: any) {
   const [view, setCalView] = useState<'month' | 'week'>(initialView);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -128,7 +128,9 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   const handleGridTouchEnd = (e: React.TouchEvent) => {
     const start = gridTouchStart.current;
     gridTouchStart.current = null;
-    if (wideView || isDatePickerOpen || !start) return;
+    // swipeMode가 'date'가 아니면(위/아래로 스와이프해서 "탭 이동" 모드로 바꿔둔 상태) 여기서는 아무것도
+    // 하지 않고 그대로 두어, 이 가로 스와이프가 상위(page.tsx)의 탭 전환 처리로 이어지게 함
+    if (wideView || isDatePickerOpen || swipeMode !== 'date' || !start) return;
     const deltaX = e.changedTouches[0].clientX - start.x;
     const deltaY = e.changedTouches[0].clientY - start.y;
     // 위아래로 스크롤하려던 움직임이 옆으로 살짝 밀렸다고 달이 바뀌지 않도록, 가로가 세로의 1.5배 이상일 때만 인정

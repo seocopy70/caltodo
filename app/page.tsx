@@ -33,6 +33,8 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'today' | 'calendar' | 'list' | 'todo' | 'notes'>('today');
+  // 일정탭 전용: 좌우 스와이프가 지금 "월/주 이동"인지 "탭 이동"인지 — 위/아래로 스와이프할 때마다 토글됨
+  const [calSwipeMode, setCalSwipeMode] = useState<'date' | 'tabs'>('date');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [events, setEvents] = useState<any[]>([]);
   const [todos, setTodos] = useState<any[]>([]);
@@ -178,6 +180,10 @@ export default function Home() {
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', handleVisibility); };
   }, [user, refreshData]);
   useEffect(() => { document.documentElement.classList.toggle('dark', isDarkMode); }, [isDarkMode]);
+  // 일정탭을 벗어나면 스와이프 모드를 항상 기본값(월/주 이동)으로 되돌려서, 다음에 들어왔을 때 헷갈리지 않게 함
+  useEffect(() => {
+    if (view !== 'calendar') setCalSwipeMode('date');
+  }, [view]);
 
   const handleLogin = async () => {
     setAuthError(null);
@@ -203,7 +209,9 @@ export default function Home() {
     setTimeout(openFn, 0);
   };
   // 목록 탭은 메인메뉴로 이동했으므로 탭바/스와이프 순환에서는 제외 (view 상태 자체는 유지)
-  const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['calendar', '일정'], ['todo', '할일'], ['notes', '메모']];
+  // 일정탭은 맨 뒤(메모탭 다음)로 옮김 — 월별보기에서 위아래로 살짝만 움직여도 탭이 훌쩍 넘어가버리는 문제 때문에,
+  // 일정탭 안에서는 위아래 스와이프로 탭을 바로 넘기지 않고 "좌우 스와이프의 의미(월/주 이동 ↔ 탭 이동)"만 토글하도록 바꿈
+  const tabs: Array<[typeof view, string]> = [['today', '오늘'], ['todo', '할일'], ['notes', '메모'], ['calendar', '일정']];
   const activeNotes = notes.filter((n: any) => !n.deletedAt);
   // 수정할 때마다(체크박스 토글 등으로 updatedAt이 바뀔 때마다) 카드 위치가 요동치지 않도록,
   // 오늘 탭에서는 항상 생성순으로 고정 정렬한다 (activeNotes는 updatedAt 내림차순이라 그대로 쓰면 안 됨).
@@ -264,12 +272,24 @@ export default function Home() {
     const isVerticalDominant = Math.abs(deltaY) >= Math.abs(deltaX) * 1.5;
 
     if (view === 'calendar') {
-      // 일정탭: 가로 스와이프는 캘린더 자체가 월/주 이동으로 처리하므로 여기서는 세로 스와이프만 탭 전환으로 다룸
-      if (!isVerticalDominant) return;
-      if (Math.abs(deltaY) < MIN_SWIPE_PX) return;
-      if (!isVerticalScrollAtEdge(vgrid, deltaY)) return; // 시간표가 아직 스크롤할 여지가 있으면 그 스크롤만
-      // 위로 밀면 다음 탭, 아래로 밀면 이전 탭 (가로 순환과 동일한 규칙을 세로에 맞게 적용)
-      cycleTab(deltaY < 0 ? 1 : -1);
+      // 일정탭: 세로 스와이프는 "좌우 스와이프가 지금 뭘 하는지"를 토글하고,
+      // 가로 스와이프는 그 순간의 모드에 따라 월/주 이동(date) 또는 탭 이동(tabs)으로 동작함.
+      // 월별보기는 화면 안에 다 들어오게 만들어서 스크롤할 여지가 거의 없다 보니, 예전처럼 세로 스와이프로
+      // 곧장 다른 탭(오늘/할일/메모)까지 넘겨버리면 살짝만 움직여도 화면이 훌쩍 바뀌는 문제가 있었음.
+      // "모드만 바꾸는" 정도로 낮춰서, 실수로 건드려도 다시 위아래로 한 번 더 밀면 바로 원래대로 돌아옴.
+      if (isVerticalDominant) {
+        if (Math.abs(deltaY) < MIN_SWIPE_PX) return;
+        if (!isVerticalScrollAtEdge(vgrid, deltaY)) return; // 시간표가 아직 스크롤할 여지가 있으면 그 스크롤만
+        const nextMode = calSwipeMode === 'date' ? 'tabs' : 'date';
+        setCalSwipeMode(nextMode);
+        notify(nextMode === 'date' ? '↔ 좌우 스와이프 = 월/주 이동' : '↔ 좌우 스와이프 = 탭 이동');
+        return;
+      }
+      if (isHorizontalDominant) {
+        if (calSwipeMode !== 'tabs') return; // date 모드에서는 Calendar 컴포넌트가 자체적으로 월/주를 이동시킴
+        if (Math.abs(deltaX) < MIN_SWIPE_PX) return;
+        cycleTab(deltaX < 0 ? 1 : -1);
+      }
       return;
     }
 
@@ -355,7 +375,7 @@ export default function Home() {
         <button onClick={() => signOut(auth)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">로그아웃</button>
       </div>
     </>}
-    <main className="max-w-7xl mx-auto p-2.5 sm:p-4">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} noteFolders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'content', lineIndex, charOffset }); }} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={user} onRefresh={refreshData} onNotify={notify} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex, charOffset }); }} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} />}</main>
+    <main className="max-w-7xl mx-auto p-2.5 sm:p-4">{view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} noteFolders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'content', lineIndex, charOffset }); }} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={user} onRefresh={refreshData} onNotify={notify} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} swipeMode={calSwipeMode} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex, charOffset }); }} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} />}</main>
     {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} folders={noteFolders} todoFolders={todoFolders} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
     {isEmailBackupOpen && <EmailBackupPanel user={user} onClose={() => setIsEmailBackupOpen(false)} onNotify={notify} />}
     {isDataManagementOpen && <DataManagementPanel events={events} user={user} onClose={() => setIsDataManagementOpen(false)} onRefresh={refreshData} onNotify={notify} />}
