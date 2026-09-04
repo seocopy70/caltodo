@@ -161,7 +161,9 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
           {/* 시간표 본문: 주별보기는 화면에 실제로 남는 높이에 맞춰 경계를 두고(내부는 스크롤로 00~24시 전체 확인 가능),
               일별보기는 화면 비율 기준. touch-pan-x도 함께 허용해서, 이 영역 안에서 시작한 좌우 스와이프가
               바깥(data-hscroll)의 가로 스크롤로 정상적으로 이어지게 함 — pan-y만 허용했을 때는 먹통이었음. */}
-          <div ref={scrollRef} className="flex overflow-y-auto touch-pan-x touch-pan-y" style={{ maxHeight: weekBodyMaxHeight }}>
+          {/* data-vscroll: 일정탭에서 세로 스와이프로 탭을 전환할 때, 이 시간표가 아직 스크롤할
+              여지가 있으면(맨 위/맨 아래가 아니면) 탭 전환 대신 시간표 스크롤만 되도록 표시 */}
+          <div ref={scrollRef} data-vscroll className="flex overflow-y-auto touch-pan-x touch-pan-y" style={{ maxHeight: weekBodyMaxHeight }}>
             <div className="w-9 shrink-0">
               {HOURS.map((h) => (
                 <div key={h} style={{ height: HOUR_HEIGHT }} className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-right pr-1 -translate-y-1.5 border-t border-slate-50 dark:border-slate-800/40">{h === 0 ? '' : `${h}시`}</div>

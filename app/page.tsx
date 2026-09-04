@@ -60,6 +60,7 @@ export default function Home() {
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const hscrollElRef = useRef<HTMLElement | null>(null);
+  const vscrollElRef = useRef<HTMLElement | null>(null);
   const noTabCycleRef = useRef<boolean>(false);
 
   const notify = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -209,31 +210,71 @@ export default function Home() {
   const todayNotes = [...activeNotes].filter((n: any) => n.showToday).sort((a: any, b: any) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
   const anyOverlayOpen = menuOpen || isImportExportOpen || isEmailBackupOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim() || !!searchDate;
 
+  const MIN_SWIPE_PX = 60; // 손가락이 살짝 삐끗한 정도(탭 중 미세한 흔들림)까지 스와이프로 오인하지 않도록 최소 이동거리
+  // 탭 순서상 direction만큼 옮기고, 새 탭 진입 시 레이아웃이 어긋나지 않도록 항상 맨 위로 스크롤
+  const cycleTab = (direction: 1 | -1) => {
+    const idx = tabs.findIndex(([key]) => key === view);
+    if (idx === -1) return;
+    const nextIdx = (idx + direction + tabs.length) % tabs.length;
+    setView(tabs[nextIdx][0]);
+    window.scrollTo(0, 0);
+  };
+  // 세로 스크롤 가능한 영역(주별보기 시간표 등, data-vscroll)이 있으면 그 영역이 이미 스와이프 방향 끝(맨 위/맨 아래)에
+  // 닿아있을 때만 true. 명시적인 스크롤 영역을 못 찾았으면(월별보기처럼 화면 안에 다 들어오는 경우) 페이지 자체의
+  // 스크롤 위치로 판단 — 어차피 스크롤할 게 없으면 위/아래 어느 쪽으로도 항상 "끝"이라 바로 탭 전환이 허용됨.
+  const isVerticalScrollAtEdge = (vgrid: HTMLElement | null, deltaY: number) => {
+    const el: { scrollTop: number; clientHeight: number; scrollHeight: number } =
+      vgrid || (document.scrollingElement as HTMLElement) || document.documentElement;
+    const atBottomEdge = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+    const atTopEdge = el.scrollTop <= 1;
+    return deltaY < 0 ? atBottomEdge : atTopEdge;
+  };
+
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     // 일정표(월/주별보기) 영역 안이면 해당 스크롤 요소를 기억해뒀다가, 끝에 도달한 상태에서
-    // 그 방향으로 더 밀었을 때만 탭 순환으로 이어지도록 함
+    // 그 방향으로 더 밀었을 때만 탭 순환으로 이어지도록 함(가로: 다른 탭, 세로: 일정탭 전용)
     hscrollElRef.current = (e.target as HTMLElement).closest('[data-hscroll]') as HTMLElement | null;
-    // 일정탭 "넓게보기" 상태에서는 끝까지 밀어도 탭 순환으로 이어지면 안 되므로 아예 별도로 표시
+    vscrollElRef.current = (e.target as HTMLElement).closest('[data-vscroll]') as HTMLElement | null;
+    // 일정탭 "넓게보기" 상태에서는 끝까지 밀어도 탭 순환(가로/세로 모두)으로 이어지면 안 되므로 아예 별도로 표시
     noTabCycleRef.current = !!(e.target as HTMLElement).closest('[data-no-tab-cycle]');
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
-    // 입력창/수정창 등 모달이 하나라도 열려있으면(useModalBackClose로 추적) 그 안에서의 좌우 스크롤이
+    // 입력창/수정창 등 모달이 하나라도 열려있으면(useModalBackClose로 추적) 그 안에서의 스크롤이
     // 탭 순환으로 이어지지 않도록 함 — 이전에는 개별 상태(anyOverlayOpen)만 확인해서 놓치는 모달이 있었음
-    if (touchStartX.current === null || touchStartY.current === null || anyOverlayOpen || isAnyModalOpen()) { touchStartX.current = null; touchStartY.current = null; noTabCycleRef.current = false; return; }
-    if (noTabCycleRef.current) { touchStartX.current = null; touchStartY.current = null; noTabCycleRef.current = false; return; }
+    if (touchStartX.current === null || touchStartY.current === null || anyOverlayOpen || isAnyModalOpen()) {
+      touchStartX.current = null; touchStartY.current = null; noTabCycleRef.current = false; hscrollElRef.current = null; vscrollElRef.current = null;
+      return;
+    }
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
     touchStartX.current = null;
     touchStartY.current = null;
-
-    // 위아래로 스크롤하려던 움직임이 옆으로 살짝 밀렸다고 탭이 바뀌지 않도록,
-    // 가로로 움직인 거리가 세로보다 뚜렷하게 클 때만(가로가 세로의 1.5배 이상) 스와이프로 인정
-    if (Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
-
+    const blockedByNoTabCycle = noTabCycleRef.current;
+    noTabCycleRef.current = false;
     const grid = hscrollElRef.current;
     hscrollElRef.current = null;
+    const vgrid = vscrollElRef.current;
+    vscrollElRef.current = null;
+    if (blockedByNoTabCycle) return;
+
+    // 위/아래로 크게 움직인 쪽이 뚜렷할 때만(1.5배 이상) 세로 스와이프로 인정, 반대도 마찬가지
+    const isHorizontalDominant = Math.abs(deltaX) >= Math.abs(deltaY) * 1.5;
+    const isVerticalDominant = Math.abs(deltaY) >= Math.abs(deltaX) * 1.5;
+
+    if (view === 'calendar') {
+      // 일정탭: 가로 스와이프는 캘린더 자체가 월/주 이동으로 처리하므로 여기서는 세로 스와이프만 탭 전환으로 다룸
+      if (!isVerticalDominant) return;
+      if (Math.abs(deltaY) < MIN_SWIPE_PX) return;
+      if (!isVerticalScrollAtEdge(vgrid, deltaY)) return; // 시간표가 아직 스크롤할 여지가 있으면 그 스크롤만
+      // 위로 밀면 다음 탭, 아래로 밀면 이전 탭 (가로 순환과 동일한 규칙을 세로에 맞게 적용)
+      cycleTab(deltaY < 0 ? 1 : -1);
+      return;
+    }
+
+    // 그 외 탭(오늘/할일/메모): 기존처럼 가로 스와이프만 탭 전환
+    if (!isHorizontalDominant) return;
     if (grid) {
       // 왼쪽으로 밀 때(다음 탭 방향)는 그리드가 이미 오른쪽 끝까지 스크롤된 상태여야 하고,
       // 오른쪽으로 밀 때(이전 탭 방향)는 이미 왼쪽 끝(scrollLeft 0)이어야 함
@@ -242,17 +283,9 @@ export default function Home() {
       const atRelevantEdge = deltaX < 0 ? atRightEdge : atLeftEdge;
       if (!atRelevantEdge) return; // 아직 스크롤할 여지가 있으면 탭 순환은 무시하고 그리드 스크롤만
     }
-
-    // 화면 폭 1/4라는 큰 제한은 삭제했지만, 손가락이 살짝 삐끗한 정도(탭 중 미세한 흔들림)까지
-    // 스와이프로 오인하지 않도록 최소 이동거리는 넉넉하게 잡아둠
-    const MIN_SWIPE_PX = 60;
     if (Math.abs(deltaX) < MIN_SWIPE_PX) return;
-    const idx = tabs.findIndex(([key]) => key === view);
-    if (idx === -1) return;
     // 왼쪽으로 밀면 다음 탭, 오른쪽으로 밀면 이전 탭
-    const nextIdx = deltaX < 0 ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
-    setView(tabs[nextIdx][0]);
-    window.scrollTo(0, 0);
+    cycleTab(deltaX < 0 ? 1 : -1);
   };
 
   return <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="min-h-screen bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100">

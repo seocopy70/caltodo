@@ -9,7 +9,7 @@ import {
 import { ko } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, CalendarDays, Grid3x3, Rows3, Maximize2, Minimize2 } from 'lucide-react';
 import { getKoreanHolidaysForYears } from '../../lib/holidays';
-import { eventOccursOnDay, getRecurrenceType } from '../../lib/recurrence';
+import { eventOccursOnDay, getRecurrenceType, getOccurrenceTimes } from '../../lib/recurrence';
 import KoreanLunarCalendar from 'korean-lunar-calendar';
 import EventModal from '../calendar/EventModal';
 import DayViewModal from '../calendar/DayViewModal';
@@ -119,6 +119,27 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
     openNewEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, 0));
   };
 
+  // 일정탭 안에서 좌우로 스와이프하면 월/주를 이동(탭 전환은 page.tsx가 세로 스와이프로 별도 처리).
+  // 넓게보기 상태에서는 가로 스와이프가 이미 "넓혀진 그리드를 옆으로 보기" 용도라 겹치지 않도록 비활성.
+  const gridTouchStart = useRef<{ x: number; y: number } | null>(null);
+  const handleGridTouchStart = (e: React.TouchEvent) => {
+    gridTouchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const handleGridTouchEnd = (e: React.TouchEvent) => {
+    const start = gridTouchStart.current;
+    gridTouchStart.current = null;
+    if (wideView || isDatePickerOpen || !start) return;
+    const deltaX = e.changedTouches[0].clientX - start.x;
+    const deltaY = e.changedTouches[0].clientY - start.y;
+    // 위아래로 스크롤하려던 움직임이 옆으로 살짝 밀렸다고 달이 바뀌지 않도록, 가로가 세로의 1.5배 이상일 때만 인정
+    if (Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
+    const MIN_SWIPE_PX = 60; // 살짝 삐끗한 정도(탭 중 미세한 흔들림)까지 스와이프로 오인하지 않도록
+    if (Math.abs(deltaX) < MIN_SWIPE_PX) return;
+    // 왼쪽으로 밀면 다음(달/주), 오른쪽으로 밀면 이전(달/주)
+    if (deltaX < 0) setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7));
+    else setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7));
+  };
+
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-500">
       <div className="flex items-center gap-2 mb-3 flex-wrap gap-y-2">
@@ -170,11 +191,11 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
       {isDatePickerOpen && <div className="mb-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4"><div className="flex items-center justify-between mb-3"><div className="text-sm font-bold text-slate-700 dark:text-slate-200">연월로 바로 이동</div><button onClick={() => setIsDatePickerOpen(false)} className="text-xs text-slate-500">닫기</button></div><div className="flex gap-3 mb-3"><select value={currentDate.getFullYear()} onChange={(e) => jumpTo(Number(e.target.value), currentDate.getMonth())} className="flex-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-bold outline-none">{years.map((year) => <option key={year} value={year}>{year}년</option>)}</select><div className="flex-[2] grid grid-cols-6 gap-1.5">{Array.from({ length: 12 }, (_, month) => <button key={month} onClick={() => jumpTo(currentDate.getFullYear(), month)} className={`rounded-lg px-2 py-2 text-xs font-bold ${month === currentDate.getMonth() ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-blue-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}>{month + 1}월</button>)}</div></div></div>}
 
       {view === 'week' ? (
-        <div ref={weekGridWrapperRef}>
+        <div ref={weekGridWrapperRef} onTouchStart={handleGridTouchStart} onTouchEnd={handleGridTouchEnd}>
           <TimeGrid days={days} events={events} holidayMap={holidayMap} onSlotClick={handleSlotClick} onEventClick={openEditEvent} onDayHeaderClick={(day: Date) => setDayViewDate(day)} availableHeight={weekAvailableHeight} wideView={wideView} />
         </div>
       ) : (
-        <div className={wideView ? 'overflow-x-auto -mx-2.5 px-2.5' : ''} data-no-tab-cycle={wideView || undefined}>
+        <div className={wideView ? 'overflow-x-auto -mx-2.5 px-2.5' : ''} data-no-tab-cycle={wideView || undefined} onTouchStart={handleGridTouchStart} onTouchEnd={handleGridTouchEnd}>
         {/* touch-pan-x만 걸려있으면(이전 방식) 이 영역 안에서 시작한 세로 스와이프가 페이지 스크롤로
             이어지지 못해 "월별보기에서 위아래 스크롤이 안 되는" 문제가 있었음 — x/y 모두 허용. */}
         <div ref={monthGridWrapperRef} className={`rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm bg-white/70 dark:bg-slate-900/20 overflow-hidden ${wideView ? 'min-w-[640px]' : ''}`}>
@@ -186,7 +207,10 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
                 // 넘치는 일정은 늘어나지 않고 "+N개 더" 표시(또는 좁을 땐 점)로 요약해서, 화면 밖으로 넘치지 않게 함.
                 <div key={weekIdx} className="grid border-b border-slate-100 dark:border-slate-800/60 last:border-b-0" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                   {week.map((day, i) => {
-                    const dayEvents = events.filter((e: any) => eventOccursOnDay(e, day));
+                    // 하루에 일정이 여럿이면 시간순(이른 시간 먼저)으로 정렬해서 보여줌(반복일정은 그 날짜 기준 실제 발생 시간으로 계산)
+                    const dayEvents = events
+                      .filter((e: any) => eventOccursOnDay(e, day))
+                      .sort((a: any, b: any) => getOccurrenceTimes(a, day).start.getTime() - getOccurrenceTimes(b, day).start.getTime());
                     const visibleEvents = dayEvents.slice(0, monthCellMaxChips);
                     const hiddenCount = dayEvents.length - visibleEvents.length;
                     const isToday = isSameDay(day, new Date());
