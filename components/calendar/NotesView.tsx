@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../../lib/api-client';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -10,9 +10,9 @@ import SecureFolderModal from './SecureFolderModal';
 import FolderModal from './FolderModal';
 import NoteContent, { toggleChecklistLine } from './NoteContent';
 import { getFolderColor } from '../../lib/folderColor';
-import { ModalBackCloseGuard } from '../../lib/useModalBackClose';
+import { ModalBackCloseGuard, isAnyModalOpen } from '../../lib/useModalBackClose';
 
-export default function NotesView({ notes, folders = [], user, onNotify, onRefresh, onNewNote, onEditNote, onPatchNote }: any) {
+export default function NotesView({ notes, folders = [], user, onNotify, onRefresh, onNewNote, onEditNote, onPatchNote, onSwipeHint }: any) {
   const [showTrash, setShowTrash] = useState(false);
   // 삭제된 메모는 매번 앱을 열 때마다 같이 안 불러오고, 보관함을 실제로 펼쳤을 때만 따로 불러옴
   // (평소엔 안 쓰는 데이터라 매번 가져오면 그만큼 느려짐)
@@ -164,7 +164,31 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     }
   };
 
-  return <div className="max-w-2xl mx-auto space-y-4 p-2">
+  // 화면 맨 위에서 시작해 아래로 스와이프하면 다음 폴더로 이동(전체 → 폴더들 → 미분류 → 전체).
+  // 보안폴더는 스와이프만으로 잠금해제 창이 불쑥 뜨지 않도록 순환 대상에서 제외(직접 탭해서 들어가야 함).
+  // "맨 위에서 시작"만 인정해서, 목록을 위로 스크롤하려는 일반적인 손짓과 섞이지 않게 함.
+  const folderSwipeStart = useRef<{ x: number; y: number; atTop: boolean } | null>(null);
+  const handleFolderSwipeStart = (e: React.TouchEvent) => {
+    const doc = (document.scrollingElement || document.documentElement) as HTMLElement;
+    folderSwipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, atTop: doc.scrollTop <= 1 };
+  };
+  const handleFolderSwipeEnd = (e: React.TouchEvent) => {
+    const start = folderSwipeStart.current;
+    folderSwipeStart.current = null;
+    if (!start || !start.atTop || isAnyModalOpen()) return; // 메모 수정창 등 모달이 열려있으면 그 안의 스크롤이 폴더 전환으로 이어지지 않게 함
+    const deltaX = e.changedTouches[0].clientX - start.x;
+    const deltaY = e.changedTouches[0].clientY - start.y;
+    if (Math.abs(deltaY) < Math.abs(deltaX) * 1.5) return;
+    if (deltaY < 60) return;
+    const cycle: Array<string> = ['all', ...folders.filter((f: any) => !f.isSecure).map((f: any) => f.id), 'none'];
+    const idx = cycle.indexOf(activeFolderId);
+    const next = cycle[(idx + 1 + cycle.length) % cycle.length];
+    selectFolder(next as any);
+    const label = next === 'all' ? '전체' : next === 'none' ? '미분류' : (folders.find((f: any) => f.id === next)?.name || '');
+    onSwipeHint?.(`📁 ${label}`);
+  };
+
+  return <div className="max-w-2xl mx-auto space-y-4 p-2" onTouchStart={handleFolderSwipeStart} onTouchEnd={handleFolderSwipeEnd}>
     {/* 폴더(아이콘만) + 새 메모 + 카드/목록 토글을 한 줄로 */}
     <div className="flex items-center gap-2">
       <button onClick={() => onNewNote?.()} className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-xl text-slate-500 dark:text-slate-400 hover:border-blue-500/50 transition font-bold text-sm"><Plus className="w-5 h-5" /> 새 메모</button>

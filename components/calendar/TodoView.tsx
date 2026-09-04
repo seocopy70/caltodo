@@ -1,19 +1,42 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '../../lib/api-client';
 import { Folder, FolderPlus, Pencil, X, Check, Plus } from 'lucide-react';
 import { getFolderColor } from '../../lib/folderColor';
-import { ModalBackCloseGuard } from '../../lib/useModalBackClose';
+import { ModalBackCloseGuard, isAnyModalOpen } from '../../lib/useModalBackClose';
 import TodoListPanel from './TodoListPanel';
 import TodoModal from './TodoModal';
 import FolderModal from './FolderModal';
 
-export default function TodoView({ todos, folders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onAddTodo, onReconcileTodo }: any) {
+export default function TodoView({ todos, folders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onAddTodo, onReconcileTodo, onSwipeHint }: any) {
   const [activeFolderId, setActiveFolderId] = useState<string | 'all' | 'none'>('all');
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [isNewTodoOpen, setIsNewTodoOpen] = useState(false);
   const notify = onNotify || (() => {});
+
+  // 화면 맨 위에서 시작해 아래로 스와이프하면 다음 폴더로 이동(전체 → 폴더들 → 미분류 → 전체).
+  // "맨 위에서 시작"만 인정해서, 목록을 위로 스크롤하려는 일반적인 손짓과 섞이지 않게 함.
+  const folderSwipeStart = useRef<{ x: number; y: number; atTop: boolean } | null>(null);
+  const handleFolderSwipeStart = (e: React.TouchEvent) => {
+    const doc = (document.scrollingElement || document.documentElement) as HTMLElement;
+    folderSwipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, atTop: doc.scrollTop <= 1 };
+  };
+  const handleFolderSwipeEnd = (e: React.TouchEvent) => {
+    const start = folderSwipeStart.current;
+    folderSwipeStart.current = null;
+    if (!start || !start.atTop || isAnyModalOpen()) return; // 할일 입력창 등 모달이 열려있으면 그 안의 스크롤이 폴더 전환으로 이어지지 않게 함
+    const deltaX = e.changedTouches[0].clientX - start.x;
+    const deltaY = e.changedTouches[0].clientY - start.y;
+    if (Math.abs(deltaY) < Math.abs(deltaX) * 1.5) return; // 세로로 뚜렷하게 밀 때만
+    if (deltaY < 60) return; // 아래로 60px 이상(위로 미는 건 그냥 스크롤로 둠)
+    const cycle: Array<string> = ['all', ...folders.map((f: any) => f.id), 'none'];
+    const idx = cycle.indexOf(activeFolderId);
+    const next = cycle[(idx + 1 + cycle.length) % cycle.length];
+    setActiveFolderId(next as any);
+    const label = next === 'all' ? '전체' : next === 'none' ? '미분류' : (folders.find((f: any) => f.id === next)?.name || '');
+    onSwipeHint?.(`📁 ${label}`);
+  };
 
   const visibleTodos = activeFolderId === 'all'
     ? todos
@@ -43,7 +66,7 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-2 space-y-2">
+    <div className="max-w-2xl mx-auto p-2 space-y-2" onTouchStart={handleFolderSwipeStart} onTouchEnd={handleFolderSwipeEnd}>
       {/* 메모탭 상단과 동일한 레이아웃: 새 할일 버튼 + 폴더(아이콘만, 오른쪽) */}
       <div className="flex items-center gap-2">
         <button onClick={() => setIsNewTodoOpen(true)} className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-xl text-slate-500 dark:text-slate-400 hover:border-blue-500/50 transition font-bold text-sm"><Plus className="w-5 h-5" /> 새 할일</button>

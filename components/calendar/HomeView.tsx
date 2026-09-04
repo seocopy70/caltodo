@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { addDays, format, isSameDay } from 'date-fns';
-import { Plus, MapPin, AlignLeft, StickyNote, Star, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { addDays, format } from 'date-fns';
+import { Plus, MapPin, AlignLeft, StickyNote, Star, Trash2 } from 'lucide-react';
 import { eventOccursOnDay, getRecurrenceType } from '../../lib/recurrence';
 import { api } from '../../lib/api-client';
 import NoteContent, { toggleChecklistLine } from './NoteContent';
@@ -11,20 +11,12 @@ import EventModal from './EventModal';
 import TodoModal from './TodoModal';
 import TodoListPanel from './TodoListPanel';
 
-const EXPANDED_WINDOW_DAYS = 10; // 펼치면 오늘부터 10일 이내 일정까지 가까운 순서로 모두 표시
+const EXPANDED_WINDOW_DAYS = 10; // 오늘탭 일정목록: 접기/펼치기 없이 오늘부터 10일 이내 일정을 가까운 순서로 항상 모두 표시
 
 export default function HomeView({ events, todos, notes = [], todoFolders = [], noteFolders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onAddTodo, onReconcileTodo, onPatchNote, onAddNote, onReconcileNote, onAddEvent, onPatchEvent, onRemoveEvent, onReconcileEvent, onNewNote, onEditNote }: any) {
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isNewTodoOpen, setIsNewTodoOpen] = useState(false);
-  // 할일 목록과 일정 중 하나를 펼치면 다른 하나는 자동으로 접히도록 펼침 상태를 하나로 관리
-  const [expandedSection, setExpandedSection] = useState<'todos' | 'events' | null>(null);
-  const todosExpanded = expandedSection === 'todos';
-  const eventsExpanded = expandedSection === 'events';
-  const setEventsExpanded = (v: boolean | ((prev: boolean) => boolean)) => {
-    const next = typeof v === 'function' ? (v as (prev: boolean) => boolean)(eventsExpanded) : v;
-    setExpandedSection(next ? 'events' : null);
-  };
   const notify = onNotify || (() => {});
   const today = new Date();
 
@@ -42,16 +34,6 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
 
-  // 접으면 "지금 시각" 기준으로 지난 일정은 제외하고 가장 가까운 3개만, 펼치면 10일 내 전체(가까운 순서).
-  // 단, 오늘의 하루종일 일정은 시작 시각이 00:00이라 "지났다"고 잘못 걸러지던 문제가 있어 따로 포함시킴.
-  const collapsedEvents = useMemo(() => {
-    const now = new Date();
-    const isAllDay = (e: any) => !!e.endDate || (e.start.getHours() === 0 && e.start.getMinutes() === 0 && e.end?.getHours() === 23 && e.end?.getMinutes() === 59);
-    return windowEvents.filter((e: any) => e.start.getTime() >= now.getTime() || (isAllDay(e) && isSameDay(e.__day, today))).slice(0, 3);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [windowEvents]);
-  const visibleEvents = eventsExpanded ? windowEvents : collapsedEvents;
-
   return <div className="max-w-5xl mx-auto space-y-4 p-2">
     {/* 새 할일/일정/메모 — 화면 맨 위, 자주 쓰는 순서(할일 먼저) */}
     <div className="flex justify-end gap-2">
@@ -68,26 +50,16 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
       onRefresh={onRefresh}
       onPatchTodo={onPatchTodo}
       onRemoveTodo={onRemoveTodo}
-      maxVisible={5}
       compact
       hideCompleted
       largePlaceholder
       showRelativeDates
-      expanded={todosExpanded}
-      onExpandedChange={(v: boolean) => setExpandedSection(v ? 'todos' : null)}
       showFolderFilter
-      collapsedRedOnly
     />
 
     <section className="rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden">
-      {windowEvents.length > collapsedEvents.length && (
-        <button onClick={() => setEventsExpanded((v) => !v)} title={eventsExpanded ? '접기' : `펼치기 (10일 내 ${windowEvents.length}개)`} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border-b border-slate-100 dark:border-slate-700/40 text-xs font-bold text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition">
-          {!eventsExpanded && <span>{`10일 내 ${windowEvents.length}개`}</span>}
-          {eventsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-      )}
-      <div className={`divide-y divide-slate-100 dark:divide-slate-700/30 ${eventsExpanded ? 'max-h-[50vh] overflow-y-auto' : ''}`}>
-        {visibleEvents.map((event: any) => <EventRow key={`${event.id}-${format(event.__day, 'yyyy-MM-dd')}`} event={event} onEdit={() => setEditingEvent(event)} />)}
+      <div className="divide-y divide-slate-100 dark:divide-slate-700/30">
+        {windowEvents.map((event: any) => <EventRow key={`${event.id}-${format(event.__day, 'yyyy-MM-dd')}`} event={event} onEdit={() => setEditingEvent(event)} />)}
         {windowEvents.length === 0 && <div className="text-center text-slate-500 dark:text-slate-600 py-8 text-sm">일정이 없습니다.</div>}
       </div>
     </section>
