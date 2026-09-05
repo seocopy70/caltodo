@@ -54,7 +54,6 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
       hideCompleted
       largePlaceholder
       showRelativeDates
-      showFolderFilter
       redOnly
     />
 

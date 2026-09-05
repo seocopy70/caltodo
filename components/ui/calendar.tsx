@@ -14,6 +14,7 @@ import KoreanLunarCalendar from 'korean-lunar-calendar';
 import EventModal from '../calendar/EventModal';
 import DayViewModal from '../calendar/DayViewModal';
 import TimeGrid from '../calendar/TimeGrid';
+import YearOverviewModal from '../calendar/YearOverviewModal';
 
 function getLunarLabel(date: Date) {
   const cal = new KoreanLunarCalendar();
@@ -35,7 +36,6 @@ function eventDotColor(event: any) {
   }
 }
 
-const YEAR_RANGE = 15;
 const MONTH_CELL_MIN_HEIGHT = 40; // 화면이 아주 좁아도 위아래 경계 안에 다 들어오도록 기존(62)보다 더 낮춤(그 아래는 점(dot) 모드로 표시)
 const MONTH_CELL_FALLBACK_HEIGHT = 110; // 화면 높이를 아직 측정하기 전(첫 렌더)에 쓰는 기본값
 
@@ -101,14 +101,14 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   const monthCellMaxChips = monthEventMode === 'chips2' ? 2 : monthEventMode === 'chips1' ? 1 : 0;
   const showLunarLabel = monthCellHeight >= 78;
   const weekOfMonth = Math.ceil((currentDate.getDate() + startOfMonth(currentDate).getDay()) / 7);
-  const yearFrom = currentDate.getFullYear() - YEAR_RANGE;
-  const years = Array.from({ length: YEAR_RANGE * 2 + 1 }, (_, i) => yearFrom + i);
   const holidayMap = getKoreanHolidaysForYears(days.map((d) => d.getFullYear()));
 
   const closeModal = () => { setIsModalOpen(false); setEditingEvent(null); };
   const openNewEvent = (day: Date) => { setSelectedDate(day); setEditingEvent(null); setIsModalOpen(true); };
   const openEditEvent = (event: any) => { setEditingEvent(event); setSelectedDate(event.start); setIsModalOpen(true); };
-  const jumpTo = (year: number, month: number) => { setCurrentDate(new Date(year, month, 1)); setIsDatePickerOpen(false); };
+  // 12개월 한눈에 보기 모달에서 월 제목을 누르면 그 달로, 날짜를 누르면 그 날짜(일별보기)로 이동
+  const jumpToMonth = (year: number, month: number) => setCurrentDate(new Date(year, month, 1));
+  const jumpToDay = (day: Date) => { setCurrentDate(day); setDayViewDate(day); };
 
   const handleDayClick = (day: Date) => {
     // 일정 유무와 상관없이 날짜를 탭하면 항상 일별보기를 띄움(일정 없는 날에도 그 안에서 새 일정 추가 가능)
@@ -190,7 +190,14 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
         </div>
       </div>
 
-      {isDatePickerOpen && <div className="mb-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4"><div className="flex items-center justify-between mb-3"><div className="text-sm font-bold text-slate-700 dark:text-slate-200">연월로 바로 이동</div><button onClick={() => setIsDatePickerOpen(false)} className="text-xs text-slate-500">닫기</button></div><div className="flex gap-3 mb-3"><select value={currentDate.getFullYear()} onChange={(e) => jumpTo(Number(e.target.value), currentDate.getMonth())} className="flex-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-bold outline-none">{years.map((year) => <option key={year} value={year}>{year}년</option>)}</select><div className="flex-[2] grid grid-cols-6 gap-1.5">{Array.from({ length: 12 }, (_, month) => <button key={month} onClick={() => jumpTo(currentDate.getFullYear(), month)} className={`rounded-lg px-2 py-2 text-xs font-bold ${month === currentDate.getMonth() ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-blue-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}>{month + 1}월</button>)}</div></div></div>}
+      {isDatePickerOpen && (
+        <YearOverviewModal
+          initialYear={currentDate.getFullYear()}
+          onClose={() => setIsDatePickerOpen(false)}
+          onPickMonth={jumpToMonth}
+          onPickDay={jumpToDay}
+        />
+      )}
 
       {view === 'week' ? (
         <div ref={weekGridWrapperRef} onTouchStart={handleGridTouchStart} onTouchEnd={handleGridTouchEnd}>
