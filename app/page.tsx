@@ -60,6 +60,12 @@ export default function Home() {
   const [searchDateEnd, setSearchDateEnd] = useState(''); // 날짜검색 종료일(선택)
   const [dateSearchOpen, setDateSearchOpen] = useState(false); // 날짜검색 팝오버(시작/종료일 입력) 열림 여부
   const dateSearchOpenedAtRef = useRef(0); // 메인메뉴와 동일한 이유로, 연 직후 배경 클릭으로 곧바로 닫히는 것을 방지
+  const dateSearchPopoverRef = useRef<HTMLDivElement>(null);
+  const [dateSearchPopoverHeight, setDateSearchPopoverHeight] = useState(0);
+  // 팝오버가 열려있는 동안 검색결과(GlobalSearch)를 그 아래로 밀어내기 위해 실제 높이를 측정
+  useEffect(() => {
+    if (dateSearchOpen && dateSearchPopoverRef.current) setDateSearchPopoverHeight(dateSearchPopoverRef.current.offsetHeight);
+  }, [dateSearchOpen]);
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [editingNote, setEditingNote] = useState<any>(null);
   const [editingNoteFocus, setEditingNoteFocus] = useState<{ focus: 'title' | 'content'; lineIndex?: number; charOffset?: number } | null>(null);
@@ -347,7 +353,7 @@ export default function Home() {
           {dateSearchOpen && <>
             <ModalBackCloseGuard onClose={() => setDateSearchOpen(false)} />
             <div className="fixed inset-0 z-[75]" onClick={() => { if (Date.now() - dateSearchOpenedAtRef.current < 250) return; setDateSearchOpen(false); }} />
-            <div className="absolute right-0 top-full mt-1.5 z-[80] w-64 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-2">
+            <div ref={dateSearchPopoverRef} className="absolute right-0 top-full mt-1.5 z-[80] w-64 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-2">
               <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">날짜(기간)로 전체 기록 보기</div>
               <div className="flex items-center gap-2">
                 <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 w-8 shrink-0">시작</label>
@@ -369,6 +375,7 @@ export default function Home() {
               query={search}
               date={searchDate ? new Date(searchDate) : null}
               dateEnd={searchDateEnd ? new Date(searchDateEnd) : null}
+              pushDownBy={dateSearchOpen ? dateSearchPopoverHeight + 6 : 0}
               events={events}
               todos={todos}
               notes={activeNotes}

@@ -8,7 +8,7 @@ import { api } from '../../lib/api-client';
 import { expandOccurrences } from '../../lib/recurrence';
 import { useModalBackClose } from '../../lib/useModalBackClose';
 
-export default function GlobalSearch({ query, date, dateEnd, events, todos, notes, folders = [], onClose, onEvent, onTodo, onNote, onRefresh, onNotify }: any) {
+export default function GlobalSearch({ query, date, dateEnd, events, todos, notes, folders = [], onClose, onEvent, onTodo, onNote, onRefresh, onNotify, pushDownBy }: any) {
   useModalBackClose(onClose);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
@@ -94,7 +94,12 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
     : '';
 
   return (
-    <div className="absolute right-0 top-full mt-2 z-[70] w-[min(92vw,26rem)] max-h-[70vh] overflow-y-auto rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
+    <div
+      className="absolute right-0 top-full z-[70] w-[min(92vw,26rem)] max-h-[70vh] overflow-y-auto rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
+      // 날짜(기간)검색 팝오버가 열려있는 동안엔 그 팝오버 아래로 결과를 밀어내서, 시작일만 골라도
+      // 바로 뜨는 결과가 팝오버(입력창)에 가려지지 않게 함. 평소(팝오버 닫힘)엔 기존과 동일하게 mt-2.
+      style={{ marginTop: pushDownBy ? `${pushDownBy}px` : '0.5rem' }}
+    >
       <div className="p-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
         <span className="text-xs text-slate-500 dark:text-slate-400">{dateLabel ? `${dateLabel} 전체 기록 ${total}건` : `검색 결과 ${total}건`}</span>
         <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"><X className="w-4 h-4" /></button>
