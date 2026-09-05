@@ -352,7 +352,11 @@ export default function Home() {
           </div>
           {dateSearchOpen && <>
             <ModalBackCloseGuard onClose={() => setDateSearchOpen(false)} />
-            <div className="fixed inset-0 z-[75]" onClick={() => { if (Date.now() - dateSearchOpenedAtRef.current < 250) return; setDateSearchOpen(false); }} />
+            {/* onClick 대신 onPointerDown으로 닫는다: 터치 후 브라우저가 나중에 합성해서 쏘는 클릭이
+                이 배경이 사라진 뒤 그 아래(예: 할일/메모 카드)에 도달해 의도치 않게 그 항목을 열어버리는
+                "탭스루(tap-through)" 문제가 있었음. 누르는 즉시(pointerdown) preventDefault로 그 뒤에
+                이어질 합성 클릭 자체를 막아서, 배경을 눌렀을 땐 팝오버만 닫히고 다른 동작은 안 일어나게 함. */}
+            <div className="fixed inset-0 z-[75]" onPointerDown={(e) => { if (Date.now() - dateSearchOpenedAtRef.current < 250) return; e.preventDefault(); setDateSearchOpen(false); }} />
             <div ref={dateSearchPopoverRef} className="absolute right-0 top-full mt-1.5 z-[80] w-64 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-2">
               <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">날짜(기간)로 전체 기록 보기</div>
               <div className="flex items-center gap-2">
@@ -397,7 +401,8 @@ export default function Home() {
           쌓임 순서가 DOM 순서에 의존했었음(뒤에 그려진 게 우선인데, 우연히 헤더 위로 올라올 수 있었음).
           여는 순간(터치+마우스 합성 클릭이 겹치는 기기 등) 곧바로 자기 자신을 닫아버려 정작 누르려던
           항목의 클릭이 씹히는 문제를 막기 위해, 연 지 250ms 안에는 배경 클릭을 무시한다. */}
-      <div className="fixed inset-0 z-[45]" onClick={() => { if (Date.now() - menuOpenedAtRef.current < 250) return; setMenuOpen(false); }} />
+      {/* onClick 대신 onPointerDown으로 닫는다: 탭스루(tap-through) 방지, 위 날짜검색 팝오버와 동일한 이유 */}
+      <div className="fixed inset-0 z-[45]" onPointerDown={(e) => { if (Date.now() - menuOpenedAtRef.current < 250) return; e.preventDefault(); setMenuOpen(false); }} />
       <div className="fixed top-14 left-2 z-50 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-2">
         <button onClick={() => openFromMenu(() => setIsImportExportOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">가져오기 / 내보내기</button>
         <button onClick={() => openFromMenu(() => setIsEmailBackupOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">이메일 백업</button>

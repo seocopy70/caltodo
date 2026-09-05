@@ -57,7 +57,8 @@ export default function YearOverviewModal({ initialYear, onClose, onPickMonth, o
           {yearListOpen && (<>
             {/* 화면 다른 곳을 누르면 자연스럽게 닫히도록 배경을 깔아둠. 연 직후 250ms 안의 클릭은
                 무시해서(메인메뉴/날짜검색 팝오버와 동일한 이유) 여는 손짓 자체가 곧바로 닫히지 않게 함 */}
-            <div className="fixed inset-0 z-[55]" onClick={() => { if (Date.now() - yearListOpenedAtRef.current < 250) return; setYearListOpen(false); }} />
+            {/* onClick 대신 onPointerDown + preventDefault로 탭스루(tap-through) 방지(위 날짜검색 팝오버와 동일 이유) */}
+            <div className="fixed inset-0 z-[55]" onPointerDown={(e) => { if (Date.now() - yearListOpenedAtRef.current < 250) return; e.preventDefault(); setYearListOpen(false); }} />
             <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 z-[60] max-h-64 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-1.5 grid grid-cols-3 gap-1 w-56">
               {yearOptions.map((y) => (
                 <button key={y} onClick={() => { setYear(y); setYearListOpen(false); }} className={`px-2 py-1.5 rounded-lg text-sm font-bold ${y === year ? 'bg-blue-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>{y}</button>

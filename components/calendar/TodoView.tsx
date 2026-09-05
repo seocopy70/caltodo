@@ -78,7 +78,11 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
           {folderPickerOpen && (
             <>
               <ModalBackCloseGuard onClose={() => setFolderPickerOpen(false)} />
-              <div className="fixed inset-0 z-40" onClick={() => setFolderPickerOpen(false)} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
+              {/* onClick만으로는 탭 이후 브라우저가 합성해서 쏘는 클릭이 배경이 사라진 뒤 그 아래
+                  항목까지 열어버리는 탭스루(tap-through) 문제가 있어, onPointerDown에서 미리 닫고
+                  preventDefault로 뒤이어 나올 합성 클릭 자체를 막음. onTouch*의 stopPropagation은
+                  별개 목적(이 화면의 폴더 스와이프 제스처가 함께 발동하지 않도록 하는 용도)이라 유지 */}
+              <div className="fixed inset-0 z-40" onPointerDown={(e) => { e.preventDefault(); setFolderPickerOpen(false); }} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
               <div className="fixed top-28 right-2 z-50 w-64 max-h-80 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 space-y-0.5" onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                 <button onClick={() => { setActiveFolderId('all'); setFolderPickerOpen(false); }} className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-bold">
                   <span>전체</span>{activeFolderId === 'all' && <Check className="w-4 h-4 text-blue-500" />}

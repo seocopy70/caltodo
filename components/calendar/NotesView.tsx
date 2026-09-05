@@ -200,7 +200,8 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
         {folderPickerOpen && (
           <>
             <ModalBackCloseGuard onClose={() => setFolderPickerOpen(false)} />
-            <div className="fixed inset-0 z-40" onClick={() => setFolderPickerOpen(false)} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
+            {/* 탭스루(tap-through) 방지: 위 TodoView.tsx 폴더 배경과 동일한 이유 */}
+            <div className="fixed inset-0 z-40" onPointerDown={(e) => { e.preventDefault(); setFolderPickerOpen(false); }} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
             <div className="fixed top-28 right-2 z-50 w-64 max-h-80 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 space-y-0.5" onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
               <button onClick={() => selectFolder('all')} className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-bold">
                 <span>전체</span>{activeFolderId === 'all' && <Check className="w-4 h-4 text-blue-500" />}
@@ -385,7 +386,8 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     {noteFolderPickerFor && noteFolderPickerAnchor && (
       <>
         <ModalBackCloseGuard onClose={() => setNoteFolderPickerFor(null)} />
-        <div className="fixed inset-0 z-40" onClick={() => setNoteFolderPickerFor(null)} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
+        {/* 탭스루(tap-through) 방지: 위 폴더 배경과 동일한 이유 */}
+        <div className="fixed inset-0 z-40" onPointerDown={(e) => { e.preventDefault(); setNoteFolderPickerFor(null); }} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()} />
         <div
           style={{ left: noteFolderPickerAnchor.left, width: 176, ...(noteFolderPickerAnchor.top !== undefined ? { top: noteFolderPickerAnchor.top } : { bottom: noteFolderPickerAnchor.bottom }) }}
           className="fixed z-50 max-h-72 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 space-y-0.5"
