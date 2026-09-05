@@ -52,9 +52,14 @@ export default function Home() {
   const [isVersionOpen, setIsVersionOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // 메뉴가 열린 시각 — 연 직후(터치/클릭 이벤트가 겹쳐 들어오는 기기에서) 배경(backdrop)이
+  // 곧바로 자기 자신을 다시 닫아버려서 정작 누르려던 메뉴 항목의 클릭이 씹히는 문제를 막기 위한 용도.
+  const menuOpenedAtRef = useRef(0);
   const [search, setSearch] = useState('');
-  const [searchDate, setSearchDate] = useState('');
-  const searchDateRef = useRef<HTMLInputElement>(null);
+  const [searchDate, setSearchDate] = useState(''); // 날짜검색 시작일(기간검색의 시작, 하루만 고르면 이 값만 채워짐)
+  const [searchDateEnd, setSearchDateEnd] = useState(''); // 날짜검색 종료일(선택)
+  const [dateSearchOpen, setDateSearchOpen] = useState(false); // 날짜검색 팝오버(시작/종료일 입력) 열림 여부
+  const dateSearchOpenedAtRef = useRef(0); // 메인메뉴와 동일한 이유로, 연 직후 배경 클릭으로 곧바로 닫히는 것을 방지
   const [editingTodo, setEditingTodo] = useState<any>(null);
   const [editingNote, setEditingNote] = useState<any>(null);
   const [editingNoteFocus, setEditingNoteFocus] = useState<{ focus: 'title' | 'content'; lineIndex?: number; charOffset?: number } | null>(null);
@@ -225,7 +230,7 @@ export default function Home() {
   // 수정할 때마다(체크박스 토글 등으로 updatedAt이 바뀔 때마다) 카드 위치가 요동치지 않도록,
   // 오늘 탭에서는 항상 생성순으로 고정 정렬한다 (activeNotes는 updatedAt 내림차순이라 그대로 쓰면 안 됨).
   const todayNotes = [...activeNotes].filter((n: any) => n.showToday).sort((a: any, b: any) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
-  const anyOverlayOpen = menuOpen || isImportExportOpen || isEmailBackupOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim() || !!searchDate;
+  const anyOverlayOpen = menuOpen || dateSearchOpen || isImportExportOpen || isEmailBackupOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim() || !!searchDate;
 
   const MIN_SWIPE_PX = 60; // 손가락이 살짝 삐끗한 정도(탭 중 미세한 흔들림)까지 스와이프로 오인하지 않도록 최소 이동거리
   // 탭 순서상 direction만큼 옮기고, 새 탭 진입 시 레이아웃이 어긋나지 않도록 항상 맨 위로 스크롤
@@ -321,43 +326,57 @@ export default function Home() {
     <header className="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur">
       <div className="max-w-7xl mx-auto px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-1.5">
         <div className="flex items-center gap-1.5">
-          <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0" aria-label="메뉴"><Menu className="w-5 h-5" /></button>
+          <button onClick={() => { const opening = !menuOpen; if (opening) menuOpenedAtRef.current = Date.now(); setMenuOpen(opening); }} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0" aria-label="메뉴"><Menu className="w-5 h-5" /></button>
           <div className="font-black tracking-tight mr-1 hidden sm:block">Cal2do</div>
           <nav className="flex items-center gap-0.5 overflow-x-auto flex-1 no-scrollbar">{tabs.map(([key, label]) => <button key={key} onClick={() => go(key)} className={`px-2.5 py-1.5 rounded-lg text-base font-semibold whitespace-nowrap ${view === key ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{label}</button>)}</nav>
         </div>
         <div className="relative w-full sm:w-48 md:w-64 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400"/>
-            <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) setSearchDate(''); }} placeholder="검색" className="w-full pl-8 pr-[4.7rem] py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
+            <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) { setSearchDate(''); setSearchDateEnd(''); } }} placeholder="검색" className="w-full pl-8 pr-[4.7rem] py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
             <button
               type="button"
-              onClick={() => searchDateRef.current?.showPicker?.() || searchDateRef.current?.focus()}
-              title="날짜로 전체 기록 보기"
+              onClick={() => { const opening = !dateSearchOpen; if (opening) dateSearchOpenedAtRef.current = Date.now(); setDateSearchOpen(opening); }}
+              title="날짜(기간)로 전체 기록 보기"
               className={`absolute right-1 top-1 bottom-1 px-1.5 rounded-md transition flex items-center gap-1 ${searchDate ? 'text-blue-500 bg-blue-500/10' : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
             >
               <span className="text-[10px] font-bold whitespace-nowrap">날짜검색</span>
               <CalendarSearch className="w-4 h-4 shrink-0" />
             </button>
-            <input
-              ref={searchDateRef}
-              type="date"
-              value={searchDate}
-              onChange={(e) => { setSearchDate(e.target.value); if (e.target.value) setSearch(''); }}
-              className="sr-only"
-            />
           </div>
+          {dateSearchOpen && <>
+            <ModalBackCloseGuard onClose={() => setDateSearchOpen(false)} />
+            <div className="fixed inset-0 z-[75]" onClick={() => { if (Date.now() - dateSearchOpenedAtRef.current < 250) return; setDateSearchOpen(false); }} />
+            <div className="absolute right-0 top-full mt-1.5 z-[80] w-64 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-2">
+              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">날짜(기간)로 전체 기록 보기</div>
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 w-8 shrink-0">시작</label>
+                <input type="date" value={searchDate} onChange={(e) => setSearchDate(e.target.value)} className="flex-1 min-w-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs outline-none" />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 w-8 shrink-0">종료</label>
+                {/* 종료일은 선택 사항 — 비워두면 시작일 하루만 검색(기존과 동일) */}
+                <input type="date" value={searchDateEnd} min={searchDate || undefined} onChange={(e) => setSearchDateEnd(e.target.value)} className="flex-1 min-w-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs outline-none" />
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <button type="button" onClick={() => { setSearchDate(''); setSearchDateEnd(''); }} className="text-[11px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">초기화</button>
+                <button type="button" disabled={!searchDate} onClick={() => { setSearch(''); setDateSearchOpen(false); }} className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed">검색</button>
+              </div>
+            </div>
+          </>}
           {(search.trim() || searchDate) && (
             <GlobalSearch
               query={search}
               date={searchDate ? new Date(searchDate) : null}
+              dateEnd={searchDateEnd ? new Date(searchDateEnd) : null}
               events={events}
               todos={todos}
               notes={activeNotes}
               folders={noteFolders}
-              onClose={() => { setSearch(''); setSearchDate(''); }}
-              onEvent={() => { setSearch(''); setSearchDate(''); setView('list'); }}
-              onTodo={(t: any) => { setSearch(''); setSearchDate(''); setEditingTodo(t); }}
-              onNote={(n: any) => { setSearch(''); setSearchDate(''); setEditingNote(n); }}
+              onClose={() => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); }}
+              onEvent={() => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setView('list'); }}
+              onTodo={(t: any) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingTodo(t); }}
+              onNote={(n: any) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingNote(n); }}
               onRefresh={refreshData}
               onNotify={notify}
             />
@@ -367,7 +386,11 @@ export default function Home() {
     </header>
     {menuOpen && <>
       <ModalBackCloseGuard onClose={() => setMenuOpen(false)} />
-      <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+      {/* 헤더(z-40)보다는 위, 메뉴 박스(z-50)보다는 아래로 확실히 분리 — 예전엔 헤더와 같은 z-40이라
+          쌓임 순서가 DOM 순서에 의존했었음(뒤에 그려진 게 우선인데, 우연히 헤더 위로 올라올 수 있었음).
+          여는 순간(터치+마우스 합성 클릭이 겹치는 기기 등) 곧바로 자기 자신을 닫아버려 정작 누르려던
+          항목의 클릭이 씹히는 문제를 막기 위해, 연 지 250ms 안에는 배경 클릭을 무시한다. */}
+      <div className="fixed inset-0 z-[45]" onClick={() => { if (Date.now() - menuOpenedAtRef.current < 250) return; setMenuOpen(false); }} />
       <div className="fixed top-14 left-2 z-50 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-2">
         <button onClick={() => openFromMenu(() => setIsImportExportOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">가져오기 / 내보내기</button>
         <button onClick={() => openFromMenu(() => setIsEmailBackupOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">이메일 백업</button>
