@@ -19,6 +19,7 @@ export default function YearOverviewModal({ initialYear, onClose, onPickMonth, o
   useModalBackClose(onClose);
   const [year, setYear] = useState(initialYear);
   const [yearListOpen, setYearListOpen] = useState(false);
+  const yearListOpenedAtRef = useRef(0); // 연 직후 배경 클릭으로 곧바로 닫혀버리는 것을 막기 위한 여유시간 기준
   const today = new Date();
 
   // 12월/1월 걸치는 주가 있을 수 있어 앞뒤 연도 공휴일도 같이 계산
@@ -51,15 +52,18 @@ export default function YearOverviewModal({ initialYear, onClose, onPickMonth, o
         <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="닫기"><X className="w-5 h-5" /></button>
         <div className="relative flex items-center gap-1">
           <button onClick={() => setYear((y) => y - 1)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="이전 연도"><ChevronLeft className="w-5 h-5" /></button>
-          <button onClick={() => setYearListOpen((v) => !v)} className="text-xl font-black px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="연도 선택">{year}년</button>
+          <button onClick={() => { const opening = !yearListOpen; if (opening) yearListOpenedAtRef.current = Date.now(); setYearListOpen(opening); }} className="text-xl font-black px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="연도 선택">{year}년</button>
           <button onClick={() => setYear((y) => y + 1)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="다음 연도"><ChevronRight className="w-5 h-5" /></button>
-          {yearListOpen && (
-            <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 z-10 max-h-64 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-1.5 grid grid-cols-3 gap-1 w-56">
+          {yearListOpen && (<>
+            {/* 화면 다른 곳을 누르면 자연스럽게 닫히도록 배경을 깔아둠. 연 직후 250ms 안의 클릭은
+                무시해서(메인메뉴/날짜검색 팝오버와 동일한 이유) 여는 손짓 자체가 곧바로 닫히지 않게 함 */}
+            <div className="fixed inset-0 z-[55]" onClick={() => { if (Date.now() - yearListOpenedAtRef.current < 250) return; setYearListOpen(false); }} />
+            <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 z-[60] max-h-64 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-1.5 grid grid-cols-3 gap-1 w-56">
               {yearOptions.map((y) => (
                 <button key={y} onClick={() => { setYear(y); setYearListOpen(false); }} className={`px-2 py-1.5 rounded-lg text-sm font-bold ${y === year ? 'bg-blue-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>{y}</button>
               ))}
             </div>
-          )}
+          </>)}
         </div>
         <button onClick={() => setYear(today.getFullYear())} className="text-xs font-bold text-slate-500 dark:text-slate-400 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">오늘</button>
       </div>
