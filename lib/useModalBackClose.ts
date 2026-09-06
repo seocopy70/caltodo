@@ -2,28 +2,36 @@
 
 import { useEffect, useRef } from 'react';
 
-// 현재 이 훅으로 열려있는 모달 인스턴스 개수. 모달을 닫으면서(예: 메모 "보기" 모달을 닫고)
-// 같은 렌더 배치 안에서 곧바로 다른 모달을 여는 경우(예: 메모 "수정" 모달)를 감지하기 위해 사용.
-// 앱 전체에서 "지금 열려있는 모달이 하나라도 있는가"를 판단하는 용도로도 재사용한다(중앙 뒤로가기 핸들러 참고).
+// 현재 이 훅으로 열려있는 모달 인스턴스 개수. 앱 전체에서 "지금 열려있는 모달이 하나라도 있는가"를
+// 판단하는 용도로 재사용한다(스와이프 제스처 가드 등에서 사용).
 let openModalCount = 0;
 export function isAnyModalOpen() {
   return openModalCount > 0;
 }
 
-// 모달이 X버튼/저장 등으로 닫히면서 정리 차원에서 프로그램적으로 history.back()을 호출할 때가 있는데,
-// 이때 뒤늦게 도착하는 popstate는 "사용자가 진짜로 뒤로가기를 누른 것"이 아니라 내부 정리용 이벤트다.
-// 중앙 뒤로가기 핸들러(app/page.tsx)가 이를 실제 사용자 동작으로 오인해서 탭 전환/입력창 닫기 등을
-// 실행해버리지 않도록, 그 popstate 하나를 "무시해야 함"으로 표시해둔다.
-let pendingProgrammaticPop = false;
-export function markProgrammaticPop() {
-  pendingProgrammaticPop = true;
-}
-export function consumeProgrammaticPop(): boolean {
-  if (pendingProgrammaticPop) {
-    pendingProgrammaticPop = false;
-    return true;
-  }
-  return false;
+// pushState는 몇 번 했는데 아직 그만큼 정리(back)를 못 한 상태인지 추적.
+// 평소엔 openModalCount와 같아야 정상이고, 모달이 X버튼 등으로 닫힐 때만 잠깐 어긋났다가
+// 아래 scheduleHistoryCleanup에서 한 틱 뒤에 정확히 맞춰준다.
+let pushedDepth = 0;
+let cleanupScheduled = false;
+
+// history.back()을 여러 번 나눠서 부르면 그때마다 비동기 popstate가 하나씩 날아오는데,
+// "이 모달을 닫으면서 같은 틱에 다른 모달이 새로 열리는 경우"(예: 메모 보기→수정으로 바로 전환)나
+// "여러 모달이 한꺼번에 같이 닫히는 경우"(예: 메인메뉴+그 안에서 연 모달을 함께 닫기)에는 그
+// popstate가 이미 사라지고 없는 리스너를 향하거나, 엉뚱한 다른 모달의 리스너에 잘못 전달돼
+// 방금 연 모달이 곧바로 닫혀버리는 문제가 있었다. 그래서 개별 back() 호출 대신, 한 틱(microtask)
+// 안에서 일어난 모든 "열기/닫기"를 다 지켜본 뒤 순변화량만큼 딱 한 번 history.go(-n)으로 정리한다.
+function scheduleHistoryCleanup() {
+  if (cleanupScheduled) return;
+  cleanupScheduled = true;
+  queueMicrotask(() => {
+    cleanupScheduled = false;
+    const stale = pushedDepth - openModalCount;
+    if (stale > 0) {
+      pushedDepth -= stale;
+      window.history.go(-stale);
+    }
+  });
 }
 
 /**
@@ -37,6 +45,7 @@ export function useModalBackClose(onClose: () => void) {
 
   useEffect(() => {
     openModalCount += 1;
+    pushedDepth += 1;
     window.history.pushState({ __modal: true }, '');
     const handlePopState = () => {
       closedByBackRef.current = true;
@@ -46,22 +55,14 @@ export function useModalBackClose(onClose: () => void) {
     return () => {
       window.removeEventListener('popstate', handlePopState);
       openModalCount -= 1;
-      // X 버튼 등으로 닫힌 경우(뒤로가기로 닫힌 게 아니라면) 방금 추가해둔 히스토리 항목을 정리.
-      //
-      // 주의: history.back()은 비동기라서, 이 모달을 닫으면서 "같은 순간" 다른 모달을 새로 여는 경우
-      // (예: 메모 보기 모달을 닫고 곧바로 수정 모달을 여는 흐름) back()이 실제로 처리되기 전에
-      // 새 모달이 pushState를 먼저 해버릴 수 있다. 그러면 뒤늦게 도착한 popstate가 새 모달의
-      // 리스너에 전달되어 방금 연 모달이 즉시 닫혀버리는 문제가 생긴다.
-      // 이를 막기 위해 back() 호출을 다음 microtask로 미루고, 그 사이에 다른 모달이 새로 열려
-      // openModalCount가 원래대로 돌아왔다면(=이 모달이 진짜 "마지막"이 아니었다면) back()을 건너뛴다.
-      if (!closedByBackRef.current) {
-        const countAtClose = openModalCount;
-        queueMicrotask(() => {
-          if (openModalCount === countAtClose) {
-            markProgrammaticPop();
-            window.history.back();
-          }
-        });
+      if (closedByBackRef.current) {
+        // 실제 뒤로가기로 닫힌 경우엔 브라우저가 이미 히스토리를 한 칸 옮겨준 뒤라, 우리가
+        // 또 back()을 부를 필요는 없고 장부(pushedDepth)만 맞춰준다.
+        pushedDepth -= 1;
+      } else {
+        // X 버튼/저장 등으로 닫힌 경우: 지금 당장 back()을 부르지 않고, 같은 틱에 다른 모달이
+        // 새로 열리거나 함께 닫히는 것까지 다 반영된 뒤(microtask) 순변화량만큼만 한 번에 정리.
+        scheduleHistoryCleanup();
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
