@@ -217,14 +217,18 @@ export default function Home() {
   // 탭을 바꿀 때 이전 탭에서의 스크롤 위치가 남아있으면, 새 탭(특히 캘린더)의 "화면에 맞춰 높이 계산"
   // 로직이 잘못된 위치를 기준으로 계산해버려 레이아웃이 어긋나는 문제가 있었음 — 탭 전환 시 항상 맨 위로.
   const go = (next: typeof view) => { setView(next); setMenuOpen(false); window.scrollTo(0, 0); };
-  // 메인메뉴 항목을 눌러 모달을 열 때, "메뉴 닫기"와 "모달 열기"가 같은 클릭에서 동시에 일어나면
-  // 메뉴 자신의 뒤로가기 정리 로직(useModalBackClose)이 자기 히스토리 항목을 못 지우고 남겨버리는
-  //문제가 있었음(메인메뉴에서 창을 열었다가 닫은 뒤 화면이 예상 못하게 초기화되던 원인으로 추정).
-  // 메뉴를 먼저 완전히 닫고(그 정리가 끝난 뒤) 다음 틱에 모달을 열어서 이 둘이 겹치지 않게 함.
-  const openFromMenu = (openFn: () => void) => {
-    setMenuOpen(false);
-    setTimeout(openFn, 0);
-  };
+  // 메인메뉴 항목을 눌러 모달을 열 때, "메뉴 닫기"와 "모달 열기"를 같은 클릭에서 동시에(닫았다가
+  // 다시 여는 방식으로) 처리하면 문제가 있었음: useModalBackClose는 "같은 렌더 배치 안에서 곧바로
+  // 다른 모달이 열리는 경우"만 안전하게 처리하도록 설계돼 있는데, setTimeout(fn, 0)으로 모달 열기를
+  // 다음 매크로태스크로 미루면 그 사이에 메뉴의 뒤로가기 정리 로직(마이크로태스크)이 먼저 실행되어
+  // "새로 열릴 모달이 아직 없다"고 오판, 방금 push한 히스토리 항목을 지워버리는 history.back()을
+  // 실제로 호출해버림 — 그 back()이 나중에 비동기로 도착시키는 popstate 이벤트가, 그 사이 새로
+  // 열린 모달의 리스너에 잘못 전달되어 그 모달을 곧바로 닫아버리는 문제가 있었음(몇 번 눌러야
+  // 겨우 열리는 것처럼 보였던 원인). 그래서 메뉴는 "닫았다가 다시 여는" 대신 모달이 완전히 닫힐
+  // 때까지 그대로 열어둔 채(화면엔 모달이 덮어서 안 보임) 유지하고, 모달이 닫힐 때 메뉴도 같이
+  // 닫는 방식으로 바꿈 — 이러면 "닫기+열기"가 아니라 "추가로 열기"가 되어 위 레이스 자체가 없어짐.
+  const openFromMenu = (openFn: () => void) => { openFn(); };
+  const closeMenuAnd = (closeFn: () => void) => { closeFn(); setMenuOpen(false); };
   // 목록 탭은 메인메뉴로 이동했으므로 탭바/스와이프 순환에서는 제외 (view 상태 자체는 유지)
   // 일정탭은 맨 뒤(메모탭 다음)로 옮김 — 월별보기에서 위아래로 살짝만 움직여도 탭이 훌쩍 넘어가버리는 문제 때문에,
   // 일정탭 안에서는 위아래 스와이프로 탭을 바로 넘기지 않고 "좌우 스와이프의 의미(월/주 이동 ↔ 탭 이동)"만 토글하도록 바꿈
@@ -417,13 +421,13 @@ export default function Home() {
       {menuOpen && <div className="absolute inset-0 z-[45]" onClick={() => setMenuOpen(false)} />}
       {view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} noteFolders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'content', lineIndex, charOffset }); }} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={user} onRefresh={refreshData} onNotify={notify} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} swipeMode={calSwipeMode} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onSwipeHint={showSwipeModeHint} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex, charOffset }); }} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onSwipeHint={showSwipeModeHint} />}
     </main>
-    {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} folders={noteFolders} todoFolders={todoFolders} onClose={() => setIsImportExportOpen(false)} onRefresh={refreshData} onNotify={notify} />}
-    {isEmailBackupOpen && <EmailBackupPanel user={user} onClose={() => setIsEmailBackupOpen(false)} onNotify={notify} />}
-    {isDataManagementOpen && <DataManagementPanel events={events} user={user} onClose={() => setIsDataManagementOpen(false)} onRefresh={refreshData} onNotify={notify} />}
-    {isAnniversaryOpen && <AnniversaryModal events={events} user={user} onClose={() => setIsAnniversaryOpen(false)} onRefresh={refreshData} onNotify={notify} />}
-    {isTodoLinkPrefOpen && <TodoEventLinkSettingsModal onClose={() => setIsTodoLinkPrefOpen(false)} />}
-    {isVersionOpen && <VersionModal onClose={() => setIsVersionOpen(false)} />}
-    {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
+    {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} folders={noteFolders} todoFolders={todoFolders} onClose={() => closeMenuAnd(() => setIsImportExportOpen(false))} onRefresh={refreshData} onNotify={notify} />}
+    {isEmailBackupOpen && <EmailBackupPanel user={user} onClose={() => closeMenuAnd(() => setIsEmailBackupOpen(false))} onNotify={notify} />}
+    {isDataManagementOpen && <DataManagementPanel events={events} user={user} onClose={() => closeMenuAnd(() => setIsDataManagementOpen(false))} onRefresh={refreshData} onNotify={notify} />}
+    {isAnniversaryOpen && <AnniversaryModal events={events} user={user} onClose={() => closeMenuAnd(() => setIsAnniversaryOpen(false))} onRefresh={refreshData} onNotify={notify} />}
+    {isTodoLinkPrefOpen && <TodoEventLinkSettingsModal onClose={() => closeMenuAnd(() => setIsTodoLinkPrefOpen(false))} />}
+    {isVersionOpen && <VersionModal onClose={() => closeMenuAnd(() => setIsVersionOpen(false))} />}
+    {isHelpOpen && <HelpModal onClose={() => closeMenuAnd(() => setIsHelpOpen(false))} />}
     {editingTodo && <TodoModal todo={editingTodo} folders={todoFolders} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
     {(editingNote || isNewNoteOpen) && <NoteModal note={editingNote} folders={noteFolders} secureFolderId={noteFolders.find((f: any) => f.isSecure)?.id || null} initialFocus={editingNoteFocus?.focus} initialLineIndex={editingNoteFocus?.lineIndex} initialCharOffset={editingNoteFocus?.charOffset} onClose={() => { setEditingNote(null); setIsNewNoteOpen(false); setEditingNoteFocus(null); }} onRefresh={refreshData} onNotify={notify} onAddLocal={addNoteLocal} onPatchLocal={patchNoteLocal} onReconcileLocal={reconcileNoteLocal} onRollbackLocal={rollbackNoteLocal} />}
     {toast && <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold ${toast.type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>{toast.message}</div>}
