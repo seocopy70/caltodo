@@ -56,7 +56,6 @@ export default function Home() {
   const [searchDate, setSearchDate] = useState(''); // 날짜검색 시작일(기간검색의 시작, 하루만 고르면 이 값만 채워짐)
   const [searchDateEnd, setSearchDateEnd] = useState(''); // 날짜검색 종료일(선택)
   const [dateSearchOpen, setDateSearchOpen] = useState(false); // 날짜검색 팝오버(시작/종료일 입력) 열림 여부
-  const dateSearchOpenedAtRef = useRef(0); // 메인메뉴와 동일한 이유로, 연 직후 배경 클릭으로 곧바로 닫히는 것을 방지
   const dateSearchPopoverRef = useRef<HTMLDivElement>(null);
   const [dateSearchPopoverHeight, setDateSearchPopoverHeight] = useState(0);
   // 팝오버가 열려있는 동안 검색결과(GlobalSearch)를 그 아래로 밀어내기 위해 실제 높이를 측정
@@ -343,7 +342,7 @@ export default function Home() {
             <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) { setSearchDate(''); setSearchDateEnd(''); } }} placeholder="검색" className="w-full pl-8 pr-[4.7rem] py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
             <button
               type="button"
-              onClick={() => { const opening = !dateSearchOpen; if (opening) dateSearchOpenedAtRef.current = Date.now(); setDateSearchOpen(opening); }}
+              onClick={() => setDateSearchOpen((v) => !v)}
               title="날짜(기간)로 전체 기록 보기"
               className={`absolute right-1 top-1 bottom-1 px-1.5 rounded-md transition flex items-center gap-1 ${searchDate ? 'text-blue-500 bg-blue-500/10' : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
             >
@@ -353,9 +352,12 @@ export default function Home() {
           </div>
           {dateSearchOpen && <>
             <ModalBackCloseGuard onClose={() => setDateSearchOpen(false)} />
-            {/* onClick으로 닫음(이전에 onPointerDown+preventDefault로 바꿨다가, 그게 오히려 터치가 살짝만
-                빗나가도 그 탭 전체를 통째로 무시해버려서 "여러 번 눌러야 겨우 눌리는" 문제를 만들어서 되돌림) */}
-            <div className="fixed inset-0 z-[75]" onClick={() => { if (Date.now() - dateSearchOpenedAtRef.current < 250) return; setDateSearchOpen(false); }} />
+            {/* 메인메뉴와 동일한 원인(화면 전체를 덮는 배경 + onClick 방식은, 배경이 사라진 직후
+                브라우저가 뒤늦게 쏘는 합성 클릭이 그 아래(할일/메모/일정 항목)까지 뚫고 들어가
+                수정창을 열어버리는 탭스루 문제가 있었음)이라 같은 방식으로 고침: 화면 전체를 덮는
+                배경은 없애고, 본문 영역(main) 쪽 배경만 아래에 별도로 둠(구조적으로 항상 본문
+                항목보다 위에 있어 탭스루 자체가 발생하지 않음). 헤더 안(검색창 등)은 이 팝오버
+                바깥을 눌러도 자동으로 안 닫히지만, 메인메뉴와 동일하게 그 정도는 허용함. */}
             <div ref={dateSearchPopoverRef} className="absolute right-0 top-full mt-1.5 z-[80] w-64 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-2">
               <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">날짜(기간)로 전체 기록 보기</div>
               <div className="flex items-center gap-2">
@@ -418,7 +420,7 @@ export default function Home() {
           한 번 더 쏘는 합성 클릭이 그 배경이 사라진 뒤 아래 항목까지 뚫고 들어가는 경우가 있었음).
           헤더(햄버거 버튼·검색·탭바)는 이 배경 범위 밖이라 평소처럼 그대로 눌림 — 탭을 누르면
           go()가 알아서 메뉴도 닫아주므로 "탭은 눌러서 이동" 요구사항도 자연히 충족됨. */}
-      {menuOpen && <div className="absolute inset-0 z-[45]" onClick={() => setMenuOpen(false)} />}
+      {(menuOpen || dateSearchOpen) && <div className="absolute inset-0 z-[45]" onClick={() => { setMenuOpen(false); setDateSearchOpen(false); }} />}
       {view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} noteFolders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'content', lineIndex, charOffset }); }} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={user} onRefresh={refreshData} onNotify={notify} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} swipeMode={calSwipeMode} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onSwipeHint={showSwipeModeHint} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex, charOffset }); }} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onSwipeHint={showSwipeModeHint} />}
     </main>
     {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} folders={noteFolders} todoFolders={todoFolders} onClose={() => closeMenuAnd(() => setIsImportExportOpen(false))} onRefresh={refreshData} onNotify={notify} />}

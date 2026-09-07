@@ -66,7 +66,15 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-2 space-y-2" onTouchStart={handleFolderSwipeStart} onTouchEnd={handleFolderSwipeEnd}>
+    <div
+      className="max-w-2xl mx-auto p-2 space-y-2"
+      // 목록이 짧아서 화면 아래쪽에 빈 공간이 남을 때도 그 빈 공간에서 시작한 스와이프가
+      // 폴더 전환으로 이어지도록, 이 컨테이너 자체가 화면 남은 높이만큼 차지하게 함(min-height).
+      // 이게 없으면 짧은 목록 아래 빈 공간은 이 div의 실제 크기 밖이라 터치 이벤트 자체가 안 잡힘.
+      style={{ minHeight: 'calc(100dvh - 130px)' }}
+      onTouchStart={handleFolderSwipeStart}
+      onTouchEnd={handleFolderSwipeEnd}
+    >
       {/* 메모탭 상단과 동일한 레이아웃: 새 할일 버튼 + 폴더(아이콘만, 오른쪽) */}
       <div className="flex items-center gap-2">
         <button onClick={() => setIsNewTodoOpen(true)} className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-xl text-slate-500 dark:text-slate-400 hover:border-blue-500/50 transition font-bold text-sm"><Plus className="w-5 h-5" /> 새 할일</button>

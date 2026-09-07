@@ -188,7 +188,14 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     onSwipeHint?.(`📁 ${label}`);
   };
 
-  return <div className="max-w-2xl mx-auto space-y-4 p-2" onTouchStart={handleFolderSwipeStart} onTouchEnd={handleFolderSwipeEnd}>
+  return <div
+    className="max-w-2xl mx-auto space-y-4 p-2"
+    // 목록이 짧아서 화면 아래쪽에 빈 공간이 남을 때도 그 빈 공간에서 시작한 스와이프가
+    // 폴더 전환으로 이어지도록, 이 컨테이너 자체가 화면 남은 높이만큼 차지하게 함(min-height).
+    style={{ minHeight: 'calc(100dvh - 130px)' }}
+    onTouchStart={handleFolderSwipeStart}
+    onTouchEnd={handleFolderSwipeEnd}
+  >
     {/* 폴더(아이콘만) + 새 메모 + 카드/목록 토글을 한 줄로 */}
     <div className="flex items-center gap-2">
       <button onClick={() => onNewNote?.()} className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-xl text-slate-500 dark:text-slate-400 hover:border-blue-500/50 transition font-bold text-sm"><Plus className="w-5 h-5" /> 새 메모</button>
