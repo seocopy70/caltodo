@@ -77,7 +77,9 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   const [dayViewDate, setDayViewDate] = useState<Date | null>(null);
   const monthGridWrapperRef = useRef<HTMLDivElement>(null);
   const weekGridWrapperRef = useRef<HTMLDivElement>(null);
-  // 폰 좁은 화면에서 "넓게보기"를 켜면 폰 넓은화면 기본 폭으로 일정표를 보여주고 그 안에서만 좌우로 스크롤함
+  // 폰 좁은 화면에서 "넓게보기"를 켜면 폰 넓은화면 기본 폭으로 일정표를 보여주고(좌우) 그 안에서만
+  // 좌우로 스크롤함. 월별보기에서는 동시에 화면에 맞춘 고정 높이도 풀어서, 그 주(週)에서 일정이
+  // 가장 많은 날짜 기준으로 칸 높이도 늘어나 모든 일정이 잘리지 않고 다 보임(아래로도 확장).
   const [wideView, setWideView] = useState(false);
 
   const monthStart = startOfMonth(currentDate);
@@ -178,11 +180,12 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           >
             {view === 'month' ? <Rows3 className="w-5 h-5" /> : <Grid3x3 className="w-5 h-5" />}
           </button>
-          {/* 넓게보기/맞춤보기 전환: 폰 좁은 화면에서만 의미가 있어서 그 화면에서만 보여줌 */}
+          {/* 넓게보기/맞춤보기 전환: 폰 좁은 화면에서만 의미가 있어서 그 화면에서만 보여줌.
+              월별보기에서는 좌우(화면 폭)만이 아니라 아래로도(칸 높이) 늘어나서 일정이 잘리지 않고 다 보임. */}
           <button
             type="button"
             onClick={() => setWideView((v) => !v)}
-            title={wideView ? '탭하면 화면에 맞춰 보기' : '탭하면 넓게 보기'}
+            title={wideView ? '탭하면 화면에 맞춰 보기' : '탭하면 넓고 길게 보기(일정 다 보이게)'}
             className="sm:hidden py-2.5 px-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0"
           >
             {wideView ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
@@ -220,20 +223,22 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
                     const dayEvents = events
                       .filter((e: any) => eventOccursOnDay(e, day))
                       .sort((a: any, b: any) => getOccurrenceTimes(a, day).start.getTime() - getOccurrenceTimes(b, day).start.getTime());
-                    const visibleEvents = dayEvents.slice(0, monthCellMaxChips);
-                    const hiddenCount = dayEvents.length - visibleEvents.length;
+                    // 펼치기 상태면 그 칸만 다 보여주는 게 아니라, 잘림 없이 전부 보여주고 칸 높이는
+                    // CSS grid가 그 주(週) 안에서 가장 내용이 많은 요일에 맞춰 자동으로 늘려줌(같은 주는 항상 같은 높이).
+                    const visibleEvents = wideView ? dayEvents : dayEvents.slice(0, monthCellMaxChips);
+                    const hiddenCount = wideView ? 0 : dayEvents.length - visibleEvents.length;
                     const isToday = isSameDay(day, new Date());
                     const dow = day.getDay();
                     const holidayName = holidayMap[format(day, 'yyyy-MM-dd')];
                     const lunarLabel = showLunarLabel ? getLunarLabel(day) : null;
                     const dateColorClass = isToday ? '' : holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400';
-                    return <div key={i} onClick={() => openNewEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0))} style={{ height: monthCellHeight }} className={`p-1.5 border-r border-slate-100 dark:border-slate-800/60 last:border-r-0 transition-all cursor-pointer hover:bg-blue-500/5 overflow-hidden ${!isSameMonth(day, monthStart) ? 'opacity-40 dark:opacity-10' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
+                    return <div key={i} onClick={() => openNewEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0))} style={wideView ? { minHeight: monthCellHeight } : { height: monthCellHeight }} className={`p-1.5 border-r border-slate-100 dark:border-slate-800/60 last:border-r-0 transition-all cursor-pointer hover:bg-blue-500/5 ${wideView ? '' : 'overflow-hidden'} ${!isSameMonth(day, monthStart) ? 'opacity-40 dark:opacity-10' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
                       <div className="flex items-center justify-center gap-1 mb-1">
                         <div onClick={(e) => { e.stopPropagation(); handleDayClick(day); }} className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center' : dateColorClass}`}>{format(day, 'd')}</div>
                         {lunarLabel && <div className="text-[9px] text-slate-400 dark:text-slate-600 leading-tight">{lunarLabel}</div>}
                       </div>
                       {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate leading-tight text-center mb-1">{holidayName}</div>}
-                      {monthEventMode === 'dots' ? (
+                      {(!wideView && monthEventMode === 'dots') ? (
                         // 칸이 아주 좁을 때: 제목 텍스트 대신 색깔 점으로만 몇 개 있는지 보여줌(구글/삼성 캘린더 방식)
                         dayEvents.length > 0 && (
                           <div className="flex flex-wrap justify-center gap-1 mt-0.5">

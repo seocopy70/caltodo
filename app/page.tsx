@@ -200,6 +200,19 @@ export default function Home() {
   useEffect(() => {
     if (view !== 'calendar') setCalSwipeMode('date');
   }, [view]);
+  // 헤더(탭바+검색창) 실제 높이를 CSS 변수로 노출 — 모바일에서는 줄바꿈 때문에 헤더가 더 높아지므로,
+  // 일정 목록 보기 등 하위 화면에서 자체 sticky 버튼줄을 "헤더 바로 아래"에 정확히 붙이려면 고정 px 값(top-14 등)으로는
+  // 안 맞고, 실제 렌더된 높이를 매번 측정해야 함.
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const update = () => document.documentElement.style.setProperty('--app-header-h', `${el.offsetHeight}px`);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const handleLogin = async () => {
     setAuthError(null);
@@ -313,6 +326,14 @@ export default function Home() {
       return;
     }
 
+    // 일정 목록 보기: 탭바/스와이프 순환에서 제외된 화면이라, 좌우 스와이프는(방향 무관) 그냥 오늘탭으로 감
+    if (view === 'list') {
+      if (!isHorizontalDominant || Math.abs(deltaX) < MIN_SWIPE_PX) return;
+      setView('today');
+      window.scrollTo(0, 0);
+      return;
+    }
+
     // 그 외 탭(오늘/할일/메모): 기존처럼 가로 스와이프만 탭 전환
     if (!isHorizontalDominant) return;
     if (grid) {
@@ -329,7 +350,7 @@ export default function Home() {
   };
 
   return <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="min-h-screen bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100">
-    <header className="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur">
+    <header ref={headerRef} className="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur">
       <div className="max-w-7xl mx-auto px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-1.5">
         <div className="flex items-center gap-1.5">
           <button onClick={() => setMenuOpen((v) => !v)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0" aria-label="메뉴"><Menu className="w-5 h-5" /></button>
