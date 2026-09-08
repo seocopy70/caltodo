@@ -30,6 +30,15 @@ function isOverdueTodo(t: any) {
   return t.dueDate.getTime() < startOfToday;
 }
 
+// 오늘탭(redOnly) 전용: 우선순위색 상관없이 순수하게 기한 빠른 순(=시간순)으로만 정렬.
+// 기한 있는 항목이 먼저(빠른 기한이 위), 기한 없는 항목(기한 없이 빨강으로 지정한 경우)은 그 뒤에 orderIndex 순.
+function sortRedOnlyByDueDate(a: any, b: any) {
+  const aHas = !!a.dueDate, bHas = !!b.dueDate;
+  if (aHas && bHas) return a.dueDate.getTime() - b.dueDate.getTime();
+  if (aHas !== bHas) return aHas ? -1 : 1;
+  return (a.orderIndex ?? 0) - (b.orderIndex ?? 0);
+}
+
 function sortActive(a: any, b: any) {
   // 기한이 지난(아직 안 끝낸) 할일은 색깔과 상관없이 맨 위로
   const aOverdue = isOverdueTodo(a), bOverdue = isOverdueTodo(b);
@@ -130,7 +139,7 @@ export default function TodoListPanel({
   // 또는 우선순위가 빨강인 할일만 남김. 그 외에는 기존처럼 maxVisible+expanded 조합으로 자르거나 전체 표시.
   const isRedTodo = (t: any) => t.priority === 'red' || isOverdueTodo(t);
   const visibleTodos = redOnly
-    ? activeTodos.filter(isRedTodo)
+    ? activeTodos.filter(isRedTodo).sort(sortRedOnlyByDueDate)
     : (maxVisible && !expanded ? activeTodos.slice(0, maxVisible) : activeTodos);
 
   const toggleTodo = (id: string, completed: boolean) => {
