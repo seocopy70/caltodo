@@ -81,6 +81,11 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   // 좌우로 스크롤함. 월별보기에서는 동시에 화면에 맞춘 고정 높이도 풀어서, 그 주(週)에서 일정이
   // 가장 많은 날짜 기준으로 칸 높이도 늘어나 모든 일정이 잘리지 않고 다 보임(아래로도 확장).
   const [wideView, setWideView] = useState(false);
+  // 태블릿/데스크톱처럼 화면이 이미 넓은 경우엔 좌우로 늘릴 필요는 없지만, 칸이 좁아 일정이 잘리는
+  // 건 똑같이 생길 수 있어서 별도의 "펼치기" 버튼을 둠(모바일 넓게보기와 아이콘은 같지만 좌우 확장 없이
+  // 세로(칸 높이)만 늘림). 아래 monthExpanded가 실제 렌더링에서 쓰는 값 — 둘 중 하나라도 켜져 있으면 적용.
+  const [desktopExpanded, setDesktopExpanded] = useState(false);
+  const monthExpanded = wideView || desktopExpanded;
 
   const monthStart = startOfMonth(currentDate);
   const weekStart = startOfWeek(currentDate);
@@ -169,8 +174,21 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           <div className="flex gap-1.5 sm:gap-2"><button onClick={() => setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronLeft/></button><button onClick={() => setCurrentDate(new Date())} className="px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 whitespace-nowrap">오늘</button><button onClick={() => setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronRight/></button></div>
         </div>
 
-        {/* 토글 버튼들: 줄 오른쪽 끝(월/주 토글 -> 넓게/맞춤 토글 순서) */}
+        {/* 토글 버튼들: 줄 오른쪽 끝(데스크톱용 펼치기 -> 월/주 토글 -> 넓게/맞춤 토글 순서) */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* 화면이 이미 넓은 경우(sm 이상)를 위한 펼치기: 좌우로 늘릴 필요는 없지만, 월별보기 칸 높이는
+              그대로 고정이라 일정이 많은 날짜는 잘릴 수 있어서 세로(칸 높이)만 늘려주는 별도 버튼.
+              모바일 넓게보기 버튼과 정반대 조건(hidden sm:inline-flex)이라 서로 겹쳐 보이지 않음. */}
+          {view === 'month' && (
+            <button
+              type="button"
+              onClick={() => setDesktopExpanded((v) => !v)}
+              title={desktopExpanded ? '탭하면 화면에 맞춰 보기' : '탭하면 펼쳐서 일정 다 보이게'}
+              className="hidden sm:inline-flex py-2.5 px-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0"
+            >
+              {desktopExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+            </button>
+          )}
           {/* 월별/주별보기 전환: 메모탭 보기옵션처럼 한 칸짜리 아이콘 토글(탭하면 전환될 모드의 아이콘을 보여줌) */}
           <button
             type="button"
@@ -207,7 +225,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           <TimeGrid days={days} events={events} holidayMap={holidayMap} onSlotClick={handleSlotClick} onEventClick={openEditEvent} onDayHeaderClick={(day: Date) => setDayViewDate(day)} availableHeight={weekAvailableHeight} wideView={wideView} />
         </div>
       ) : (
-        <div className={wideView ? 'overflow-x-auto -mx-2.5 px-2.5' : ''} data-no-tab-cycle={wideView || undefined} onTouchStart={handleGridTouchStart} onTouchEnd={handleGridTouchEnd}>
+        <div className={wideView ? 'overflow-x-auto -mx-2.5 px-2.5' : ''} data-no-tab-cycle={monthExpanded || undefined} onTouchStart={handleGridTouchStart} onTouchEnd={handleGridTouchEnd}>
         {/* touch-pan-x만 걸려있으면(이전 방식) 이 영역 안에서 시작한 세로 스와이프가 페이지 스크롤로
             이어지지 못해 "월별보기에서 위아래 스크롤이 안 되는" 문제가 있었음 — x/y 모두 허용. */}
         <div ref={monthGridWrapperRef} className={`rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm bg-white/70 dark:bg-slate-900/20 overflow-hidden ${wideView ? 'min-w-[640px]' : ''}`}>
@@ -225,20 +243,20 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
                       .sort((a: any, b: any) => getOccurrenceTimes(a, day).start.getTime() - getOccurrenceTimes(b, day).start.getTime());
                     // 펼치기 상태면 그 칸만 다 보여주는 게 아니라, 잘림 없이 전부 보여주고 칸 높이는
                     // CSS grid가 그 주(週) 안에서 가장 내용이 많은 요일에 맞춰 자동으로 늘려줌(같은 주는 항상 같은 높이).
-                    const visibleEvents = wideView ? dayEvents : dayEvents.slice(0, monthCellMaxChips);
-                    const hiddenCount = wideView ? 0 : dayEvents.length - visibleEvents.length;
+                    const visibleEvents = monthExpanded ? dayEvents : dayEvents.slice(0, monthCellMaxChips);
+                    const hiddenCount = monthExpanded ? 0 : dayEvents.length - visibleEvents.length;
                     const isToday = isSameDay(day, new Date());
                     const dow = day.getDay();
                     const holidayName = holidayMap[format(day, 'yyyy-MM-dd')];
                     const lunarLabel = showLunarLabel ? getLunarLabel(day) : null;
                     const dateColorClass = isToday ? '' : holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400';
-                    return <div key={i} onClick={() => openNewEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0))} style={wideView ? { minHeight: monthCellHeight } : { height: monthCellHeight }} className={`p-1.5 border-r border-slate-100 dark:border-slate-800/60 last:border-r-0 transition-all cursor-pointer hover:bg-blue-500/5 ${wideView ? '' : 'overflow-hidden'} ${!isSameMonth(day, monthStart) ? 'opacity-40 dark:opacity-10' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
+                    return <div key={i} onClick={() => openNewEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0))} style={monthExpanded ? { minHeight: monthCellHeight } : { height: monthCellHeight }} className={`p-1.5 border-r border-slate-100 dark:border-slate-800/60 last:border-r-0 transition-all cursor-pointer hover:bg-blue-500/5 ${monthExpanded ? '' : 'overflow-hidden'} ${!isSameMonth(day, monthStart) ? 'opacity-40 dark:opacity-10' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
                       <div className="flex items-center justify-center gap-1 mb-1">
                         <div onClick={(e) => { e.stopPropagation(); handleDayClick(day); }} className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center' : dateColorClass}`}>{format(day, 'd')}</div>
                         {lunarLabel && <div className="text-[9px] text-slate-400 dark:text-slate-600 leading-tight">{lunarLabel}</div>}
                       </div>
                       {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate leading-tight text-center mb-1">{holidayName}</div>}
-                      {(!wideView && monthEventMode === 'dots') ? (
+                      {(!monthExpanded && monthEventMode === 'dots') ? (
                         // 칸이 아주 좁을 때: 제목 텍스트 대신 색깔 점으로만 몇 개 있는지 보여줌(구글/삼성 캘린더 방식)
                         dayEvents.length > 0 && (
                           <div className="flex flex-wrap justify-center gap-1 mt-0.5">
