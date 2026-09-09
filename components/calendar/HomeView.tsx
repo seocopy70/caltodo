@@ -22,9 +22,10 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
 
   const windowEvents = useMemo(() => {
     const result: any[] = [];
+    const now = new Date();
     for (let i = 0; i < TODAY_TOMORROW_DAYS; i++) {
       const day = addDays(today, i);
-      const dayEvents = events
+      let dayEvents = events
         .filter((e: any) => eventOccursOnDay(e, day))
         .map((e: any) => ({ ...e, __day: day }))
         // 원본 e.start를 그대로 비교하면, 반복 일정은 "최초 등록일" 기준 절대시각이라
@@ -32,6 +33,15 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
         // (하루종일 일정이 00:00인데도 그보다 뒤로 가는 원인). 그 날짜 기준으로 다시 계산한
         // 시:분(getOccurrenceTimes)으로 비교해야 실제 그 날의 시간순이 됨.
         .sort((a: any, b: any) => getOccurrenceTimes(a, day).start.getTime() - getOccurrenceTimes(b, day).start.getTime());
+      // 오늘(i===0)은 이미 끝난(종료시각이 지난) 시간 지정 일정을 목록에서 뺌. 단, 하루종일 일정은
+      // 끝나는 시각이 그날 23:59라 "지났다"는 개념이 어색하니 항상 남겨둠. 내일 이후는 아직 시작 전이라 해당 없음.
+      if (i === 0) {
+        dayEvents = dayEvents.filter((e: any) => {
+          const { start, end } = getOccurrenceTimes(e, day);
+          const isAllDay = start.getHours() === 0 && start.getMinutes() === 0 && end.getHours() === 23 && end.getMinutes() === 59;
+          return isAllDay || end.getTime() >= now.getTime();
+        });
+      }
       result.push(...dayEvents);
     }
     return result;

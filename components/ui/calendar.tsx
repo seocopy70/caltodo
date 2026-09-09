@@ -312,7 +312,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
             {/* 펼쳐서(monthExpanded) 화면보다 커지면, 주별보기처럼 위 요일칸 줄+툴바는 그대로 두고
                 날짜 칸들만 이 안에서 스크롤되게 함(원래는 화면에 맞춰 고정 높이라 이 래퍼가 필요 없었음) */}
             {monthExpanded ? (
-              <div data-vscroll className="overflow-y-auto touch-pan-y" style={{ maxHeight: weeksMaxHeight }}>
+              <div data-vscroll className="overflow-y-auto touch-pan-x touch-pan-y" style={{ maxHeight: weeksMaxHeight }}>
                 {weekRows}
               </div>
             ) : weekRows}
