@@ -87,10 +87,16 @@ export default function Home() {
     swipeModeHintTimer.current = setTimeout(() => setSwipeModeHint(null), 1200);
   }, []);
 
+  // 부트스트랩(전체 재조회) 결과를 그대로 덮어쓰면, "앱을 막 연 직후"처럼 마침 그 재조회가
+  // 진행 중일 때 사용자가 뭔가를 새로 추가하면(낙관적으로 화면엔 바로 보임) 그 재조회 응답이
+  // (그 추가 전 시점의 스냅샷이라 새 항목이 없는 채로) 뒤늦게 도착해서 방금 추가한 항목을
+  // 화면에서 지워버리는 문제가 있었음(실제 서버 저장 자체는 별개 요청이라 보통 잘 되어 있었지만,
+  // 목록엔 안 보여서 "무시된 것"처럼 느껴짐). 아직 서버 응답(진짜 id)으로 확정 안 된
+  // temp-* 항목은 재조회로 통째로 갈아끼울 때도 그대로 살려서 같이 얹어줌.
   const applyBootstrapResult = useCallback((res: any) => {
-    setEvents(res.events.map((e: any) => ({ ...e, start: new Date(e.start), end: new Date(e.end), endDate: e.endDate ? new Date(e.endDate) : null, updatedAt: new Date(e.updatedAt) })));
-    setTodos(res.todos.map((t: any) => ({ ...t, dueDate: t.dueDate ? new Date(t.dueDate) : null, completedAt: t.completedAt ? new Date(t.completedAt) : null, createdAt: new Date(t.createdAt) })));
-    setNotes(res.notes.map((n: any) => ({ ...n, createdAt: new Date(n.createdAt), updatedAt: new Date(n.updatedAt), deletedAt: n.deletedAt ? new Date(n.deletedAt) : null })));
+    setEvents((prev) => [...prev.filter((e: any) => typeof e.id === 'string' && e.id.startsWith('temp-')), ...res.events.map((e: any) => ({ ...e, start: new Date(e.start), end: new Date(e.end), endDate: e.endDate ? new Date(e.endDate) : null, updatedAt: new Date(e.updatedAt) }))]);
+    setTodos((prev) => [...prev.filter((t: any) => typeof t.id === 'string' && t.id.startsWith('temp-')), ...res.todos.map((t: any) => ({ ...t, dueDate: t.dueDate ? new Date(t.dueDate) : null, completedAt: t.completedAt ? new Date(t.completedAt) : null, createdAt: new Date(t.createdAt) }))]);
+    setNotes((prev) => [...prev.filter((n: any) => typeof n.id === 'string' && n.id.startsWith('temp-')), ...res.notes.map((n: any) => ({ ...n, createdAt: new Date(n.createdAt), updatedAt: new Date(n.updatedAt), deletedAt: n.deletedAt ? new Date(n.deletedAt) : null }))]);
     setNoteFolders(res.noteFolders || []);
     setTodoFolders(res.todoFolders || []);
   }, []);
