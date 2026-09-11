@@ -87,16 +87,45 @@ export default function Home() {
     swipeModeHintTimer.current = setTimeout(() => setSwipeModeHint(null), 1200);
   }, []);
 
+  // 방금 로컬에서 수정/삭제한 항목의 시각을 기록해둠(타입:id -> {at, removed?}) — 재조회(refreshData) 응답이
+  // 그 수정보다 "먼저 시작된" 낡은 스냅샷일 수 있어서, 그런 응답으로 덮어쓸 때 방금 한 수정/삭제를
+  // 도로 되돌리지 않기 위해 씀(체크박스를 눌러 완료 처리했는데 잠시 후 다시 나타났다가 사라지는 문제 등).
+  // 컴포넌트 리렌더와 무관하게 최신 값을 즉시 읽고 써야 해서 state가 아니라 ref(Map)로 관리.
+  const recentLocalWriteRef = useRef<Map<string, { at: number; removed?: boolean }>>(new Map());
+  const markLocalWrite = (key: string, removed?: boolean) => recentLocalWriteRef.current.set(key, { at: Date.now(), removed });
+
   // 부트스트랩(전체 재조회) 결과를 그대로 덮어쓰면, "앱을 막 연 직후"처럼 마침 그 재조회가
-  // 진행 중일 때 사용자가 뭔가를 새로 추가하면(낙관적으로 화면엔 바로 보임) 그 재조회 응답이
-  // (그 추가 전 시점의 스냅샷이라 새 항목이 없는 채로) 뒤늦게 도착해서 방금 추가한 항목을
-  // 화면에서 지워버리는 문제가 있었음(실제 서버 저장 자체는 별개 요청이라 보통 잘 되어 있었지만,
-  // 목록엔 안 보여서 "무시된 것"처럼 느껴짐). 아직 서버 응답(진짜 id)으로 확정 안 된
-  // temp-* 항목은 재조회로 통째로 갈아끼울 때도 그대로 살려서 같이 얹어줌.
-  const applyBootstrapResult = useCallback((res: any) => {
-    setEvents((prev) => [...prev.filter((e: any) => typeof e.id === 'string' && e.id.startsWith('temp-')), ...res.events.map((e: any) => ({ ...e, start: new Date(e.start), end: new Date(e.end), endDate: e.endDate ? new Date(e.endDate) : null, updatedAt: new Date(e.updatedAt) }))]);
-    setTodos((prev) => [...prev.filter((t: any) => typeof t.id === 'string' && t.id.startsWith('temp-')), ...res.todos.map((t: any) => ({ ...t, dueDate: t.dueDate ? new Date(t.dueDate) : null, completedAt: t.completedAt ? new Date(t.completedAt) : null, createdAt: new Date(t.createdAt) }))]);
-    setNotes((prev) => [...prev.filter((n: any) => typeof n.id === 'string' && n.id.startsWith('temp-')), ...res.notes.map((n: any) => ({ ...n, createdAt: new Date(n.createdAt), updatedAt: new Date(n.updatedAt), deletedAt: n.deletedAt ? new Date(n.deletedAt) : null }))]);
+  // 진행 중일 때 사용자가 뭔가를 새로 추가하거나(낙관적으로 화면엔 바로 보임)/체크·수정·삭제하면
+  // 그 재조회 응답이 (그 조작 전 시점의 스냅샷이라 반영이 안 된 채로) 뒤늦게 도착해서 방금 한 조작을
+  // 화면에서 되돌려버리는 문제가 있었음(실제 서버 저장 자체는 별개 요청이라 보통 잘 되어 있었지만,
+  // 화면엔 안 보이거나 되돌아가서 "무시된 것"처럼 느껴짐).
+  // - 아직 서버 응답(진짜 id)으로 확정 안 된 temp-* 항목은 그대로 살려서 같이 얹어줌.
+  // - requestStartedAt(이 재조회를 시작한 시각) 이후에 로컬에서 수정한 항목은, 이 응답이 그보다
+  //   오래된 스냅샷일 수 있으니 서버값 대신 지금 화면의 값을 그대로 유지.
+  // - requestStartedAt 이후에 로컬에서 삭제한 항목은, 이 응답에 아직 남아있어도 무시(포함 안 함).
+  const mergeBootstrapList = <T extends { id: string },>(prev: T[], serverList: T[], typePrefix: string, requestStartedAt: number): T[] => {
+    const pendingTemp = prev.filter((x) => typeof x.id === 'string' && x.id.startsWith('temp-'));
+    const prevById = new Map(prev.map((x) => [x.id, x]));
+    const merged = serverList
+      .filter((x) => {
+        const w = recentLocalWriteRef.current.get(`${typePrefix}:${x.id}`);
+        return !(w?.removed && w.at >= requestStartedAt);
+      })
+      .map((x) => {
+        const w = recentLocalWriteRef.current.get(`${typePrefix}:${x.id}`);
+        if (w && !w.removed && w.at >= requestStartedAt) {
+          const local = prevById.get(x.id);
+          if (local) return local;
+        }
+        return x;
+      });
+    return [...pendingTemp, ...merged];
+  };
+
+  const applyBootstrapResult = useCallback((res: any, requestStartedAt: number = 0) => {
+    setEvents((prev) => mergeBootstrapList(prev, res.events.map((e: any) => ({ ...e, start: new Date(e.start), end: new Date(e.end), endDate: e.endDate ? new Date(e.endDate) : null, updatedAt: new Date(e.updatedAt) })), 'event', requestStartedAt));
+    setTodos((prev) => mergeBootstrapList(prev, res.todos.map((t: any) => ({ ...t, dueDate: t.dueDate ? new Date(t.dueDate) : null, completedAt: t.completedAt ? new Date(t.completedAt) : null, createdAt: new Date(t.createdAt) })), 'todo', requestStartedAt));
+    setNotes((prev) => mergeBootstrapList(prev, res.notes.map((n: any) => ({ ...n, createdAt: new Date(n.createdAt), updatedAt: new Date(n.updatedAt), deletedAt: n.deletedAt ? new Date(n.deletedAt) : null })), 'note', requestStartedAt));
     setNoteFolders(res.noteFolders || []);
     setTodoFolders(res.todoFolders || []);
   }, []);
@@ -138,9 +167,12 @@ export default function Home() {
 
   const refreshData = useCallback(async () => {
     if (!auth.currentUser) return;
+    // 이 재조회를 "시작한" 시각 — 응답이 도착했을 때, 그 사이에 로컬에서 생긴 수정/삭제를
+    // 이 응답(그보다 오래된 스냅샷)으로 되돌리지 않기 위한 기준시각으로 씀.
+    const requestStartedAt = Date.now();
     try {
       const res = await api.bootstrap();
-      applyBootstrapResult(res);
+      applyBootstrapResult(res, requestStartedAt);
       // 다음 실행 때 즉시 보여줄 수 있도록 원본(문자열 날짜 그대로) 응답을 캐시해둠.
       try { localStorage.setItem(bootstrapCacheKey(auth.currentUser.uid), JSON.stringify(res)); }
       catch (err) { console.error('캐시 저장 실패(용량 초과 등, 무시하고 계속):', err); }
@@ -148,9 +180,9 @@ export default function Home() {
   }, [applyBootstrapResult]);
 
   // 낙관적 로컬 업데이트: 서버 응답을 기다리지 않고 화면에 즉시 반영해 체감 반응속도를 높임
-  const patchTodoLocal = useCallback((id: string, patch: any) => setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t))), []);
-  const removeTodoLocal = useCallback((id: string) => setTodos((prev) => prev.filter((t) => t.id !== id)), []);
-  const patchNoteLocal = useCallback((id: string, patch: any) => setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n))), []);
+  const patchTodoLocal = useCallback((id: string, patch: any) => { markLocalWrite(`todo:${id}`); setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t))); }, []);
+  const removeTodoLocal = useCallback((id: string) => { markLocalWrite(`todo:${id}`, true); setTodos((prev) => prev.filter((t) => t.id !== id)); }, []);
+  const patchNoteLocal = useCallback((id: string, patch: any) => { markLocalWrite(`note:${id}`); setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n))); }, []);
   // 새로 만드는 항목은 서버 응답(진짜 id)이 오기 전까지 임시 id로 화면에 바로 보이게 하고,
   // 응답이 오면 진짜 id로 바꿔치기(reconcile)한다. 실패하면 그 임시 항목을 다시 지운다.
   // 저장 버튼을 누르자마자 목록에 바로 나타나야 "저장이 느리다"는 느낌이 없어짐.
@@ -162,8 +194,8 @@ export default function Home() {
   // 위 addNoteLocal로 낙관적으로 추가했다가 서버 저장이 실패했을 때만 쓰는 되돌리기용(휴지통 이동과는 다름)
   const rollbackNoteLocal = useCallback((id: string) => setNotes((prev) => prev.filter((n) => n.id !== id)), []);
   const addEventLocal = useCallback((event: any) => setEvents((prev) => [event, ...prev]), []);
-  const patchEventLocal = useCallback((id: string, patch: any) => setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e))), []);
-  const removeEventLocal = useCallback((id: string) => setEvents((prev) => prev.filter((e) => e.id !== id)), []);
+  const patchEventLocal = useCallback((id: string, patch: any) => { markLocalWrite(`event:${id}`); setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e))); }, []);
+  const removeEventLocal = useCallback((id: string) => { markLocalWrite(`event:${id}`, true); setEvents((prev) => prev.filter((e) => e.id !== id)); }, []);
   const reconcileEventLocal = useCallback((tempId: string, realId: string) => setEvents((prev) => prev.map((e) => (e.id === tempId ? { ...e, id: realId } : e))), []);
   // 날짜가 바뀐 뒤 처음 앱을 열었을 때, 날짜가 지정된 할일들의 색깔원을 "새 할일 만들 때와 동일한 규칙"으로
   // 다시 계산해줌(예: 어제는 여유였던 할일이 오늘 보니 5일 이내로 다가와서 급함으로 바뀌는 식).
