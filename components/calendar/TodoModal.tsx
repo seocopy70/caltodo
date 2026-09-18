@@ -36,7 +36,7 @@ function AutocompleteDropdown({ suggestions, onSelect }: { suggestions: string[]
 }
 
 // todo가 없으면(null) "새 할일 만들기" 모드, 있으면 수정 모드로 동작한다.
-export default function TodoModal({ todo, folders = [], defaultFolderId = null, notify, onClose, onRefresh, onAddLocal, onPatchLocal, onRemoveLocal, onReconcileLocal, onRollbackLocal }: any) {
+export default function TodoModal({ todo, folders = [], defaultFolderId = null, notify, onClose, onRefresh, onAddLocal, onPatchLocal, onRemoveLocal, onReconcileLocal, onRollbackLocal, onAddEvent, onReconcileEvent, onRemoveEvent }: any) {
   useModalBackClose(onClose);
   const isEdit = !!todo;
   const [title, setTitle] = useState('');
@@ -81,10 +81,36 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
     if (!isEdit) {
       const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       onAddLocal?.({ id: tempId, title: t, completed: false, dueDate: d ? new Date(d) : null, memo: m, priority: p, folderId: f, orderIndex: -Date.now(), createdAt: new Date() });
+
+      // 날짜가 있고 일정 연동을 원하는 경우, 서버가 같은 요청에서 연동 일정도 함께 만들어준다.
+      // 캘린더 쪽 상태도 즉시 반영해줘야 새로고침(백그라운드 재조회, 최대 2분 주기) 전까진
+      // 일정이 안 보이는 "할일은 바로 보이는데 일정은 한참 뒤에 보임" 현상이 생기지 않는다.
+      let tempEventId: string | null = null;
+      if (!skipLink && d) {
+        tempEventId = `temp-evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const start = new Date(d);
+        const end = new Date(start.getTime() + 30 * 60 * 1000);
+        onAddEvent?.({
+          id: tempEventId, title: t, start, end, endDate: null, location: '', description: '', color: 'blue',
+          recurrenceType: 'none', recurrenceCount: null, isAnniversary: false, isLunar: false, lunarMonth: null, lunarDay: null,
+          updatedAt: new Date(), source: 'todo_link', externalUid: null, linkedTodoId: null,
+        });
+      }
+
       onClose();
       api.todos.create({ title: t, completed: false, dueDate: d ? new Date(d).toISOString() : null, memo: m, priority: p, folderId: f, skipLink })
-        .then((res: any) => { if (res?.id) onReconcileLocal?.(tempId, res.id); notifyFn('할 일이 추가되었습니다.'); })
-        .catch((err: any) => { console.error(err); notifyFn(`추가 실패: ${err.message || err}`, 'error'); onRollbackLocal?.(tempId); onRefresh?.(); });
+        .then((res: any) => {
+          if (res?.id) onReconcileLocal?.(tempId, res.id);
+          if (tempEventId && res?.linkedEventId) onReconcileEvent?.(tempEventId, res.linkedEventId);
+          notifyFn('할 일이 추가되었습니다.');
+        })
+        .catch((err: any) => {
+          console.error(err);
+          notifyFn(`추가 실패: ${err.message || err}`, 'error');
+          onRollbackLocal?.(tempId);
+          if (tempEventId) onRemoveEvent?.(tempEventId);
+          onRefresh?.();
+        });
       return;
     }
 

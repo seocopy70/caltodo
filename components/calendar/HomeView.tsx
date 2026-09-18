@@ -85,7 +85,7 @@ export default function HomeView({ events, todos, notes = [], todoFolders = [], 
     )}
 
     {(isEventModalOpen || editingEvent) && <EventModal date={new Date()} editingEvent={editingEvent} user={user} notify={notify} onClose={() => { setIsEventModalOpen(false); setEditingEvent(null); }} onRefresh={onRefresh} onAddLocal={onAddEvent} onPatchLocal={onPatchEvent} onRemoveLocal={onRemoveEvent} onReconcileLocal={onReconcileEvent} allEvents={events} />}
-    {isNewTodoOpen && <TodoModal todo={null} folders={todoFolders} notify={notify} onClose={() => setIsNewTodoOpen(false)} onRefresh={onRefresh} onAddLocal={onAddTodo} onReconcileLocal={onReconcileTodo} />}
+    {isNewTodoOpen && <TodoModal todo={null} folders={todoFolders} notify={notify} onClose={() => setIsNewTodoOpen(false)} onRefresh={onRefresh} onAddLocal={onAddTodo} onReconcileLocal={onReconcileTodo} onAddEvent={onAddEvent} onReconcileEvent={onReconcileEvent} onRemoveEvent={onRemoveEvent} />}
   </div>;
 }
 

@@ -9,7 +9,7 @@ import TodoListPanel from './TodoListPanel';
 import TodoModal from './TodoModal';
 import FolderModal from './FolderModal';
 
-export default function TodoView({ todos, folders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onAddTodo, onReconcileTodo, onSwipeHint }: any) {
+export default function TodoView({ todos, folders = [], user, onNotify, onRefresh, onPatchTodo, onRemoveTodo, onAddTodo, onReconcileTodo, onSwipeHint, onAddEvent, onReconcileEvent, onRemoveEvent }: any) {
   const [activeFolderId, setActiveFolderId] = useState<string | 'all' | 'none'>('all');
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [isNewTodoOpen, setIsNewTodoOpen] = useState(false);
@@ -159,7 +159,7 @@ export default function TodoView({ todos, folders = [], user, onNotify, onRefres
         showRelativeDates
       />
 
-      {isNewTodoOpen && <TodoModal todo={null} folders={folders} defaultFolderId={composerFolderId} notify={notify} onClose={() => setIsNewTodoOpen(false)} onRefresh={onRefresh} onAddLocal={onAddTodo} onReconcileLocal={onReconcileTodo} />}
+      {isNewTodoOpen && <TodoModal todo={null} folders={folders} defaultFolderId={composerFolderId} notify={notify} onClose={() => setIsNewTodoOpen(false)} onRefresh={onRefresh} onAddLocal={onAddTodo} onReconcileLocal={onReconcileTodo} onAddEvent={onAddEvent} onReconcileEvent={onReconcileEvent} onRemoveEvent={onRemoveEvent} />}
       {folderModal && <FolderModal folder={folderModal.mode === 'rename' ? folderModal.folder : null} onSave={saveFolderModal} onClose={() => setFolderModal(null)} />}
     </div>
   );
