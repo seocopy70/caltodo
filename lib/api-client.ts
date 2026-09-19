@@ -4,13 +4,43 @@ import { withTimeout } from './withTimeout';
 async function authHeaders() {
   const user = auth.currentUser;
   if (!user) throw new Error('로그인이 필요합니다.');
-  const token = await user.getIdToken();
+  // getIdToken()은 만료된 토큰이면 내부적으로 구글 인증 서버로 갱신 요청을 보낸다.
+  // 이 호출이 순간적인 연결 끊김으로 실패하는 경우가 있어(요청이 서버까지 가지도 못함),
+  // 한 번만 조용히 재시도해서 "저장 실패"로 바로 이어지지 않게 한다.
+  let token: string;
+  try {
+    token = await user.getIdToken();
+  } catch (err) {
+    await new Promise((r) => setTimeout(r, 700));
+    token = await user.getIdToken();
+  }
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
 async function request(path: string, options: RequestInit = {}) {
   const headers = { ...(await authHeaders()), ...(options.headers || {}) };
-  const res = await withTimeout(fetch(path, { ...options, headers }));
+  const doFetch = () => withTimeout(fetch(path, { ...options, headers }));
+
+  let res: Response;
+  try {
+    res = await doFetch();
+  } catch (err: any) {
+    // withTimeout이 던진 타임아웃은 서버가 이미 요청을 처리하고 있을 수 있어 재시도하면
+    // 중복 저장 위험이 있으므로 그대로 던진다. 반면 순수 네트워크 예외(TypeError:
+    // Failed to fetch 등)는 요청이 아예 서버로 나가지도 못한 경우가 대부분이라, 잠깐
+    // 기다렸다 한 번만 재시도해서 순간적인 연결 끊김을 사용자가 못 느끼게 한다.
+    if (err?.isTimeout) throw err;
+    await new Promise((r) => setTimeout(r, 700));
+    try {
+      res = await doFetch();
+    } catch (err2: any) {
+      if (err2?.isTimeout) throw err2;
+      const netErr: any = new Error('네트워크 연결이 불안정합니다. 다시 시도해주세요.');
+      netErr.isNetworkError = true;
+      throw netErr;
+    }
+  }
+
   if (!res.ok) {
     let message = `요청 실패 (${res.status})`;
     try {
