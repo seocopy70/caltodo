@@ -89,7 +89,7 @@ export default function SecureFolderModal({ folder, mode, onClose, onSuccess, on
           {mode === 'unlock' && step === 'main' && !locked && (
             <>
               <p className="text-sm text-slate-500">{folder.lockType === 'pattern' ? '패턴을 그려서 잠금을 해제하세요.' : 'PIN 번호를 입력해서 잠금을 해제하세요.'}</p>
-              {folder.lockType === 'pattern' ? <PatternInput onSubmit={handleVerify} submitLabel="해제" /> : <PinInput onSubmit={handleVerify} submitLabel="해제" />}
+              {folder.lockType === 'pattern' ? <PatternInput onSubmit={handleVerify} submitLabel="해제" /> : <PinInput onSubmit={handleVerify} submitLabel="해제" autoSubmit />}
             </>
           )}
 
@@ -126,7 +126,7 @@ export default function SecureFolderModal({ folder, mode, onClose, onSuccess, on
           {mode === 'disable' && (
             <>
               <p className="text-sm text-slate-500">보안폴더를 해제하려면 현재 {folder.lockType === 'pattern' ? '패턴' : 'PIN'}을 입력하세요.</p>
-              {folder.lockType === 'pattern' ? <PatternInput onSubmit={handleDisable} submitLabel="해제하기" /> : <PinInput onSubmit={handleDisable} submitLabel="해제하기" />}
+              {folder.lockType === 'pattern' ? <PatternInput onSubmit={handleDisable} submitLabel="해제하기" /> : <PinInput onSubmit={handleDisable} submitLabel="해제하기" autoSubmit />}
             </>
           )}
 

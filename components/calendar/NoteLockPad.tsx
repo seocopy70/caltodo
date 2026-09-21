@@ -1,11 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const PATTERN_DOTS = Array.from({ length: 9 }, (_, i) => i);
 
-export function PinInput({ label, onSubmit, submitLabel = '확인' }: { label?: string; onSubmit: (code: string) => void; submitLabel?: string }) {
+export function PinInput({ label, onSubmit, submitLabel = '확인', autoSubmit = false }: { label?: string; onSubmit: (code: string) => void; submitLabel?: string; autoSubmit?: boolean }) {
   const [pin, setPin] = useState('');
+
+  // 기존 PIN을 입력해서 해제하는 화면(autoSubmit=true)에서는, 버튼을 따로 안 눌러도
+  // 입력이 끝나면 바로 제출되게 한다. PIN 자릿수는 폴더마다 달라(4~6자리) 몇 자리에서
+  // 끝날지 미리 알 수 없으므로: 최대 길이(6)에 도달하면 즉시, 그보다 짧으면 타이핑을
+  // 잠깐 멈췄을 때(0.5초) 제출한다. onSubmit은 매 렌더마다 새 함수로 넘어올 수 있어
+  // ref로 최신 값만 참조하고, 같은 값으로는 한 번만 제출하도록 막는다(오답 시 무한 재시도 방지).
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
+  const firedForRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!autoSubmit || pin.length < 4 || firedForRef.current === pin) return;
+    if (pin.length >= 6) {
+      firedForRef.current = pin;
+      onSubmitRef.current(pin);
+      return;
+    }
+    const timer = setTimeout(() => {
+      firedForRef.current = pin;
+      onSubmitRef.current(pin);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [pin, autoSubmit]);
+
   return (
     <div className="space-y-2">
       {label && <p className="text-xs text-slate-500">{label}</p>}
