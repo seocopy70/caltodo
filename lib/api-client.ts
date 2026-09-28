@@ -2,6 +2,11 @@ import { auth } from './firebase';
 import { withTimeout } from './withTimeout';
 
 async function authHeaders() {
+  // 앱을 열자마자 캐시로 화면을 먼저 보여주는 동안엔 Firebase 인증 확인이 아직 안 끝났을 수 있어
+  // auth.currentUser가 잠깐 null일 수 있다. 그 사이에 저장/조회가 발생해도 실패시키지 않고 확인이 끝날 때까지 기다린다.
+  if (!auth.currentUser) {
+    try { await auth.authStateReady(); } catch { /* 무시하고 아래에서 판단 */ }
+  }
   const user = auth.currentUser;
   if (!user) throw new Error('로그인이 필요합니다.');
   // getIdToken()은 만료된 토큰이면 내부적으로 구글 인증 서버로 갱신 요청을 보낸다.

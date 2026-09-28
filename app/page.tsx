@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { auth, googleProvider } from '../lib/firebase';
 import { api } from '../lib/api-client';
 import { autoPriorityForDueDate } from '../lib/todoAutoColor';
@@ -28,10 +28,18 @@ import { ModalBackCloseGuard, isAnyModalOpen } from '../lib/useModalBackClose';
 // 가져와 조용히 덮어쓴다. 로그인 계정별로 분리해서 저장.
 const BOOTSTRAP_CACHE_PREFIX = 'cal2do-bootstrap-cache-';
 const bootstrapCacheKey = (uid: string) => BOOTSTRAP_CACHE_PREFIX + uid;
+// 마지막으로 로그인했던 계정의 uid. Firebase 인증 확인(비동기)이 끝나기 전에도 "아마 로그인 상태"로 보고
+// 캐시 데이터로 화면을 먼저 그리기 위한 힌트일 뿐이며, 실제 인증 여부는 여전히 Firebase가 최종 결정한다.
+const LAST_UID_KEY = 'cal2do-last-uid';
+// 서버 렌더링 중에는 useLayoutEffect 경고가 나므로, 브라우저에서만 화면이 그려지기 전에 실행되게 한다.
+const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // 인증 확인이 끝나기 전에 캐시로 먼저 화면을 보여주는 중인지(값=그때 가정한 uid). null이면 기존처럼 스피너.
+  const [optimisticUid, setOptimisticUid] = useState<string | null>(null);
+  const optimisticUidRef = useRef<string | null>(null);
   const [view, setView] = useState<'today' | 'calendar' | 'list' | 'todo' | 'notes'>('today');
   // 일정탭 전용: 좌우 스와이프가 지금 "월/주 이동"인지 "탭 이동"인지 — 위/아래로 스와이프할 때마다 토글됨
   const [calSwipeMode, setCalSwipeMode] = useState<'date' | 'tabs'>('date');
@@ -130,15 +138,43 @@ export default function Home() {
     setTodoFolders(res.todoFolders || []);
   }, []);
 
+  // 앱을 열자마자(화면이 처음 그려지기 전에) 지난번 로그인 계정의 캐시가 있으면 그걸로 먼저 화면을 그린다.
+  // 그동안 Firebase가 인증 상태를 확인하고, 결과가 나오면 아래 onAuthStateChanged에서 확정/정정한다.
+  useIsoLayoutEffect(() => {
+    try {
+      const lastUid = localStorage.getItem(LAST_UID_KEY);
+      if (!lastUid) return;
+      const cached = localStorage.getItem(bootstrapCacheKey(lastUid));
+      if (!cached) return;
+      applyBootstrapResult(JSON.parse(cached));
+      optimisticUidRef.current = lastUid;
+      setOptimisticUid(lastUid);
+    } catch (err) { console.error('캐시로 즉시 표시 실패(기존처럼 스피너 후 표시):', err); }
+  }, [applyBootstrapResult]);
+
   useEffect(() => onAuthStateChanged(auth, (currentUser) => {
-    // 로그인된 사용자면, 서버 응답을 기다리기 전에 지난번 캐시부터 먼저 화면에 반영해
-    // 로딩 스피너 다음 화면이 곧바로 (약간 오래됐을 수 있는) 데이터로 채워져 보이게 한다.
+    const assumedUid = optimisticUidRef.current;
     if (currentUser) {
-      try {
-        const cached = localStorage.getItem(bootstrapCacheKey(currentUser.uid));
-        if (cached) applyBootstrapResult(JSON.parse(cached));
-      } catch (err) { console.error('캐시 데이터 불러오기 실패:', err); }
+      try { localStorage.setItem(LAST_UID_KEY, currentUser.uid); } catch { /* 무시 */ }
+      // 캐시를 먼저 그렸을 때 가정한 계정과 실제 로그인 계정이 다르면(계정 전환 등) 잘못 보여준 다른 계정의
+      // 데이터를 완전히 비운 뒤 실제 계정의 캐시로 다시 채운다.
+      if (assumedUid && assumedUid !== currentUser.uid) {
+        setEvents([]); setTodos([]); setNotes([]); setNoteFolders([]); setTodoFolders([]);
+      }
+      // 아직 캐시를 못 그린 경우(첫 로그인/다른 계정)는 기존처럼 여기서 캐시부터 반영한다.
+      if (assumedUid !== currentUser.uid) {
+        try {
+          const cached = localStorage.getItem(bootstrapCacheKey(currentUser.uid));
+          if (cached) applyBootstrapResult(JSON.parse(cached));
+        } catch (err) { console.error('캐시 데이터 불러오기 실패:', err); }
+      }
+    } else {
+      // 로그아웃 상태로 확정: 힌트를 지우고, 혹시 미리 그려둔 데이터가 있으면 화면에서 비운다(로그인 화면으로 전환됨).
+      try { localStorage.removeItem(LAST_UID_KEY); } catch { /* 무시 */ }
+      if (assumedUid) { setEvents([]); setTodos([]); setNotes([]); setNoteFolders([]); setTodoFolders([]); }
     }
+    optimisticUidRef.current = null;
+    setOptimisticUid(null);
     setUser(currentUser);
     setLoading(false);
   }), [applyBootstrapResult]);
@@ -261,8 +297,12 @@ export default function Home() {
     }
   };
 
-  if (loading) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center text-white"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"/><p className="text-slate-400">안전하게 연결 중입니다...</p></div>;
-  if (!user) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center safe-top"><h1 className="text-5xl font-black mb-4 text-white tracking-tighter italic">Cal2do</h1><p className="text-slate-400 mb-10 max-w-xs">기기를 접거나 꺼도 데이터가 안전하게 보관됩니다.</p><button onClick={handleLogin} className="flex items-center gap-4 bg-white text-black px-10 py-5 rounded-2xl font-black shadow-2xl"><LogIn className="w-6 h-6"/> 구글로 시작하기</button>{authError && <p className="mt-6 max-w-xs text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 break-words">로그인 실패: {authError}</p>}</div>;
+  // 인증 확인 중이라도 캐시로 먼저 그릴 수 있으면(optimisticUid) 스피너 없이 곧바로 앱 화면을 보여준다.
+  if (loading && !optimisticUid) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center text-white"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"/><p className="text-slate-400">안전하게 연결 중입니다...</p></div>;
+  if (!loading && !user) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center safe-top"><h1 className="text-5xl font-black mb-4 text-white tracking-tighter italic">Cal2do</h1><p className="text-slate-400 mb-10 max-w-xs">기기를 접거나 꺼도 데이터가 안전하게 보관됩니다.</p><button onClick={handleLogin} className="flex items-center gap-4 bg-white text-black px-10 py-5 rounded-2xl font-black shadow-2xl"><LogIn className="w-6 h-6"/> 구글로 시작하기</button>{authError && <p className="mt-6 max-w-xs text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 break-words">로그인 실패: {authError}</p>}</div>;
+  // 캐시로 먼저 그리는 짧은 구간(인증 확인 중)에는 user가 아직 null이라 일정 저장 버튼처럼 `!user`면 조용히 무시하는 곳이 있음 →
+  // 하위 화면에는 "로그인 상태임"을 뜻하는 최소 객체를 대신 넘겨서 그 사이에 눌러도 정상 저장되게 한다(실제 요청은 api-client가 인증 확인을 기다림).
+  const viewUser: any = user ?? { uid: optimisticUid };
 
   // 탭을 바꿀 때 이전 탭에서의 스크롤 위치가 남아있으면, 새 탭(특히 캘린더)의 "화면에 맞춰 높이 계산"
   // 로직이 잘못된 위치를 기준으로 계산해버려 레이아웃이 어긋나는 문제가 있었음 — 탭 전환 시 항상 맨 위로.
@@ -480,12 +520,12 @@ export default function Home() {
           헤더(햄버거 버튼·검색·탭바)는 이 배경 범위 밖이라 평소처럼 그대로 눌림 — 탭을 누르면
           go()가 알아서 메뉴도 닫아주므로 "탭은 눌러서 이동" 요구사항도 자연히 충족됨. */}
       {(menuOpen || dateSearchOpen) && <div className="absolute inset-0 z-[45]" onClick={() => { setMenuOpen(false); setDateSearchOpen(false); }} />}
-      {view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} noteFolders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'content', lineIndex, charOffset }); }} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={user} onRefresh={refreshData} onNotify={notify} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} swipeMode={calSwipeMode} /> : view === 'list' ? <EventListView events={events} user={user} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={user} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onSwipeHint={showSwipeModeHint} onAddEvent={addEventLocal} onReconcileEvent={reconcileEventLocal} onRemoveEvent={removeEventLocal} /> : <NotesView notes={notes} folders={noteFolders} user={user} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex, charOffset }); }} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onSwipeHint={showSwipeModeHint} />}
+      {view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} noteFolders={noteFolders} user={viewUser} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'content', lineIndex, charOffset }); }} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={viewUser} onRefresh={refreshData} onNotify={notify} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} swipeMode={calSwipeMode} /> : view === 'list' ? <EventListView events={events} user={viewUser} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={viewUser} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onSwipeHint={showSwipeModeHint} onAddEvent={addEventLocal} onReconcileEvent={reconcileEventLocal} onRemoveEvent={removeEventLocal} /> : <NotesView notes={notes} folders={noteFolders} user={viewUser} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex, charOffset }); }} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onSwipeHint={showSwipeModeHint} />}
     </main>
-    {isImportExportOpen && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} folders={noteFolders} todoFolders={todoFolders} onClose={() => closeMenuAnd(() => setIsImportExportOpen(false))} onRefresh={refreshData} onNotify={notify} />}
-    {isEmailBackupOpen && <EmailBackupPanel user={user} onClose={() => closeMenuAnd(() => setIsEmailBackupOpen(false))} onNotify={notify} />}
-    {isDataManagementOpen && <DataManagementPanel events={events} user={user} onClose={() => closeMenuAnd(() => setIsDataManagementOpen(false))} onRefresh={refreshData} onNotify={notify} />}
-    {isAnniversaryOpen && <AnniversaryModal events={events} user={user} onClose={() => closeMenuAnd(() => setIsAnniversaryOpen(false))} onRefresh={refreshData} onNotify={notify} />}
+    {isImportExportOpen && user && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} folders={noteFolders} todoFolders={todoFolders} onClose={() => closeMenuAnd(() => setIsImportExportOpen(false))} onRefresh={refreshData} onNotify={notify} />}
+    {isEmailBackupOpen && user && <EmailBackupPanel user={user} onClose={() => closeMenuAnd(() => setIsEmailBackupOpen(false))} onNotify={notify} />}
+    {isDataManagementOpen && user && <DataManagementPanel events={events} user={user} onClose={() => closeMenuAnd(() => setIsDataManagementOpen(false))} onRefresh={refreshData} onNotify={notify} />}
+    {isAnniversaryOpen && user && <AnniversaryModal events={events} user={user} onClose={() => closeMenuAnd(() => setIsAnniversaryOpen(false))} onRefresh={refreshData} onNotify={notify} />}
     {isTodoLinkPrefOpen && <TodoEventLinkSettingsModal onClose={() => closeMenuAnd(() => setIsTodoLinkPrefOpen(false))} />}
     {isVersionOpen && <VersionModal onClose={() => closeMenuAnd(() => setIsVersionOpen(false))} />}
     {isHelpOpen && <HelpModal onClose={() => closeMenuAnd(() => setIsHelpOpen(false))} />}
