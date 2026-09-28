@@ -169,6 +169,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   // "맨 위에서 시작"만 인정해서, 목록을 위로 스크롤하려는 일반적인 손짓과 섞이지 않게 함.
   const folderSwipeStart = useRef<{ x: number; y: number; atTop: boolean } | null>(null);
   const handleFolderSwipeStart = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) { folderSwipeStart.current = null; return; } // 두 손가락(핀치)은 스와이프가 아님
     const doc = (document.scrollingElement || document.documentElement) as HTMLElement;
     folderSwipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, atTop: doc.scrollTop <= 1 };
   };

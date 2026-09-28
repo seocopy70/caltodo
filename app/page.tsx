@@ -179,6 +179,15 @@ export default function Home() {
     setLoading(false);
   }), [applyBootstrapResult]);
 
+  // iOS Safari는 viewport의 maximum-scale과 touch-action을 무시하고 두 손가락 확대를 하므로, 전용 제스처 이벤트를 막는다
+  // (다른 브라우저에서는 이 이벤트가 발생하지 않아 영향 없음). 터치 이벤트 자체는 그대로 전달되어 일정탭 핀치 감지는 동작.
+  useEffect(() => {
+    const block = (e: Event) => e.preventDefault();
+    document.addEventListener('gesturestart', block);
+    document.addEventListener('gesturechange', block);
+    return () => { document.removeEventListener('gesturestart', block); document.removeEventListener('gesturechange', block); };
+  }, []);
+
   // 텍스트 입력창이 아닌 곳(할일/일정/메모 카드 등)을 길게 눌렀을 때 뜨는 네이티브 복사/공유 컨텍스트 메뉴 차단.
   // 입력창/textarea/contenteditable 안에서는 그대로 둬서 붙여넣기·선택은 정상 동작하게 함.
   useEffect(() => {
@@ -350,6 +359,8 @@ export default function Home() {
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    // 두 번째 손가락이 닿으면(핀치) 스와이프 판정을 취소 — 벌리기/좁히기 중에 탭이 넘어가지 않게 함
+    if (e.touches.length > 1) { touchStartX.current = null; touchStartY.current = null; return; }
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     // 일정표(월/주별보기) 영역 안이면 해당 스크롤 요소를 기억해뒀다가, 끝에 도달한 상태에서

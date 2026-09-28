@@ -26,6 +26,7 @@ export default function DayViewModal({ date, events, holidayMap, user, onNotify,
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) { touchStartX.current = null; touchStartY.current = null; return; } // 두 손가락(핀치)은 스와이프가 아님
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
   };

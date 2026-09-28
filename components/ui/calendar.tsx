@@ -15,6 +15,7 @@ import EventModal from '../calendar/EventModal';
 import DayViewModal from '../calendar/DayViewModal';
 import TimeGrid from '../calendar/TimeGrid';
 import YearOverviewModal from '../calendar/YearOverviewModal';
+import { usePinchGesture } from '../../lib/usePinchGesture';
 
 function getLunarLabel(date: Date) {
   const cal = new KoreanLunarCalendar();
@@ -86,6 +87,18 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   // 세로(칸 높이)만 늘림). 아래 monthExpanded가 실제 렌더링에서 쓰는 값 — 둘 중 하나라도 켜져 있으면 적용.
   const [desktopExpanded, setDesktopExpanded] = useState(false);
   const monthExpanded = wideView || desktopExpanded;
+
+  // 두 손가락 벌리기 = 펼치기(넓게보기), 좁히기 = 화면에 맞춰 보기 — 툴바의 펼치기/넓게보기 버튼과 정확히 같은 동작.
+  // 폰 좁은 화면(<640px)에서는 "넓게보기"(월/주 모두), 넓은 화면에서는 "펼치기"(월별보기만)가 그 버튼이므로 그 상태를 그대로 바꿈.
+  // 일정 수정창/하루보기/연도선택창이 열려있을 땐 그 위에서의 제스처가 뒤의 일정표를 바꾸지 않도록 무시.
+  const calRootRef = useRef<HTMLDivElement>(null);
+  const applyPinchExpand = (expand: boolean) => {
+    if (isModalOpen || dayViewDate || isDatePickerOpen) return;
+    const isWideScreen = typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches;
+    if (isWideScreen) { if (view === 'month') setDesktopExpanded(expand); }
+    else setWideView(expand);
+  };
+  usePinchGesture(calRootRef, { onSpread: () => applyPinchExpand(true), onPinch: () => applyPinchExpand(false) });
   // 월별보기가 펼쳐져서 화면보다 커질 때, 주별보기처럼 요일칸(일 월 화 수 목 금 토) 줄과 그 위
   // 툴바는 그대로 있고 날짜 칸들만 그 안에서 스크롤되게 하기 위해, 요일칸 줄의 실제 높이를 측정해둠
   // (전체 사용 가능 높이에서 이 만큼을 빼야 날짜 칸 스크롤 영역의 높이를 정확히 구할 수 있음).
@@ -150,6 +163,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   // 넓게보기 상태에서는 가로 스와이프가 이미 "넓혀진 그리드를 옆으로 보기" 용도라 겹치지 않도록 비활성.
   const gridTouchStart = useRef<{ x: number; y: number } | null>(null);
   const handleGridTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) { gridTouchStart.current = null; return; } // 두 손가락(핀치)은 월/주 이동 스와이프가 아님
     gridTouchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   };
   const handleGridTouchEnd = (e: React.TouchEvent) => {
@@ -227,7 +241,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   });
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-500">
+    <div ref={calRootRef} className="flex flex-col h-full animate-in fade-in duration-500">
       <div className="flex items-center gap-2 mb-3 flex-wrap gap-y-2">
         <button onClick={() => setIsDatePickerOpen((v) => !v)} className="group flex items-center gap-1.5 text-left rounded-xl px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition min-w-0 shrink-0" title="연월 선택">
           <h2 className="text-lg sm:text-2xl font-bold whitespace-nowrap">

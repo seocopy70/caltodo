@@ -196,6 +196,10 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
             <textarea ref={contentRef} className="w-full flex-1 min-h-[16rem] bg-slate-100 dark:bg-slate-800 rounded-2xl p-4 outline-none text-base leading-relaxed resize-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="내용을 입력하세요..." value={content} onChange={(e) => setContent(e.target.value)} />
           ) : (
             <div className="w-full flex-1 min-h-[16rem] bg-slate-100 dark:bg-slate-800 rounded-2xl p-3 overflow-y-auto space-y-1.5">
+              {/* 체크리스트는 새 항목이 맨 위에 추가되므로 "항목 추가" 버튼도 목록 맨 위에 둠(번호매김은 맨 아래에 이어붙이므로 아래에 그대로) */}
+              {format === 'checklist' && (
+                <button onClick={addItemViaButton} className="flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-400 mb-1"><Plus className="w-3.5 h-3.5" /> 항목 추가</button>
+              )}
               {lines.map((line, idx) => {
                 const m = format === 'checklist' ? line.match(/^\[( |x)\]\s?(.*)$/i) : null;
                 const checked = m ? m[1].toLowerCase() === 'x' : false;
@@ -218,7 +222,9 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
                   </div>
                 );
               })}
-              <button onClick={addItemViaButton} className="flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-400 mt-1"><Plus className="w-3.5 h-3.5" /> 항목 추가</button>
+              {format !== 'checklist' && (
+                <button onClick={addItemViaButton} className="flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-400 mt-1"><Plus className="w-3.5 h-3.5" /> 항목 추가</button>
+              )}
             </div>
           )}
 

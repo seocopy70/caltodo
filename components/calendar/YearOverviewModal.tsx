@@ -34,7 +34,7 @@ export default function YearOverviewModal({ initialYear, onClose, onPickMonth, o
 
   // 그리드 영역 어디서든 좌우로 스와이프하면 연도 이동(위아래는 그냥 화면 스크롤)
   const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const handleTouchStart = (e: React.TouchEvent) => { touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
+  const handleTouchStart = (e: React.TouchEvent) => { if (e.touches.length > 1) { touchStart.current = null; return; } touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
   const handleTouchEnd = (e: React.TouchEvent) => {
     const start = touchStart.current;
     touchStart.current = null;
