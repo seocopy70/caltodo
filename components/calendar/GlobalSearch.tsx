@@ -267,7 +267,6 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
 
   const panel = (
 <div
-      ref={panelRef}
       className="fixed z-[70] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
       style={panelPosition ? { left: `${panelPosition.left}px`, top: `${panelPosition.top}px`, width: `${panelPosition.width}px` } : { visibility: 'hidden' }}
     >
@@ -300,7 +299,9 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   );
 
   return (
-    <div ref={anchorRef} className="contents" aria-hidden="true" />
-    {typeof document !== 'undefined' ? createPortal(panel, document.body) : null}
+    <>
+      <div ref={anchorRef} className="contents" aria-hidden="true" />
+      {typeof document !== 'undefined' ? createPortal(panel, document.body) : null}
+    </>
   );
 }
