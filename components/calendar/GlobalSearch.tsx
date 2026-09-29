@@ -80,7 +80,7 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
     const updatePosition = () => {
       const anchorRect = anchor.getBoundingClientRect();
       const panelWidth = panel.getBoundingClientRect().width;
-      const margin = 24;
+      const margin = 60;
       const desiredLeft = anchorRect.width - panelWidth;
       const minLeft = margin - anchorRect.left;
       const maxLeft = window.innerWidth - margin - panelWidth - anchorRect.left;
@@ -248,7 +248,7 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
           <button key={n.id} onClick={() => openNote(n)} className="w-full text-left p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800">
             <span className="font-bold text-sm"><HighlightedText text={n.title || ''} query={q} /></span>
             {preview && (
-              <span className={`block text-[11px] text-slate-500 whitespace-pre-line ${isContentMatch || isDateSearch ? 'line-clamp-3' : ''}`}>
+              <span className={`block text-[17px] leading-6 text-slate-600 dark:text-slate-300 whitespace-pre-line ${isContentMatch || isDateSearch ? 'line-clamp-3' : ''}`}>
                 <HighlightedText text={preview} query={isContentMatch ? q : ''} />
               </span>
             )}
@@ -262,7 +262,7 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   return (
     <div
       ref={resultPanelRef}
-      className="absolute top-full z-[70] w-[min(42rem,calc(100vw-3rem))] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
+      className="absolute top-full z-[70] w-[min(42rem,calc(100vw-7.5rem))] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
       style={{
         left: resultLeft == null ? 0 : String(resultLeft) + 'px',
         marginTop: pushDownBy ? String(pushDownBy) + 'px' : '0.5rem',
