@@ -61,7 +61,7 @@ export function getKoreanHolidays(year: number): Record<string, string> {
   // 고정 양력 공휴일
   add(new Date(year, 0, 1), '신정');
   add(new Date(year, 2, 1), '삼일절');
-  add(new Date(year, 4, 1), '노동절');
+  // 노동절은 2026년부터 「공휴일에 관한 법률」상 공휴일로 포함.\n  if (year >= 2026) add(new Date(year, 4, 1), '노동절');
   add(new Date(year, 4, 5), '어린이날');
   add(new Date(year, 5, 6), '현충일');
   add(new Date(year, 7, 15), '광복절');
