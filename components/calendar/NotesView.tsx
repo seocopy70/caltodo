@@ -77,12 +77,6 @@ function SecureSearchContent({ content, format, query, noteId, activeMatchIndex,
         return m ? m[0].length : 0;
       })
     : lines.map(() => 0);
-  const lineStarts: number[] = [];
-  let offset = 0;
-  lines.forEach((line) => {
-    lineStarts.push(offset);
-    offset += line.length + 1;
-  });
   const contentMatchOffset = (lineIndex: number) => {
     const line = lines[lineIndex] || '';
     const prefix = prefixLengths[lineIndex] || 0;
