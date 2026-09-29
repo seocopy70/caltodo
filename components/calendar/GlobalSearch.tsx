@@ -80,7 +80,7 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
     const updatePosition = () => {
       const anchorRect = anchor.getBoundingClientRect();
       const panelWidth = panel.getBoundingClientRect().width;
-      const margin = 16;
+      const margin = 24;
       const desiredLeft = anchorRect.width - panelWidth;
       const minLeft = margin - anchorRect.left;
       const maxLeft = window.innerWidth - margin - panelWidth - anchorRect.left;
@@ -262,7 +262,7 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   return (
     <div
       ref={resultPanelRef}
-      className="absolute top-full z-[70] w-[min(42rem,calc(100vw-2rem))] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
+      className="absolute top-full z-[70] w-[min(42rem,calc(100vw-3rem))] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
       style={{
         left: resultLeft == null ? 0 : String(resultLeft) + 'px',
         marginTop: pushDownBy ? String(pushDownBy) + 'px' : '0.5rem',
