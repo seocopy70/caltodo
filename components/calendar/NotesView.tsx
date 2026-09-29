@@ -61,6 +61,98 @@ function secureMatchCount(text: string, query: string) {
   return count;
 }
 
+function SecureSearchContent({ content, format, query, noteId, activeMatchIndex, matchRefs, onToggleLine }: {
+  content: string;
+  format?: string;
+  query: string;
+  noteId: string;
+  activeMatchIndex: number;
+  matchRefs: MutableRefObject<Record<string, HTMLElement | null>>;
+  onToggleLine?: (idx: number) => void;
+}) {
+  const lines = (content || '').split('\n');
+  const prefixLengths = format === 'checklist'
+    ? lines.map((line) => {
+        const m = line.match(/^\[( |x)\]\s?/i);
+        return m ? m[0].length : 0;
+      })
+    : lines.map(() => 0);
+  const lineStarts: number[] = [];
+  let offset = 0;
+  lines.forEach((line) => {
+    lineStarts.push(offset);
+    offset += line.length + 1;
+  });
+  const contentMatchOffset = (lineIndex: number) => {
+    const line = lines[lineIndex] || '';
+    const prefix = prefixLengths[lineIndex] || 0;
+    const visibleText = line.slice(prefix);
+    const before = visibleText.toLowerCase().indexOf(query);
+    if (before < 0) return 0;
+    let count = 0;
+    for (let i = 0; i < lineIndex; i++) {
+      count += secureMatchCount(lines[i].slice(prefixLengths[i] || 0), query);
+    }
+    return count;
+  };
+
+  if (format === 'checklist') {
+    return (
+      <div className="break-words [overflow-wrap:anywhere]">
+        {lines.map((line, i) => {
+          if (!line.trim()) return <div key={i} className="h-2" />;
+          const m = line.match(/^\[( |x)\]\s?(.*)$/i);
+          const checked = m ? m[1].toLowerCase() === 'x' : false;
+          const text = m ? m[2] : line;
+          const base = contentMatchOffset(i);
+          return (
+            <div key={i} className="flex items-start gap-2 py-0.5">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onToggleLine?.(i); }}
+                className={`mt-0.5 w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center ${checked ? 'bg-blue-600 border-blue-600' : 'border-slate-400 dark:border-slate-500'}`}
+              >
+                {checked && <span className="text-white text-[10px] leading-none">✓</span>}
+              </button>
+              <span className={`min-w-0 ${checked ? 'line-through text-slate-400 dark:text-slate-600' : ''}`}>
+                <SearchHighlightedText text={text} query={query} matchBase={base} matchRefs={matchRefs} matchKeyPrefix={noteId} activeMatchIndex={activeMatchIndex} />
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (format === 'numbered') {
+    let n = 0;
+    return (
+      <div className="break-words [overflow-wrap:anywhere]">
+        {lines.map((line, i) => {
+          if (!line.trim()) return <div key={i} className="h-2" />;
+          n++;
+          const base = contentMatchOffset(i);
+          return (
+            <div key={i} className="flex gap-2 py-0.5">
+              <span className="shrink-0 font-bold opacity-60">{n}.</span>
+              <span className="min-w-0">
+                <SearchHighlightedText text={line} query={query} matchBase={base} matchRefs={matchRefs} matchKeyPrefix={noteId} activeMatchIndex={activeMatchIndex} />
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+      <SearchHighlightedText text={content} query={query} matchRefs={matchRefs} matchKeyPrefix={noteId} activeMatchIndex={activeMatchIndex} />
+    </div>
+  );
+}
+
+
 export default function NotesView({ notes, folders = [], user, onNotify, onRefresh, onNewNote, onEditNote, onPatchNote, onSwipeHint }: any) {
   const [showTrash, setShowTrash] = useState(false);
   // 삭제된 메모는 매번 앱을 열 때마다 같이 안 불러오고, 보관함을 실제로 펼쳤을 때만 따로 불러옴
@@ -418,15 +510,15 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
                     return (
                       <>
                         {secureQuery && searchMatchContent ? (
-                          <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                            <SearchHighlightedText
-                              text={shown}
-                              query={secureQuery}
-                              matchRefs={secureMatchRefs}
-                              matchKeyPrefix={note.id}
-                              activeMatchIndex={contentMatchIndex}
-                            />
-                          </div>
+                          <SecureSearchContent
+                            content={shown}
+                            format={note.format}
+                            query={secureQuery}
+                            noteId={note.id}
+                            activeMatchIndex={contentMatchIndex}
+                            matchRefs={secureMatchRefs}
+                            onToggleLine={(idx) => toggleLine(note, idx)}
+                          />
                         ) : (
                           <NoteContent content={shown} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} onLineClick={(idx: number, charOffset?: number) => onEditNote?.(note, 'content', idx, charOffset)} />
                         )}
