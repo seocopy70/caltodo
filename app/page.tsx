@@ -224,13 +224,46 @@ export default function Home() {
     } catch (err) { console.error('데이터 조회 실패:', err); }
   }, [applyBootstrapResult]);
 
+  // 서버 응답을 기다리지 않고도 다음 실행에서 그대로 이어갈 수 있도록 현재 화면 상태를 로컬 캐시에 저장한다.
+  // 서버 캐시와 달리 이 캐시는 사용자의 로컬 수정/생성까지 포함한다. 날짜 객체는 JSON으로 저장되고,
+  // 앱 시작 시 applyBootstrapResult가 다시 Date로 복원한다.
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const snapshot = {
+        events,
+        todos,
+        notes,
+        noteFolders,
+        todoFolders,
+      };
+      localStorage.setItem(bootstrapCacheKey(user.uid), JSON.stringify(snapshot));
+    } catch (err) {
+      console.error('로컬 데이터 캐시 저장 실패:', err);
+    }
+  }, [user, events, todos, notes, noteFolders, todoFolders]);
+
+  // 오프라인에서 쌓아둔 변경사항이 온라인 복귀 후 서버에 반영되면 임시 항목을 버리고
+  // 서버의 실제 ID/최종 상태를 다시 받아온다. 이렇게 하면 새로고침해도 살아 있던 temp-*가
+  // 서버의 실제 항목과 중복으로 남지 않는다.
+  useEffect(() => {
+    const handleSyncComplete = () => {
+      setEvents((prev) => prev.filter((x) => !String(x.id).startsWith('temp-')));
+      setTodos((prev) => prev.filter((x) => !String(x.id).startsWith('temp-')));
+      setNotes((prev) => prev.filter((x) => !String(x.id).startsWith('temp-')));
+      window.setTimeout(() => { void refreshData(); }, 0);
+    };
+    window.addEventListener('cal2do-offline-sync-complete', handleSyncComplete);
+    return () => window.removeEventListener('cal2do-offline-sync-complete', handleSyncComplete);
+  }, [refreshData]);
+
   // 낙관적 로컬 업데이트: 서버 응답을 기다리지 않고 화면에 즉시 반영해 체감 반응속도를 높임
   const patchTodoLocal = useCallback((id: string, patch: any) => { markLocalWrite(`todo:${id}`); setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t))); }, []);
   const removeTodoLocal = useCallback((id: string) => { markLocalWrite(`todo:${id}`, true); setTodos((prev) => prev.filter((t) => t.id !== id)); }, []);
   const patchNoteLocal = useCallback((id: string, patch: any) => { markLocalWrite(`note:${id}`); setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n))); }, []);
-  // 새로 만드는 항목은 서버 응답(진짜 id)이 오기 전까지 임시 id로 화면에 바로 보이게 하고,
-  // 응답이 오면 진짜 id로 바꿔치기(reconcile)한다. 실패하면 그 임시 항목을 다시 지운다.
-  // 저장 버튼을 누르자마자 목록에 바로 나타나야 "저장이 느리다"는 느낌이 없어짐.
+  // 새로 만드는 항목은 서버 응답(진짜 id)이 오기 전까지 임시 id로 화면에 바로 보이게 한다.
+  // 이제 네트워크가 끊겨도 임시 항목을 삭제하지 않고 로컬 캐시에 남겨두며, 온라인 복귀 후
+  // 서버 동기화가 끝나면 refreshData가 실제 서버 항목으로 교체한다.
   const addTodoLocal = useCallback((todo: any) => setTodos((prev) => [todo, ...prev]), []);
   const reconcileTodoLocal = useCallback((tempId: string, realId: string) => setTodos((prev) => prev.map((t) => (t.id === tempId ? { ...t, id: realId } : t))), []);
   const rollbackTodoLocal = useCallback((id: string) => setTodos((prev) => prev.filter((t) => t.id !== id)), []);

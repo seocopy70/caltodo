@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/backup",
       "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/cron/holidays",
+      "schedule": "17 18 1 * *"
     }
   ]
 }
