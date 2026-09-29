@@ -7,7 +7,7 @@ import {
   isSameDay, addDays, subDays, getYear
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, CalendarDays, Grid3x3, Rows3, List, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Grid3x3, Rows3, Columns3, List, Maximize2, Minimize2 } from 'lucide-react';
 import { getKoreanHolidaysForYears } from '../../lib/holidays';
 import { eventOccursOnDay, getRecurrenceType, getOccurrenceTimes } from '../../lib/recurrence';
 import KoreanLunarCalendar from 'korean-lunar-calendar';
@@ -68,7 +68,7 @@ function useFitAvailableHeight(active: boolean, ref: React.RefObject<HTMLElement
   return height;
 }
 
-function CalendarEventList({ openYear, range, yearGroups }: any) {
+function CalendarEventList({ openYear, range, yearGroups, onEventClick }: any) {
   const [openYears, setOpenYears] = useState<Record<string, boolean>>({ [String(openYear)]: true });
 
   useEffect(() => {
@@ -102,7 +102,7 @@ function CalendarEventList({ openYear, range, yearGroups }: any) {
                   const times = getOccurrenceTimes(event, occurrenceDay);
                   const repeated = getRecurrenceType(event) !== 'none';
                   return (
-                    <div key={event.id + '-' + format(occurrenceDay, 'yyyy-MM-dd')} className={`flex items-center gap-3 px-4 py-2.5 ${repeated ? 'bg-violet-50 dark:bg-violet-500/10' : ''}`}>
+                    <div key={event.id + '-' + format(occurrenceDay, 'yyyy-MM-dd')} onClick={() => onEventClick?.(event)} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-blue-500/5 ${repeated ? 'bg-violet-50 dark:bg-violet-500/10' : ''}`}>
                       <div className="w-14 shrink-0 flex flex-col items-start leading-tight">
                         <span className="text-[15px] font-black text-blue-600 dark:text-blue-400">{format(occurrenceDay, 'M/d')}</span>
                         <span className="text-sm font-bold text-slate-400 dark:text-slate-500">{format(times.start, 'HH:mm')}</span>
@@ -199,9 +199,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
     : undefined;
   const weekOfMonth = Math.ceil((currentDate.getDate() + startOfMonth(currentDate).getDay()) / 7);
   const holidayYears = Array.from(new Set(days.map((d) => d.getFullYear())));
-  const listRange = useMemo(() => navigationView === 'month'
-    ? { start: startOfMonth(currentDate), end: endOfMonth(currentDate) }
-    : { start: startOfWeek(currentDate), end: endOfWeek(currentDate) }, [navigationView, currentDate]);
+  const listRange = useMemo(() => ({ start: currentDate, end: currentDate }), [currentDate]);
   const listYearGroups = useMemo(() => {
     const map = new Map<number, any[]>();
     events.forEach((event: any) => {
@@ -389,13 +387,13 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
             type="button"
             onClick={() => {
               if (view === 'month') { setListSourceView('month'); setCalView('week'); }
-              else if (view === 'week') { setListSourceView('week'); setCalView('list'); }
+              else if (view === 'week') { setListSourceView('week'); setCurrentDate(new Date()); setCalView('list'); }
               else { setCalView('month'); setListSourceView('month'); }
             }}
             title={view === 'month' ? '탭하면 주별보기로' : view === 'week' ? '탭하면 목록보기로' : '탭하면 월별보기로'}
             className="py-2.5 px-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0"
           >
-            {view === 'month' ? <Rows3 className="w-5 h-5" /> : view === 'week' ? <List className="w-5 h-5" /> : <Grid3x3 className="w-5 h-5" />}
+            {view === 'month' ? <Columns3 className="w-5 h-5" /> : view === 'week' ? <Rows3 className="w-5 h-5" /> : <Grid3x3 className="w-5 h-5" />}
           </button>
         </div>
       </div>
@@ -413,6 +411,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           openYear={listOpenYear}
           range={listRange}
           yearGroups={listYearGroups}
+          onEventClick={openEditEvent}
         />
       ) : view === 'week' ? (
         <div ref={weekGridWrapperRef} onTouchStart={handleGridTouchStart} onTouchEnd={handleGridTouchEnd}>
