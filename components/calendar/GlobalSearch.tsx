@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { CalendarDays, CheckSquare, FileText, X, Trash2 } from 'lucide-react';
 import { format, startOfDay } from 'date-fns';
@@ -69,6 +69,31 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   useModalBackClose(onClose);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelPosition, setPanelPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+
+  // Keep the result panel independent from the narrow search-column width.
+  useLayoutEffect(() => {
+    const updatePanelPosition = () => {
+      const panel = panelRef.current;
+      const anchor = panel?.parentElement;
+      if (!panel || !anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const margin = 8;
+      const width = Math.min(672, Math.max(0, window.innerWidth - margin * 2));
+      const preferredLeft = rect.right - width;
+      const left = Math.max(margin, Math.min(preferredLeft, window.innerWidth - width - margin));
+      const top = rect.bottom + (pushDownBy ? pushDownBy : 8);
+      setPanelPosition({ left, top, width });
+    };
+    updatePanelPosition();
+    window.addEventListener('resize', updatePanelPosition);
+    window.addEventListener('scroll', updatePanelPosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePanelPosition);
+      window.removeEventListener('scroll', updatePanelPosition, true);
+    };
+  }, [pushDownBy]);
   const [category, setCategory] = useState<Category>('all');
   const notify = onNotify || (() => {});
   const q = (query || '').trim().toLowerCase();
@@ -242,8 +267,9 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
 
   return (
     <div
-      className="absolute left-2 right-2 lg:left-auto lg:right-0 lg:w-[min(96vw,42rem)] top-full z-[70] max-w-[42rem] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
-      style={{ marginTop: pushDownBy ? `${pushDownBy}px` : '0.5rem' }}
+      ref={panelRef}
+      className="fixed z-[70] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
+      style={panelPosition ? { left: `${panelPosition.left}px`, top: `${panelPosition.top}px`, width: `${panelPosition.width}px` } : { visibility: 'hidden' }}
     >
       <div className="p-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
         <span className="text-xs text-slate-500 dark:text-slate-400">{dateLabel ? `${dateLabel} 전체 기록 ${total}건` : `검색 결과 ${total}건`}</span>
