@@ -14,7 +14,7 @@ import { getFolderColor } from '../../lib/folderColor';
 import { ModalBackCloseGuard, isAnyModalOpen } from '../../lib/useModalBackClose';
 
 
-function SearchHighlightedText({ text, query, matchBase, matchRefs, matchOffset = 0 }: {
+function SearchHighlightedText({ text, query, matchBase, matchRefs }: {
   text: string;
   query: string;
   matchBase: number;
