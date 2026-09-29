@@ -79,13 +79,17 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
     if (!panel || !anchor) return;
     const updatePosition = () => {
       const anchorRect = anchor.getBoundingClientRect();
-      const panelWidth = panel.getBoundingClientRect().width;
-      const margin = window.innerWidth >= 768 ? 100 : 8;
-      // 검색결과창은 입력창 위치를 기준으로 붙이지 않고 화면 중앙에 배치한다.
-      // 좁은 화면에서는 좌우 8px만 남겨 내용을 거의 전체 폭으로 보여준다.
-      const targetLeft = (window.innerWidth - panelWidth) / 2;
+      const panelRect = panel.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth;
+      const panelWidth = panelRect.width;
+      const margin = viewportWidth >= 768 ? 100 : 8;
+      // 검색결과창은 입력창 위치를 기준으로 붙이지 않고 현재 layout viewport 중앙에 배치한다.
+      // window.innerWidth와 100vw를 섞어 계산하면 모바일 키보드가 처음 나타날 때
+      // visual/layout viewport 변화로 가로 위치가 순간적으로 틀어질 수 있으므로
+      // CSS layout viewport와 같은 documentElement.clientWidth를 기준으로 계산한다.
+      const targetLeft = (viewportWidth - panelWidth) / 2;
       const minLeft = margin - anchorRect.left;
-      const maxLeft = window.innerWidth - margin - panelWidth - anchorRect.left;
+      const maxLeft = viewportWidth - margin - panelWidth - anchorRect.left;
       setResultLeft(Math.min(maxLeft, Math.max(minLeft, targetLeft - anchorRect.left)));
     };
     updatePosition();
