@@ -15,9 +15,19 @@ async function syncYear(year: number) {
 
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`holiday API HTTP ${response.status}`);
-  const json = await response.json();
-  const raw = json?.response?.body?.items?.item;
-  const items = !raw ? [] : Array.isArray(raw) ? raw : [raw];
+  const text = await response.text();
+  let items: any[] = [];
+  try {
+    const json = JSON.parse(text);
+    const raw = json?.response?.body?.items?.item;
+    items = !raw ? [] : Array.isArray(raw) ? raw : [raw];
+  } catch {
+    const itemMatches = text.match(/<item>[\\s\\S]*?<\\/item>/g) || [];
+    items = itemMatches.map((itemXml) => {
+      const value = (tag: string) => itemXml.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`))?.[1]?.trim() || '';
+      return { locdate: value('locdate'), dateName: value('dateName'), isHoliday: value('isHoliday') };
+    });
+  }
   const holidays = items
     .filter((item: any) => item?.isHoliday === 'Y' && item?.locdate)
     .map((item: any) => ({
