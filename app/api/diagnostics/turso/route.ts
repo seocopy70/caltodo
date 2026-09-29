@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createHash } from 'crypto';
-import { turso } from '../../../lib/turso';
+import { turso } from '../../../../lib/turso';
 
 export const dynamic = 'force-dynamic';
 
