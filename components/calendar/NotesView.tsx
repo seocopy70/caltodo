@@ -57,6 +57,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   };
   const [secureModal, setSecureModal] = useState<{ folder: any; mode: 'setup' | 'unlock' | 'disable' } | null>(null);
   const [unlockedSecureId, setUnlockedSecureId] = useState<string | null>(null);
+  const [secureNotes, setSecureNotes] = useState<any[]>([]);
   const [secureSearchQuery, setSecureSearchQuery] = useState('');
   const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
   const toggleCardExpanded = (id: string) => setExpandedCardIds((prev) => {
@@ -70,6 +71,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
 
   // notes prop은 이제 삭제 안 된 메모만 들어있음(삭제된 건 보관함을 펼칠 때 trashNotes로 따로 불러옴)
   const allActiveNotes = (notes || []).filter((n: any) => !n.deletedAt);
+  const visibleSecureNotes = secureNotes.filter((n: any) => !n.deletedAt && n.folderId === secureFolder?.id);
   const deletedNotes = trashNotes;
   // 보안폴더 메모는 '전체' 보기 등에서는 숨기고, 그 폴더를 잠금 해제하고 들어갔을 때만 보여줌
   const visibleForAll = secureFolder ? allActiveNotes.filter((n: any) => n.folderId !== secureFolder.id) : allActiveNotes;
@@ -80,7 +82,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     : activeFolderId === 'none'
       ? visibleForAll.filter((n: any) => !n.folderId)
       : activeFolderId === secureFolder?.id
-        ? (isInUnlockedSecureFolder ? allActiveNotes.filter((n: any) => n.folderId === secureFolder.id) : [])
+        ? (isInUnlockedSecureFolder ? visibleSecureNotes : [])
         : visibleForAll.filter((n: any) => n.folderId === activeFolderId);
   // 보안폴더 안에서만 쓰는 로컬 검색(전역 검색은 보안폴더 메모를 애초에 제외하므로 별도로 둠)
   const secureQuery = secureSearchQuery.trim().toLowerCase();
@@ -143,9 +145,16 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     api.noteFolders.remove(folder.id).then(() => { notify('폴더를 삭제했습니다.'); onRefresh?.(); }).catch((err: any) => notify(`삭제 실패: ${err.message || err}`, 'error'));
   };
 
-  const onSecureSuccess = () => {
-    if (secureModal?.mode === 'unlock') setUnlockedSecureId(secureModal.folder.id);
-    if (secureModal?.mode === 'disable') { setUnlockedSecureId(null); if (activeFolderId === secureModal.folder.id) setActiveFolderId('all'); }
+  const onSecureSuccess = (unlockedNotes: any[] = []) => {
+    if (secureModal?.mode === 'unlock') {
+      setUnlockedSecureId(secureModal.folder.id);
+      setSecureNotes(unlockedNotes);
+    }
+    if (secureModal?.mode === 'disable') {
+      setUnlockedSecureId(null);
+      setSecureNotes([]);
+      if (activeFolderId === secureModal.folder.id) setActiveFolderId('all');
+    }
     setSecureModal(null);
     onRefresh?.();
   };
@@ -155,6 +164,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     // 재확인하도록 함(같은 탭 안에서 폴더만 바꾸는 경우엔 컴포넌트가 그대로 유지되어 이전엔 안 풀렸었음).
     if (secureFolder && activeFolderId === secureFolder.id && id !== secureFolder.id) {
       setUnlockedSecureId(null);
+      setSecureNotes([]);
     }
     setActiveFolderId(id);
     setFolderPickerOpen(false);
