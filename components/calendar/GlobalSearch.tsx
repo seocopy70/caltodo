@@ -1,6 +1,7 @@
 'use client';
 
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { CalendarDays, CheckSquare, FileText, X, Trash2 } from 'lucide-react';
 import { format, startOfDay } from 'date-fns';
@@ -69,15 +70,14 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   useModalBackClose(onClose);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
   const [panelPosition, setPanelPosition] = useState<{ left: number; top: number; width: number } | null>(null);
 
   // Keep the result panel independent from the narrow search-column width.
   useLayoutEffect(() => {
     const updatePanelPosition = () => {
-      const panel = panelRef.current;
-      const anchor = panel?.parentElement;
-      if (!panel || !anchor) return;
+      const anchor = anchorRef.current?.parentElement;
+      if (!anchor) return;
       const rect = anchor.getBoundingClientRect();
       const margin = 8;
       const width = Math.min(672, Math.max(0, window.innerWidth - margin * 2));
@@ -265,8 +265,8 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
     </section>
   ) : null;
 
-  return (
-    <div
+  const panel = (
+<div
       ref={panelRef}
       className="fixed z-[70] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
       style={panelPosition ? { left: `${panelPosition.left}px`, top: `${panelPosition.top}px`, width: `${panelPosition.width}px` } : { visibility: 'hidden' }}
@@ -297,5 +297,10 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
         </div>
       )}
     </div>
+  );
+
+  return (
+    <div ref={anchorRef} className="contents" aria-hidden="true" />
+    {typeof document !== 'undefined' ? createPortal(panel, document.body) : null}
   );
 }
