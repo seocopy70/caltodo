@@ -1,21 +1,156 @@
 import { auth } from './firebase';
 import { withTimeout } from './withTimeout';
 
+type QueuedMutation = {
+  id: string;
+  path: string;
+  method: string;
+  body: string | null;
+  queuedAt: number;
+};
+
+const QUEUE_PREFIX = 'cal2do-offline-queue-';
+let syncRunning = false;
+
+const queueKey = (uid: string) => QUEUE_PREFIX + uid;
+
+function readQueue(uid: string): QueuedMutation[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(queueKey(uid));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeQueue(uid: string, queue: QueuedMutation[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (queue.length === 0) window.localStorage.removeItem(queueKey(uid));
+    else window.localStorage.setItem(queueKey(uid), JSON.stringify(queue));
+  } catch (err) {
+    console.error('[offline] 큐 저장 실패:', err);
+  }
+}
+
+function isQueueableMutation(path: string, method: string) {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) return false;
+  return path.startsWith('/api/todos') || path.startsWith('/api/notes') || path.startsWith('/api/events');
+}
+
+function dispatchSyncComplete() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('cal2do-offline-sync-complete'));
+  }
+}
+
+function enqueueMutation(uid: string, path: string, method: string, body: string | null) {
+  const queue = readQueue(uid);
+  const mutation: QueuedMutation = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    path,
+    method: method.toUpperCase(),
+    body,
+    queuedAt: Date.now(),
+  };
+
+  // 같은 항목에 대한 연속적인 수정은 마지막 상태만 남긴다.
+  // POST(생성)와 DELETE는 순서를 보존해야 하므로 합치지 않는다.
+  if (mutation.method === 'PUT' || mutation.method === 'PATCH') {
+    const samePathIndex = [...queue].reverse().findIndex((q) => q.path === path && q.method === mutation.method);
+    if (samePathIndex >= 0) {
+      const index = queue.length - 1 - samePathIndex;
+      queue[index] = mutation;
+      writeQueue(uid, queue);
+      return;
+    }
+  }
+
+  queue.push(mutation);
+  writeQueue(uid, queue);
+}
+
+async function syncPendingMutations() {
+  if (syncRunning || typeof window === 'undefined' || !navigator.onLine) return;
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const queue = readQueue(user.uid);
+  if (queue.length === 0) return;
+
+  syncRunning = true;
+  let changed = false;
+  try {
+    const headers = await authHeaders();
+    const remaining: QueuedMutation[] = [];
+
+    for (const mutation of queue) {
+      try {
+        const res = await withTimeout(fetch(mutation.path, {
+          method: mutation.method,
+          headers,
+          body: mutation.body || undefined,
+        }));
+
+        if (!res.ok) {
+          // 인증/권한 오류나 서버 검증 오류는 무한 재시도하지 않는다.
+          // 네트워크 오류만 다음 연결 때 다시 시도한다.
+          if (res.status >= 400 && res.status < 500) {
+            console.error('[offline] 동기화 거부:', mutation.path, res.status);
+            changed = true;
+            continue;
+          }
+          remaining.push(mutation);
+          continue;
+        }
+
+        changed = true;
+      } catch (err: any) {
+        // 타임아웃은 서버가 이미 처리했을 가능성이 있으므로 재전송하지 않는다.
+        // 순수 네트워크 오류만 큐에 남겨 다음 연결 때 다시 시도한다.
+        if (err?.isTimeout) {
+          console.error('[offline] 동기화 타임아웃 — 중복 방지를 위해 큐에서 제외:', mutation.path);
+          changed = true;
+          continue;
+        }
+        remaining.push(mutation);
+      }
+
+      if (!navigator.onLine) {
+        remaining.push(...queue.slice(queue.indexOf(mutation) + 1));
+        break;
+      }
+    }
+
+    writeQueue(user.uid, remaining);
+    if (changed) dispatchSyncComplete();
+  } catch (err) {
+    console.error('[offline] 동기화 준비 실패:', err);
+  } finally {
+    syncRunning = false;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => { void syncPendingMutations(); });
+  // 앱을 다시 열었을 때 이미 온라인이면 남아 있던 큐를 백그라운드에서 비운다.
+  setTimeout(() => { void syncPendingMutations(); }, 1000);
+}
+
 async function authHeaders() {
-  // 앱을 열자마자 캐시로 화면을 먼저 보여주는 동안엔 Firebase 인증 확인이 아직 안 끝났을 수 있어
-  // auth.currentUser가 잠깐 null일 수 있다. 그 사이에 저장/조회가 발생해도 실패시키지 않고 확인이 끝날 때까지 기다린다.
   if (!auth.currentUser) {
-    try { await auth.authStateReady(); } catch { /* 무시하고 아래에서 판단 */ }
+    try { await auth.authStateReady(); } catch { /* ignore */ }
   }
   const user = auth.currentUser;
   if (!user) throw new Error('로그인이 필요합니다.');
-  // getIdToken()은 만료된 토큰이면 내부적으로 구글 인증 서버로 갱신 요청을 보낸다.
-  // 이 호출이 순간적인 연결 끊김으로 실패하는 경우가 있어(요청이 서버까지 가지도 못함),
-  // 한 번만 조용히 재시도해서 "저장 실패"로 바로 이어지지 않게 한다.
+
   let token: string;
   try {
     token = await user.getIdToken();
-  } catch (err) {
+  } catch {
     await new Promise((r) => setTimeout(r, 700));
     token = await user.getIdToken();
   }
@@ -23,18 +158,32 @@ async function authHeaders() {
 }
 
 async function request(path: string, options: RequestInit = {}) {
+  const method = (options.method || 'GET').toUpperCase();
   const headers = { ...(await authHeaders()), ...(options.headers || {}) };
+  const body = typeof options.body === 'string' ? options.body : null;
+  const user = auth.currentUser;
+
+  // 목록 조회는 서버가 기준이다. 쓰기 작업만 오프라인 큐에 보존한다.
+  if (user && isQueueableMutation(path, method) && typeof window !== 'undefined' && !navigator.onLine) {
+    enqueueMutation(user.uid, path, method, body);
+    return { queued: true };
+  }
+
   const doFetch = () => withTimeout(fetch(path, { ...options, headers }));
 
   let res: Response;
   try {
     res = await doFetch();
   } catch (err: any) {
-    // withTimeout이 던진 타임아웃은 서버가 이미 요청을 처리하고 있을 수 있어 재시도하면
-    // 중복 저장 위험이 있으므로 그대로 던진다. 반면 순수 네트워크 예외(TypeError:
-    // Failed to fetch 등)는 요청이 아예 서버로 나가지도 못한 경우가 대부분이라, 잠깐
-    // 기다렸다 한 번만 재시도해서 순간적인 연결 끊김을 사용자가 못 느끼게 한다.
     if (err?.isTimeout) throw err;
+
+    // 요청 자체가 네트워크에 도달하지 못한 경우에는 로컬 큐에 넣고 성공으로 반환한다.
+    // 화면 상태는 이미 호출부에서 즉시 반영하고 있으므로, 여기서는 "서버 저장 대기 중" 상태만 남긴다.
+    if (user && isQueueableMutation(path, method)) {
+      enqueueMutation(user.uid, path, method, body);
+      return { queued: true };
+    }
+
     await new Promise((r) => setTimeout(r, 700));
     try {
       res = await doFetch();
@@ -56,6 +205,9 @@ async function request(path: string, options: RequestInit = {}) {
     err.status = res.status;
     throw err;
   }
+
+  // 정상 요청이 끝났으면 남아 있는 오프라인 큐도 조용히 비운다.
+  if (user && typeof window !== 'undefined') void syncPendingMutations();
   return res.json();
 }
 
