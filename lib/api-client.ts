@@ -159,9 +159,15 @@ async function authHeaders() {
 
 async function request(path: string, options: RequestInit = {}) {
   const method = (options.method || 'GET').toUpperCase();
-  const headers = { ...(await authHeaders()), ...(options.headers || {}) };
   const body = typeof options.body === 'string' ? options.body : null;
   const user = auth.currentUser;
+
+  // 오프라인 쓰기는 인증 토큰 갱신조차 시도하지 않고 즉시 로컬 큐에 넣는다.
+  // 그래야 인터넷이 끊긴 순간 Firebase 토큰이 만료돼 있어도 작업을 잃지 않는다.
+  if (user && isQueueableMutation(path, method) && typeof window !== 'undefined' && !navigator.onLine) {
+    enqueueMutation(user.uid, path, method, body);
+    return { queued: true };
+  }
 
   // 앱 시작/새로고침 때 서버 스냅샷을 가져오기 전에 대기 중인 로컬 변경부터 밀어 넣는다.
   // 그래야 오프라인에서 수정한 값이 서버의 오래된 값으로 잠깐 덮어써지는 일이 없다.
@@ -169,12 +175,7 @@ async function request(path: string, options: RequestInit = {}) {
     await syncPendingMutations();
   }
 
-  // 목록 조회는 서버가 기준이다. 쓰기 작업만 오프라인 큐에 보존한다.
-  if (user && isQueueableMutation(path, method) && typeof window !== 'undefined' && !navigator.onLine) {
-    enqueueMutation(user.uid, path, method, body);
-    return { queued: true };
-  }
-
+  const headers = { ...(await authHeaders()), ...(options.headers || {}) };
   const doFetch = () => withTimeout(fetch(path, { ...options, headers }));
 
   let res: Response;
