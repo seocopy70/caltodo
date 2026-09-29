@@ -413,7 +413,6 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           openYear={listOpenYear}
           range={listRange}
           yearGroups={listYearGroups}
-          onOpenYear={(year) => setListSourceView(listSourceView)}
         />
       ) : view === 'week' ? (
         <div ref={weekGridWrapperRef} onTouchStart={handleGridTouchStart} onTouchEnd={handleGridTouchEnd}>
