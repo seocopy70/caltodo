@@ -10,8 +10,8 @@ export async function GET(req: NextRequest) {
   const includeDeleted = new URL(req.url).searchParams.get('includeDeleted') === 'true';
   const result = await turso.execute({
     sql: includeDeleted
-      ? 'SELECT * FROM notes WHERE user_id = ? ORDER BY deleted_at IS NOT NULL, updated_at DESC'
-      : 'SELECT * FROM notes WHERE user_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC',
+      ? 'SELECT n.* FROM notes n LEFT JOIN note_folders f ON f.id = n.folder_id AND f.user_id = n.user_id WHERE n.user_id = ? AND COALESCE(f.is_secure, 0) = 0 ORDER BY n.deleted_at IS NOT NULL, n.updated_at DESC'
+      : 'SELECT n.* FROM notes n LEFT JOIN note_folders f ON f.id = n.folder_id AND f.user_id = n.user_id WHERE n.user_id = ? AND n.deleted_at IS NULL AND COALESCE(f.is_secure, 0) = 0 ORDER BY n.updated_at DESC',
     args: [uid],
   });
 
