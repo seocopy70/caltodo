@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { CalendarDays, CheckSquare, FileText, X, Trash2 } from 'lucide-react';
 import { format, startOfDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -13,7 +14,7 @@ type Category = 'all' | 'events' | 'todos' | 'notes';
 function HighlightedText({ text, query }: { text: string; query: string }) {
   if (!query) return <>{text}</>;
   const lower = text.toLowerCase();
-  const parts: React.ReactNode[] = [];
+  const parts: ReactNode[] = [];
   let cursor = 0;
   let index = lower.indexOf(query);
   let key = 0;
