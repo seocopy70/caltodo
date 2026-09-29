@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from '../../lib/api-client';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -11,6 +11,52 @@ import FolderModal from './FolderModal';
 import NoteContent, { toggleChecklistLine } from './NoteContent';
 import { getFolderColor } from '../../lib/folderColor';
 import { ModalBackCloseGuard, isAnyModalOpen } from '../../lib/useModalBackClose';
+
+
+function SearchHighlightedText({ text, query, matchBase, matchRefs, matchOffset = 0 }: {
+  text: string;
+  query: string;
+  matchBase: number;
+  matchRefs: React.MutableRefObject<Record<number, HTMLElement | null>>;
+  matchOffset?: number;
+}) {
+  if (!query) return <>{text}</>;
+  const lower = text.toLowerCase();
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  let index = lower.indexOf(query);
+  let localMatch = 0;
+  while (index !== -1) {
+    if (index > cursor) parts.push(<span key={`t-${cursor}`}>{text.slice(cursor, index)}</span>);
+    const globalIndex = matchBase + localMatch;
+    parts.push(
+      <mark
+        key={`m-${index}`}
+        ref={(el) => { matchRefs.current[globalIndex] = el; }}
+        className="bg-amber-300 dark:bg-amber-500/60 text-inherit rounded px-0.5 ring-2 ring-transparent"
+      >
+        {text.slice(index, index + query.length)}
+      </mark>
+    );
+    cursor = index + query.length;
+    localMatch += 1;
+    index = lower.indexOf(query, cursor);
+  }
+  if (cursor < text.length) parts.push(<span key={`t-end-${cursor}`}>{text.slice(cursor)}</span>);
+  return <>{parts}</>;
+}
+
+function secureMatchCount(text: string, query: string) {
+  if (!query) return 0;
+  const lower = text.toLowerCase();
+  let count = 0;
+  let index = lower.indexOf(query);
+  while (index !== -1) {
+    count += 1;
+    index = lower.indexOf(query, index + Math.max(1, query.length));
+  }
+  return count;
+}
 
 export default function NotesView({ notes, folders = [], user, onNotify, onRefresh, onNewNote, onEditNote, onPatchNote, onSwipeHint }: any) {
   const [showTrash, setShowTrash] = useState(false);
@@ -59,6 +105,8 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const [unlockedSecureId, setUnlockedSecureId] = useState<string | null>(null);
   const [secureNotes, setSecureNotes] = useState<any[]>([]);
   const [secureSearchQuery, setSecureSearchQuery] = useState('');
+  const [secureMatchIndex, setSecureMatchIndex] = useState(0);
+  const secureMatchRefs = useRef<Record<number, HTMLElement | null>>({});
   const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
   const toggleCardExpanded = (id: string) => setExpandedCardIds((prev) => {
     const next = new Set(prev);
@@ -89,6 +137,36 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const activeNotes = isInUnlockedSecureFolder && secureQuery
     ? activeNotesBeforeSearch.filter((n: any) => `${n.title} ${n.content || ''}`.toLowerCase().includes(secureQuery))
     : activeNotesBeforeSearch;
+
+  // 보안폴더 검색은 "메모 수"가 아니라 실제 검색어가 등장한 횟수를 기준으로 이동한다.
+  // 따라서 한 메모에 검색어가 여러 번 있으면 같은 메모 안에서도 순서대로 포커스할 수 있다.
+  const secureMatchEntries = useMemo(() => {
+    if (!secureQuery || !isInUnlockedSecureFolder) return [] as Array<{ noteId: string; field: 'title' | 'content'; localIndex: number }>;
+    const entries: Array<{ noteId: string; field: 'title' | 'content'; localIndex: number }> = [];
+    activeNotes.forEach((note: any) => {
+      const titleCount = secureMatchCount(String(note.title || ''), secureQuery);
+      for (let i = 0; i < titleCount; i++) entries.push({ noteId: note.id, field: 'title', localIndex: i });
+      const contentCount = secureMatchCount(String(note.content || ''), secureQuery);
+      for (let i = 0; i < contentCount; i++) entries.push({ noteId: note.id, field: 'content', localIndex: i });
+    });
+    return entries;
+  }, [activeNotes, secureQuery, isInUnlockedSecureFolder]);
+
+  useEffect(() => {
+    setSecureMatchIndex(0);
+    secureMatchRefs.current = {};
+  }, [secureQuery, activeFolderId]);
+
+  useEffect(() => {
+    const target = secureMatchRefs.current[secureMatchIndex];
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+  }, [secureMatchIndex, secureMatchEntries.length]);
+
+  const moveSecureMatch = (delta: number) => {
+    if (secureMatchEntries.length === 0) return;
+    setSecureMatchIndex((prev) => (prev + delta + secureMatchEntries.length) % secureMatchEntries.length);
+  };
 
   const currentFolderLabel = activeFolderId === 'all' ? '전체' : activeFolderId === 'none' ? '미분류' : (folders.find((f: any) => f.id === activeFolderId)?.name || '전체');
   const currentFolderColor = activeFolderId !== 'all' && activeFolderId !== 'none' ? getFolderColor(activeFolderId, folders) : null;
@@ -302,8 +380,27 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
             value={secureSearchQuery}
             onChange={(e) => setSecureSearchQuery(e.target.value)}
             placeholder="보안폴더 안에서 검색"
-            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none text-sm"
+            className={`w-full pl-9 ${secureQuery && secureMatchEntries.length > 0 ? 'pr-24' : 'pr-3'} py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none text-sm`}
           />
+          {secureQuery && secureMatchEntries.length > 0 && (
+            <div className="absolute right-1 top-1 flex items-center gap-0.5 rounded-lg bg-white/80 dark:bg-slate-700/80 px-1 py-0.5">
+              <button
+                type="button"
+                onClick={() => moveSecureMatch(-1)}
+                aria-label="이전 검색 결과"
+                className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600"
+              >‹</button>
+              <span className="min-w-[3.5rem] text-center text-[10px] font-bold text-slate-500 dark:text-slate-300">
+                {secureMatchIndex + 1} / {secureMatchEntries.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => moveSecureMatch(1)}
+                aria-label="다음 검색 결과"
+                className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600"
+              >›</button>
+            </div>
+          )}
         </div>
       )}
       {activeNotes.length === 0 && <div className="text-center text-slate-500 py-16 text-sm">{secureQuery ? '검색 결과가 없어요.' : activeFolderId === 'all' ? '작성된 메모가 없어요.' : '이 폴더에는 메모가 없어요.'}</div>}
@@ -312,12 +409,17 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
         <div className="columns-2 gap-2 sm:gap-3 [column-fill:_balance]">
           {activeNotes.map((note: any) => {
             const folderColor = note.folderId ? getFolderColor(note.folderId, folders) : null;
+            const noteMatchStart = secureMatchEntries.findIndex((m) => m.noteId === note.id);
+            const titleMatchCount = secureMatchCount(String(note.title || ''), secureQuery);
+            const contentMatchStart = noteMatchStart < 0 ? -1 : noteMatchStart + titleMatchCount;
+            const searchMatchTitle = secureQuery && titleMatchCount > 0;
+            const searchMatchContent = secureQuery && secureMatchCount(String(note.content || ''), secureQuery) > 0;
             const isSecureNote = !!secureFolder && note.folderId === secureFolder.id;
             const iconColorClass = folderColor ? folderColor.text : 'text-amber-500 dark:text-amber-400';
             return (
               <div key={note.id} onClick={() => onEditNote?.(note, 'content')} className="break-inside-avoid mb-2 sm:mb-3 group relative bg-white dark:bg-slate-800/30 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none hover:border-blue-500/50 transition cursor-pointer">
                 <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <h4 onClick={(e) => { e.stopPropagation(); onEditNote?.(note, 'title'); }} className="font-bold text-lg truncate flex items-center gap-1.5 text-slate-900 dark:text-white min-w-0 cursor-text"><StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} /><span className="truncate">{note.title}</span></h4>
+                  <h4 onClick={(e) => { e.stopPropagation(); onEditNote?.(note, 'title'); }} className="font-bold text-lg truncate flex items-center gap-1.5 text-slate-900 dark:text-white min-w-0 cursor-text"><StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} /><span className="truncate">{searchMatchTitle ? <SearchHighlightedText text={note.title || ''} query={secureQuery} matchBase={noteMatchStart} matchRefs={secureMatchRefs} /> : note.title}</span></h4>
                   <div className="flex items-center gap-1 shrink-0">
                     {!isSecureNote && <button title={note.showToday ? '오늘 탭에서 숨기기' : '오늘 탭에 표시'} onClick={(e) => { e.stopPropagation(); toggleStar(note); }} className={`p-1 ${note.showToday ? 'text-amber-400' : 'text-slate-400 dark:text-slate-600 hover:text-amber-400'}`}><Star className="w-3.5 h-3.5" fill={note.showToday ? 'currentColor' : 'none'} /></button>}
                     <button title="보관함으로 이동" onClick={(e) => { e.stopPropagation(); remove(note.id); }} className="text-slate-400 dark:text-slate-600 hover:text-rose-500 transition"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -369,7 +471,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
             return (
               <button key={note.id} onClick={() => setViewingNote(note)} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-left">
                 <StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} />
-                <span className="flex-1 min-w-0 font-bold text-base truncate text-slate-900 dark:text-white">{note.title}</span>
+                <span className="flex-1 min-w-0 font-bold text-base truncate text-slate-900 dark:text-white">{secureQuery && titleMatchCount > 0 ? <SearchHighlightedText text={note.title || ''} query={secureQuery} matchBase={noteMatchStart} matchRefs={secureMatchRefs} /> : note.title}</span>
                 {note.showToday && <Star className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="currentColor" />}
                 <button title="보관함으로 이동" onClick={(e) => { e.stopPropagation(); remove(note.id); }} className="text-slate-400 dark:text-slate-600 hover:text-rose-500 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
               </button>
