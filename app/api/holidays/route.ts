@@ -38,13 +38,10 @@ async function fetchGovernmentHolidays(year: number): Promise<HolidayRow[]> {
     const raw = json?.response?.body?.items?.item;
     items = !raw ? [] : Array.isArray(raw) ? raw : [raw];
   } catch {
-    // 공공데이터포털 문서의 기본 포맷(XML)도 직접 처리한다.
     const itemMatches = text.match(/<item>[\s\S]*?<\/item>/g) || [];
     items = itemMatches.map((itemXml) => {
-      const value = (tag: string) => {
-        const match = itemXml.match(new RegExp(`<${tag}>([\s\S]*?)<\/${tag}>`));
-        return match?.[1]?.trim() || '';
-      };
+      const value = (tag: string) =>
+        itemXml.match(new RegExp(`<${tag}>([\s\S]*?)<\/${tag}>`))?.[1]?.trim() || '';
       return { locdate: value('locdate'), dateName: value('dateName'), isHoliday: value('isHoliday') };
     });
   }
@@ -61,6 +58,9 @@ async function fetchGovernmentHolidays(year: number): Promise<HolidayRow[]> {
 async function cacheYear(year: number) {
   const holidays = await fetchGovernmentHolidays(year);
   const now = Date.now();
+  const start = `${year}-01-01`;
+  const end = `${year}-12-31`;
+  const dates = new Set(holidays.map((h) => h.date));
 
   for (const holiday of holidays) {
     await turso.execute({
@@ -76,10 +76,6 @@ async function cacheYear(year: number) {
     });
   }
 
-  // 정부 데이터에서 빠진 날짜가 삭제된 경우도 반영한다.
-  const start = `${year}-01-01`;
-  const end = `${year}-12-31`;
-  const dates = new Set(holidays.map((h) => h.date));
   const existing = await turso.execute({
     sql: 'SELECT date FROM public_holidays WHERE date BETWEEN ? AND ? AND source = ?',
     args: [start, end, 'data.go.kr/한국천문연구원'],
@@ -104,30 +100,33 @@ export async function GET(req: NextRequest) {
   const years = Array.from(new Set(
     yearsParam.split(',').map(Number).filter((year) => year >= 2000 && year <= 2100),
   )).slice(0, 5);
+  const forceRefresh = req.nextUrl.searchParams.get('refresh') === '1';
 
   const result: Record<string, string> = {};
-  const missing: number[] = [];
 
   for (const year of years) {
-    const rows = await turso.execute({
-      sql: 'SELECT date, name FROM public_holidays WHERE date BETWEEN ? AND ?',
-      args: [`${year}-01-01`, `${year}-12-31`],
-    });
-    if (rows.rows.length === 0) missing.push(year);
-    for (const row of rows.rows as any[]) result[String(row.date)] = String(row.name);
-  }
-
-  // 캐시가 없는 연도만 정부 API에서 가져온다. 이후에는 DB 캐시를 사용한다.
-  for (const year of missing) {
     try {
-      await cacheYear(year);
       const rows = await turso.execute({
         sql: 'SELECT date, name FROM public_holidays WHERE date BETWEEN ? AND ?',
         args: [`${year}-01-01`, `${year}-12-31`],
       });
-      for (const row of rows.rows as any[]) result[String(row.date)] = String(row.name);
+
+      if (forceRefresh || rows.rows.length === 0) {
+        await cacheYear(year);
+      }
+
+      const latest = await turso.execute({
+        sql: 'SELECT date, name FROM public_holidays WHERE date BETWEEN ? AND ?',
+        args: [`${year}-01-01`, `${year}-12-31`],
+      });
+      for (const row of latest.rows as any[]) result[String(row.date)] = String(row.name);
     } catch (error: any) {
       console.error('[holidays] government sync failed:', error?.message || error);
+      const fallback = await turso.execute({
+        sql: 'SELECT date, name FROM public_holidays WHERE date BETWEEN ? AND ?',
+        args: [`${year}-01-01`, `${year}-12-31`],
+      });
+      for (const row of fallback.rows as any[]) result[String(row.date)] = String(row.name);
     }
   }
 
