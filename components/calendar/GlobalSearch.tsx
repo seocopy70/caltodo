@@ -70,6 +70,7 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   const [category, setCategory] = useState<Category>('all');
   const resultPanelRef = useRef<HTMLDivElement>(null);
   const [resultLeft, setResultLeft] = useState<number | null>(null);
+  const lastViewportWidthRef = useRef<number | null>(null);
 
   const q = (query || '').trim().toLowerCase();
 
@@ -93,8 +94,18 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
       setResultLeft(Math.min(maxLeft, Math.max(minLeft, targetLeft - anchorRect.left)));
     };
     updatePosition();
-    window.addEventListener('resize', updatePosition);
-    return () => window.removeEventListener('resize', updatePosition);
+    lastViewportWidthRef.current = document.documentElement.clientWidth;
+    const handleResize = () => {
+      // 모바일 키보드가 열리고 닫힐 때는 보통 높이만 변한다.
+      // 가로 폭이 그대로인데 위치를 다시 계산하면 wide-phone에서
+      // 첫 키보드 표시 순간 검색결과창의 가로 위치가 튀는 문제가 생길 수 있다.
+      const nextWidth = document.documentElement.clientWidth;
+      if (lastViewportWidthRef.current === nextWidth) return;
+      lastViewportWidthRef.current = nextWidth;
+      updatePosition();
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [query, date, dateEnd, category, events, todos, notes]);
   const notify = onNotify || (() => {});
 
