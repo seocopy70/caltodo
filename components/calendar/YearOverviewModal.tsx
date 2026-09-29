@@ -88,7 +88,7 @@ export default function YearOverviewModal({ initialYear, onClose, onPickMonth, o
                     <button
                       key={i}
                       disabled={!inMonth}
-                      onClick={() => { onPickDay(day); onClose(); }}
+                      onClick={() => { onPickMonth(year, month); onClose(); }}
                       className={[
                         'text-[10px] leading-4 rounded-sm mx-auto w-4',
                         !inMonth ? 'invisible' : '',
