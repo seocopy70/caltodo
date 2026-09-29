@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import type { MutableRefObject, ReactNode } from 'react';
 import { api } from '../../lib/api-client';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -17,12 +18,12 @@ function SearchHighlightedText({ text, query, matchBase, matchRefs, matchOffset 
   text: string;
   query: string;
   matchBase: number;
-  matchRefs: React.MutableRefObject<Record<number, HTMLElement | null>>;
+  matchRefs: MutableRefObject<Record<number, HTMLElement | null>>;
   matchOffset?: number;
 }) {
   if (!query) return <>{text}</>;
   const lower = text.toLowerCase();
-  const parts: React.ReactNode[] = [];
+  const parts: ReactNode[] = [];
   let cursor = 0;
   let index = lower.indexOf(query);
   let localMatch = 0;
