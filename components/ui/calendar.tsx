@@ -390,9 +390,9 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
             onClick={() => {
               if (view === 'month') { setListSourceView('month'); setCalView('week'); }
               else if (view === 'week') { setListSourceView('week'); setCalView('list'); }
-              else { setCalView(listSourceView); }
+              else { setCalView('month'); setListSourceView('month'); }
             }}
-            title={view === 'month' ? '탭하면 주별보기로' : view === 'week' ? '탭하면 목록보기로' : '탭하면 목록 기준 보기로'}
+            title={view === 'month' ? '탭하면 주별보기로' : view === 'week' ? '탭하면 목록보기로' : '탭하면 월별보기로'}
             className="py-2.5 px-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0"
           >
             {view === 'month' ? <Rows3 className="w-5 h-5" /> : view === 'week' ? <List className="w-5 h-5" /> : <Grid3x3 className="w-5 h-5" />}
