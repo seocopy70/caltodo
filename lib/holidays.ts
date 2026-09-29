@@ -27,11 +27,8 @@ function addDaysDate(d: Date, n: number): Date {
 /**
  * 대한민국 공휴일 데이터.
  *
- * 기준: 2026-05-11 시행 「공휴일에 관한 법률」 및
- * 「관공서의 공휴일에 관한 규정」.
- *
- * 대체공휴일은 단순히 "주말이면 다음 월요일"로 처리하지 않고,
- * 공휴일 종류별 법정 적용 조건과 "다음 첫 번째 비공휴일" 규칙을 반영한다.
+ * 대체공휴일은 공휴일끼리 붙어 있다는 이유만으로 추가하지 않고,
+ * 각 공휴일에 실제 법정 대체공휴일 적용 조건이 충족될 때만 계산한다.
  */
 const SUBSTITUTE_SAT_SUN = new Set([
   '삼일절',
@@ -39,7 +36,6 @@ const SUBSTITUTE_SAT_SUN = new Set([
   '개천절',
   '한글날',
   '부처님오신날',
-  '노동절',
   '어린이날',
   '성탄절',
 ]);
@@ -61,7 +57,7 @@ export function getKoreanHolidays(year: number): Record<string, string> {
   // 고정 양력 공휴일
   add(new Date(year, 0, 1), '신정');
   add(new Date(year, 2, 1), '삼일절');
-  // 노동절은 2026년부터 「공휴일에 관한 법률」상 공휴일로 포함.\n  if (year >= 2026) add(new Date(year, 4, 1), '노동절');
+  if (year >= 2026) add(new Date(year, 4, 1), '노동절');
   add(new Date(year, 4, 5), '어린이날');
   add(new Date(year, 5, 6), '현충일');
   add(new Date(year, 7, 15), '광복절');
@@ -82,7 +78,9 @@ export function getKoreanHolidays(year: number): Record<string, string> {
 
   add(lunarToSolarDate(year, 4, 8), '부처님오신날');
 
-  // 대체공휴일
+  // 대체공휴일:
+  // 공휴일 간의 단순한 인접/겹침은 대체공휴일 사유가 아니다.
+  // 실제 주말 적용 조건을 충족한 날짜만 다음 비공휴일로 이동한다.
   const originalHolidays = Object.entries(map);
   const isWeekend = (date: Date) => date.getDay() === 0 || date.getDay() === 6;
   const isPublicHoliday = (date: Date) => !!map[toKey(date.getFullYear(), date.getMonth() + 1, date.getDate())];
@@ -99,15 +97,7 @@ export function getKoreanHolidays(year: number): Record<string, string> {
           ? dow === 0
           : false;
 
-    // 서로 다른 공휴일이 겹치는 경우에도 대체공휴일 대상이다.
-    const overlapTrigger = (() => {
-      if (!SUBSTITUTE_SAT_SUN.has(name) && !SUBSTITUTE_SUNDAY_ONLY.has(name)) return false;
-      const prior = addDaysDate(date, -1);
-      const next = addDaysDate(date, 1);
-      return isPublicHoliday(prior) || isPublicHoliday(next);
-    })();
-
-    if (!weekendTrigger && !overlapTrigger) continue;
+    if (!weekendTrigger) continue;
 
     let next = addDaysDate(date, 1);
     while (isWeekend(next) || isPublicHoliday(next)) {
