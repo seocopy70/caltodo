@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { turso } from '../../../lib/turso';
 import { verifyRequestUser } from '../../../lib/auth-server';
