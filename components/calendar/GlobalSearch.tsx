@@ -73,6 +73,8 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   const resultPanelRef = useRef<HTMLDivElement>(null);
   const [resultLeft, setResultLeft] = useState<number | null>(null);
 
+  const q = (query || '').trim().toLowerCase();
+
   useLayoutEffect(() => {
     const panel = resultPanelRef.current;
     const anchor = panel?.parentElement;
@@ -89,9 +91,8 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
     updatePosition();
     window.addEventListener('resize', updatePosition);
     return () => window.removeEventListener('resize', updatePosition);
-  }, [q, date, dateEnd, category, total]);
+  }, [query, date, dateEnd, category, events, todos, notes]);
   const notify = onNotify || (() => {});
-  const q = (query || '').trim().toLowerCase();
 
   const rangeStart = date ? startOfDay(date) : null;
   const rangeEnd = date ? startOfDay(dateEnd && dateEnd.getTime() >= date.getTime() ? dateEnd : date) : null;
