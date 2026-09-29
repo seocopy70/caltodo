@@ -49,7 +49,22 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   if (match) {
     await turso.execute({ sql: 'UPDATE note_folders SET failed_attempts = 0 WHERE id = ?', args: [params.id] });
-    return NextResponse.json({ ok: true });
+    const notesResult = await turso.execute({
+      sql: 'SELECT * FROM notes WHERE user_id = ? AND folder_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC',
+      args: [uid, params.id],
+    });
+    const notes = notesResult.rows.map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      content: row.content,
+      createdAt: new Date(Number(row.created_at)).toISOString(),
+      updatedAt: new Date(Number(row.updated_at)).toISOString(),
+      deletedAt: row.deleted_at == null ? null : new Date(Number(row.deleted_at)).toISOString(),
+      showToday: Number(row.show_today || 0) === 1,
+      folderId: row.folder_id || null,
+      format: row.format || 'plain',
+    }));
+    return NextResponse.json({ ok: true, notes });
   }
 
   const attempts = Number(folder.failed_attempts || 0) + 1;
