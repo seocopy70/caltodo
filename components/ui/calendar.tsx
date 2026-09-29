@@ -68,7 +68,7 @@ function useFitAvailableHeight(active: boolean, ref: React.RefObject<HTMLElement
   return height;
 }
 
-function CalendarEventList({ events, openYear, range, yearGroups }: any) {
+function CalendarEventList({ openYear, range, yearGroups }: any) {
   const [openYears, setOpenYears] = useState<Record<string, boolean>>({ [String(openYear)]: true });
 
   useEffect(() => {
@@ -410,7 +410,6 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
 
       {view === 'list' ? (
         <CalendarEventList
-          events={events}
           openYear={listOpenYear}
           range={listRange}
           yearGroups={listYearGroups}
