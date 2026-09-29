@@ -430,7 +430,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
                     const contentLines = (note.content || '').split('\n');
                     const isLong = contentLines.length > 15;
                     const isExpanded = expandedCardIds.has(note.id);
-                    const shown = isLong && !isExpanded ? contentLines.slice(0, 15).join('\n') : note.content;
+                    const shown = secureQuery ? note.content : (isLong && !isExpanded ? contentLines.slice(0, 15).join('\n') : note.content);
                     return (
                       <>
                         <NoteContent content={shown} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} onLineClick={(idx: number, charOffset?: number) => onEditNote?.(note, 'content', idx, charOffset)} />
