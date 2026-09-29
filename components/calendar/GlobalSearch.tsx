@@ -81,10 +81,12 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
       const anchorRect = anchor.getBoundingClientRect();
       const panelWidth = panel.getBoundingClientRect().width;
       const margin = window.innerWidth >= 768 ? 100 : 8;
-      const desiredLeft = anchorRect.width - panelWidth;
+      // 검색결과창은 입력창 위치를 기준으로 붙이지 않고 화면 중앙에 배치한다.
+      // 좁은 화면에서는 좌우 8px만 남겨 내용을 거의 전체 폭으로 보여준다.
+      const targetLeft = (window.innerWidth - panelWidth) / 2;
       const minLeft = margin - anchorRect.left;
       const maxLeft = window.innerWidth - margin - panelWidth - anchorRect.left;
-      setResultLeft(Math.min(maxLeft, Math.max(minLeft, desiredLeft)));
+      setResultLeft(Math.min(maxLeft, Math.max(minLeft, targetLeft - anchorRect.left)));
     };
     updatePosition();
     window.addEventListener('resize', updatePosition);
@@ -262,7 +264,7 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   return (
     <div
       ref={resultPanelRef}
-      className="absolute top-full z-[70] w-[min(42rem,calc(100vw-12.5rem))] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
+      className="absolute top-full z-[70] w-[min(42rem,calc(100vw-12.5rem))] md:w-[min(42rem,calc(100vw-12.5rem))] max-sm:w-[calc(100vw-1rem)] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
       style={{
         left: resultLeft == null ? 0 : String(resultLeft) + 'px',
         marginTop: pushDownBy ? String(pushDownBy) + 'px' : '0.5rem',
