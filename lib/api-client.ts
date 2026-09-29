@@ -87,7 +87,8 @@ async function syncPendingMutations() {
     const headers = await authHeaders();
     const remaining: QueuedMutation[] = [];
 
-    for (const mutation of queue) {
+    for (let i = 0; i < queue.length; i++) {
+      const mutation = queue[i];
       try {
         const res = await withTimeout(fetch(mutation.path, {
           method: mutation.method,
@@ -96,31 +97,48 @@ async function syncPendingMutations() {
         }));
 
         if (!res.ok) {
-          // 인증/권한 오류나 서버 검증 오류는 무한 재시도하지 않는다.
-          // 네트워크 오류만 다음 연결 때 다시 시도한다.
-          if (res.status >= 400 && res.status < 500) {
+          // 인증 오류는 새 토큰으로 한 번만 재시도한다.
+          if (res.status === 401) {
+            try {
+              const freshHeaders = await authHeaders();
+              const retry = await withTimeout(fetch(mutation.path, {
+                method: mutation.method,
+                headers: freshHeaders,
+                body: mutation.body || undefined,
+              }));
+              if (retry.ok) {
+                changed = true;
+                continue;
+              }
+            } catch {
+              // 아래에서 현재 항목부터 다시 보존한다.
+            }
+          }
+
+          if (res.status >= 400 && res.status < 500 && res.status !== 401) {
+            // UI에서 이미 검증된 데이터이므로 이 경우는 서버 규칙 변경 등 비정상 상황이다.
+            // 무한 재시도로 앱을 막지 않도록 해당 항목만 폐기한다.
             console.error('[offline] 동기화 거부:', mutation.path, res.status);
             changed = true;
             continue;
           }
-          remaining.push(mutation);
-          continue;
+
+          // 5xx는 서버가 일시적으로 불안정한 것이므로 순서를 보존하기 위해
+          // 현재 항목과 이후 항목을 그대로 큐에 남기고 이번 동기화를 중단한다.
+          remaining.push(...queue.slice(i));
+          break;
         }
 
         changed = true;
       } catch (err: any) {
-        // 타임아웃은 서버가 이미 처리했을 가능성이 있으므로 재전송하지 않는다.
-        // 순수 네트워크 오류만 큐에 남겨 다음 연결 때 다시 시도한다.
-        if (err?.isTimeout) {
-          console.error('[offline] 동기화 타임아웃 — 중복 방지를 위해 큐에서 제외:', mutation.path);
-          changed = true;
-          continue;
-        }
-        remaining.push(mutation);
+        // 네트워크 오류/타임아웃은 서버 처리 여부를 확정할 수 없으므로
+        // 데이터 유실을 피하기 위해 현재 항목부터 큐에 그대로 남긴다.
+        remaining.push(...queue.slice(i));
+        break;
       }
 
       if (!navigator.onLine) {
-        remaining.push(...queue.slice(queue.indexOf(mutation) + 1));
+        remaining.push(...queue.slice(i + 1));
         break;
       }
     }
