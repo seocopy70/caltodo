@@ -469,6 +469,8 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
           {activeNotes.map((note: any) => {
             const folderColor = note.folderId ? getFolderColor(note.folderId, folders) : null;
             const iconColorClass = folderColor ? folderColor.text : 'text-amber-500 dark:text-amber-400';
+            const noteMatchStart = secureMatchEntries.findIndex((m) => m.noteId === note.id);
+            const titleMatchCount = secureMatchCount(String(note.title || ''), secureQuery);
             return (
               <button key={note.id} onClick={() => setViewingNote(note)} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-left">
                 <StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} />
