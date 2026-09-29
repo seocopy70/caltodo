@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { CalendarDays, CheckSquare, FileText, X, Trash2 } from 'lucide-react';
 import { format, startOfDay } from 'date-fns';
@@ -70,6 +70,26 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [category, setCategory] = useState<Category>('all');
+  const resultPanelRef = useRef<HTMLDivElement>(null);
+  const [resultLeft, setResultLeft] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const panel = resultPanelRef.current;
+    const anchor = panel?.parentElement;
+    if (!panel || !anchor) return;
+    const updatePosition = () => {
+      const anchorRect = anchor.getBoundingClientRect();
+      const panelWidth = panel.getBoundingClientRect().width;
+      const margin = 8;
+      const desiredLeft = anchorRect.width - panelWidth;
+      const minLeft = margin - anchorRect.left;
+      const maxLeft = window.innerWidth - margin - panelWidth - anchorRect.left;
+      setResultLeft(Math.min(maxLeft, Math.max(minLeft, desiredLeft)));
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    return () => window.removeEventListener('resize', updatePosition);
+  }, [q, date, dateEnd, category, total]);
   const notify = onNotify || (() => {});
   const q = (query || '').trim().toLowerCase();
 
@@ -242,8 +262,12 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
 
   return (
     <div
-      className="absolute right-0 top-full z-[70] w-[min(42rem,calc(100vw-1rem))] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
-      style={{ marginTop: pushDownBy ? `${pushDownBy}px` : '0.5rem' }}
+      ref={resultPanelRef}
+      className="absolute top-full z-[70] w-[min(42rem,calc(100vw-1rem))] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
+      style={{
+        left: resultLeft == null ? 0 : String(resultLeft) + 'px',
+        marginTop: pushDownBy ? String(pushDownBy) + 'px' : '0.5rem',
+      }}
     >
       <div className="p-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
         <span className="text-xs text-slate-500 dark:text-slate-400">{dateLabel ? `${dateLabel} 전체 기록 ${total}건` : `검색 결과 ${total}건`}</span>
