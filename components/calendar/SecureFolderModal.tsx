@@ -38,7 +38,7 @@ export default function SecureFolderModal({ folder, mode, onClose, onSuccess, on
     setError('');
     api.noteFolders.verifySecure(folder.id, code)
       .then((res: any) => {
-        if (res.ok) { onSuccess?.(); return; }
+        if (res.ok) { onSuccess?.(res.notes || []); return; }
         if (res.locked) { setLocked(true); setError('5회 이상 틀려서 잠겼어요. 이메일로 복구해주세요.'); }
         else { setRemaining(res.remaining); setError(`맞지 않아요. ${res.remaining}번 더 틀리면 잠겨요.`); }
         setBusy(false);
