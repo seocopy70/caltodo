@@ -487,7 +487,7 @@ export default function Home() {
           <div className="font-black tracking-tight mr-1 hidden sm:block">Cal2do</div>
           <nav className="flex items-center gap-0.5 overflow-x-auto flex-1 no-scrollbar">{tabs.map(([key, label]) => <button key={key} onClick={() => go(key)} className={`px-2.5 py-1.5 rounded-lg text-base font-semibold whitespace-nowrap ${view === key ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{label}</button>)}</nav>
         </div>
-        <div className="relative w-full sm:w-[28rem] md:w-[40rem] lg:w-[44rem] sm:ml-auto shrink-0">
+        <div className="relative w-[15.5rem] sm:w-[15.5rem] md:w-[21rem] sm:ml-auto shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400"/>
             <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) { setSearchDate(''); setSearchDateEnd(''); } }} placeholder="검색" className="w-full pl-8 pr-[5.4rem] py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-base" />
@@ -553,7 +553,6 @@ export default function Home() {
         <button onClick={() => openFromMenu(() => setIsImportExportOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">가져오기 / 내보내기</button>
         <button onClick={() => openFromMenu(() => setIsEmailBackupOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">이메일 백업</button>
         <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
-        <button onClick={() => go('list')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">일정 목록 보기</button>
         <button onClick={() => openFromMenu(() => setIsDataManagementOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">일정데이터 관리</button>
         <button onClick={() => openFromMenu(() => setIsAnniversaryOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">기념일 관리</button>
         <button onClick={() => openFromMenu(() => setIsTodoLinkPrefOpen(true))} className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">할일-일정 연동 설정</button>
