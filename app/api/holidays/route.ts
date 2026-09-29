@@ -31,12 +31,23 @@ async function fetchGovernmentHolidays(year: number): Promise<HolidayRow[]> {
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`holiday API HTTP ${response.status}`);
 
-  const json = await response.json();
-  const body = json?.response?.body;
-  const raw = body?.items?.item;
-  if (!raw) return [];
-
-  const items = Array.isArray(raw) ? raw : [raw];
+  const text = await response.text();
+  let items: any[] = [];
+  try {
+    const json = JSON.parse(text);
+    const raw = json?.response?.body?.items?.item;
+    items = !raw ? [] : Array.isArray(raw) ? raw : [raw];
+  } catch {
+    // 공공데이터포털 문서의 기본 포맷(XML)도 직접 처리한다.
+    const itemMatches = text.match(/<item>[\\s\\S]*?<\\/item>/g) || [];
+    items = itemMatches.map((itemXml) => {
+      const value = (tag: string) => {
+        const match = itemXml.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+        return match?.[1]?.trim() || '';
+      };
+      return { locdate: value('locdate'), dateName: value('dateName'), isHoliday: value('isHoliday') };
+    });
+  }
   return items
     .filter((item: any) => item?.isHoliday === 'Y' && item?.locdate)
     .map((item: any) => ({
