@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   format, addMonths, subMonths, startOfMonth, endOfMonth,
   startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth,
-  isSameDay, addDays, subDays
+  isSameDay, addDays, subDays, isWithinInterval, getYear
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, CalendarDays, Grid3x3, Rows3, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Grid3x3, Rows3, List, Maximize2, Minimize2 } from 'lucide-react';
 import { getKoreanHolidaysForYears } from '../../lib/holidays';
 import { eventOccursOnDay, getRecurrenceType, getOccurrenceTimes } from '../../lib/recurrence';
 import KoreanLunarCalendar from 'korean-lunar-calendar';
@@ -68,8 +68,64 @@ function useFitAvailableHeight(active: boolean, ref: React.RefObject<HTMLElement
   return height;
 }
 
+function CalendarEventList({ events, openYear, range, yearGroups }: any) {
+  const [openYears, setOpenYears] = useState<Record<string, boolean>>({ [String(openYear)]: true });
+
+  useEffect(() => {
+    setOpenYears((prev) => ({ ...prev, [String(openYear)]: true }));
+  }, [openYear]);
+
+  const toggleYear = (year: number) => setOpenYears((prev) => ({ ...prev, [String(year)]: !prev[String(year)] }));
+
+  return (
+    <div className="space-y-2 overflow-y-auto pb-3">
+      {yearGroups.length === 0 && <div className="text-center text-slate-500 py-12 text-sm">등록된 일정이 없습니다.</div>}
+      {yearGroups.map(([year, yearEvents]: [number, any[]]) => {
+        const open = !!openYears[String(year)];
+        const isRangeYear = year === openYear;
+        const visible = isRangeYear
+          ? yearEvents.filter((event) => eventOccursOnDay(event, range.start) || eventOccursOnDay(event, range.end) ||
+              eachDayOfInterval(range).some((day) => eventOccursOnDay(event, day)))
+          : yearEvents;
+        const sorted = [...visible].sort((a, b) => a.start.getTime() - b.start.getTime());
+        return (
+          <section key={year} className="space-y-1.5">
+            <button type="button" onClick={() => toggleYear(year)} className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800/50 border border-slate-700/50">
+              <span className="font-black text-base">{year}년 {isRangeYear && <span className="text-[10px] text-blue-400 ml-1">현재 범위</span>}</span>
+              {open ? <ChevronLeft className="w-4 h-4 rotate-[-90deg]" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+            {open && (
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden divide-y divide-slate-100 dark:divide-slate-700/30">
+                {sorted.length === 0 ? <div className="text-center text-slate-500 py-7 text-sm">이 기간에 일정이 없습니다.</div> : sorted.map((event) => {
+                  const day = isRangeYear ? eachDayOfInterval(range).find((d) => eventOccursOnDay(event, d)) : event.start;
+                  const occurrenceDay = day || event.start;
+                  const times = getOccurrenceTimes(event, occurrenceDay);
+                  const repeated = getRecurrenceType(event) !== 'none';
+                  return (
+                    <div key={event.id + '-' + format(occurrenceDay, 'yyyy-MM-dd')} className={`flex items-center gap-3 px-4 py-2.5 ${repeated ? 'bg-violet-50 dark:bg-violet-500/10' : ''}`}>
+                      <div className="w-14 shrink-0 flex flex-col items-start leading-tight">
+                        <span className="text-[15px] font-black text-blue-600 dark:text-blue-400">{format(occurrenceDay, 'M/d')}</span>
+                        <span className="text-sm font-bold text-slate-400 dark:text-slate-500">{format(times.start, 'HH:mm')}</span>
+                      </div>
+                      <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-[15px] truncate">{event.title}</span>
+                        {event.location ? <span className="text-[15px] text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0"><span>📍</span>{event.location}</span> : event.description ? <span className="text-[15px] text-slate-500 dark:text-slate-400 truncate">{event.description}</span> : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Calendar({ initialView = 'month', events, user, onNotify, onRefresh, onAddEvent, onPatchEvent, onRemoveEvent, onReconcileEvent, swipeMode = 'date' }: any) {
-  const [view, setCalView] = useState<'month' | 'week'>(initialView);
+  const [view, setCalView] = useState<'month' | 'week' | 'list'>(initialView === 'week' ? 'week' : 'month');
+  const [listSourceView, setListSourceView] = useState<'month' | 'week'>(initialView === 'week' ? 'week' : 'month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -114,16 +170,17 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
     return () => ro.disconnect();
   }, []);
 
+  const navigationView = view === 'list' ? listSourceView : view;
   const monthStart = startOfMonth(currentDate);
   const weekStart = startOfWeek(currentDate);
-  const days = eachDayOfInterval({ start: view === 'month' ? startOfWeek(monthStart) : weekStart, end: view === 'month' ? endOfWeek(endOfMonth(monthStart)) : endOfWeek(currentDate) });
+  const days = eachDayOfInterval({ start: navigationView === 'month' ? startOfWeek(monthStart) : weekStart, end: navigationView === 'month' ? endOfWeek(endOfMonth(monthStart)) : endOfWeek(currentDate) });
   const numWeeks = days.length / 7;
 
   // 구글/삼성 캘린더처럼 월별보기를 스크롤 없이 화면 안에 다 들어오게: 그리드가 시작하는 위치부터
   // 화면 맨 아래까지 남은 높이를 실측해서, 그 안에 주 수(numWeeks)만큼 칸을 나눠 담는다.
-  const monthAvailableHeight = useFitAvailableHeight(view === 'month', monthGridWrapperRef, numWeeks);
+  const monthAvailableHeight = useFitAvailableHeight(navigationView === 'month', monthGridWrapperRef, numWeeks);
   // 주별보기 시간표도 동일한 방식으로 화면 안에 경계가 보이도록 남은 높이를 실측(내부는 스크롤).
-  const weekAvailableHeight = useFitAvailableHeight(view === 'week', weekGridWrapperRef, 0);
+  const weekAvailableHeight = useFitAvailableHeight(navigationView === 'week', weekGridWrapperRef, 0);
 
   const monthCellHeight = Math.max(
     monthAvailableHeight != null ? Math.floor(monthAvailableHeight / numWeeks) : MONTH_CELL_FALLBACK_HEIGHT,
@@ -142,6 +199,19 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
     : undefined;
   const weekOfMonth = Math.ceil((currentDate.getDate() + startOfMonth(currentDate).getDay()) / 7);
   const holidayYears = Array.from(new Set(days.map((d) => d.getFullYear())));
+  const listRange = useMemo(() => navigationView === 'month'
+    ? { start: startOfMonth(currentDate), end: endOfMonth(currentDate) }
+    : { start: startOfWeek(currentDate), end: endOfWeek(currentDate) }, [navigationView, currentDate]);
+  const listYearGroups = useMemo(() => {
+    const map = new Map<number, any[]>();
+    events.forEach((event: any) => {
+      const eventYear = getYear(event.start);
+      if (!map.has(eventYear)) map.set(eventYear, []);
+      map.get(eventYear)!.push(event);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
+  }, [events]);
+  const listOpenYear = getYear(currentDate);
   const [governmentHolidayMap, setGovernmentHolidayMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -171,7 +241,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   const openEditEvent = (event: any) => { setEditingEvent(event); setSelectedDate(event.start); setIsModalOpen(true); };
   // 12개월 한눈에 보기 모달에서 월 제목을 누르면 그 달로, 날짜를 누르면 그 날짜(일별보기)로 이동
   const jumpToMonth = (year: number, month: number) => setCurrentDate(new Date(year, month, 1));
-  const jumpToDay = (day: Date) => { setCurrentDate(day); setDayViewDate(day); };
+  const jumpToDay = (day: Date) => { setCurrentDate(day); setCalView('month'); setListSourceView('month'); setDayViewDate(day); };
 
   const handleDayClick = (day: Date) => {
     // 일정 유무와 상관없이 날짜를 탭하면 항상 일별보기를 띄움(일정 없는 날에도 그 안에서 새 일정 추가 가능)
@@ -202,8 +272,8 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
     const MIN_SWIPE_PX = 60; // 살짝 삐끗한 정도(탭 중 미세한 흔들림)까지 스와이프로 오인하지 않도록
     if (Math.abs(deltaX) < MIN_SWIPE_PX) return;
     // 왼쪽으로 밀면 다음(달/주), 오른쪽으로 밀면 이전(달/주)
-    if (deltaX < 0) setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7));
-    else setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7));
+    if (deltaX < 0) setCurrentDate(navigationView === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7));
+    else setCurrentDate(navigationView === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7));
   };
 
   // 월별보기 날짜 칸들(주 단위 행) — 펼쳐졌을 때(monthExpanded) 요일칸 줄 아래에서 이 부분만 따로
@@ -268,7 +338,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
       <div className="flex items-center gap-2 mb-3 flex-wrap gap-y-2">
         <button onClick={() => setIsDatePickerOpen((v) => !v)} className="group flex items-center gap-1.5 text-left rounded-xl px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition min-w-0 shrink-0" title="연월 선택">
           <h2 className="text-lg sm:text-2xl font-bold whitespace-nowrap">
-            {view === 'month' ? (
+            {navigationView === 'month' ? (
               <>
                 <span className="hidden sm:inline">{format(currentDate, 'yyyy년 MMMM', { locale: ko })}</span>
                 <span className="sm:hidden">{format(currentDate, 'M월', { locale: ko })}</span>
@@ -285,7 +355,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
 
         {/* 월/주 이동 + 오늘 버튼: 줄 가운데 */}
         <div className="flex-1 flex justify-center">
-          <div className="flex gap-1.5 sm:gap-2"><button onClick={() => setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronLeft/></button><button onClick={() => setCurrentDate(new Date())} className="px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 whitespace-nowrap">오늘</button><button onClick={() => setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronRight/></button></div>
+          <div className="flex gap-1.5 sm:gap-2"><button onClick={() => setCurrentDate(navigationView === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronLeft/></button><button onClick={() => setCurrentDate(new Date())} className="px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 whitespace-nowrap">오늘</button><button onClick={() => setCurrentDate(navigationView === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronRight/></button></div>
         </div>
 
         {/* 토글 버튼들: 줄 오른쪽 끝(펼치기(넓은화면: 펼치기 / 좁은화면: 넓게보기) -> 월/주 토글 순서로 통일) */}
@@ -293,7 +363,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           {/* 화면이 이미 넓은 경우(sm 이상)를 위한 펼치기: 좌우로 늘릴 필요는 없지만, 월별보기 칸 높이는
               그대로 고정이라 일정이 많은 날짜는 잘릴 수 있어서 세로(칸 높이)만 늘려주는 별도 버튼.
               모바일 넓게보기 버튼과 정반대 조건(hidden sm:inline-flex)이라 서로 겹쳐 보이지 않음. */}
-          {view === 'month' && (
+          {navigationView === 'month' && (
             <button
               type="button"
               onClick={() => setDesktopExpanded((v) => !v)}
@@ -318,11 +388,15 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           {/* 월별/주별보기 전환: 메모탭 보기옵션처럼 한 칸짜리 아이콘 토글(탭하면 전환될 모드의 아이콘을 보여줌) */}
           <button
             type="button"
-            onClick={() => setCalView((v) => (v === 'month' ? 'week' : 'month'))}
-            title={view === 'month' ? '탭하면 주별보기로' : '탭하면 월별보기로'}
+            onClick={() => {
+              if (view === 'month') { setListSourceView('month'); setCalView('week'); }
+              else if (view === 'week') { setListSourceView('week'); setCalView('list'); }
+              else { setCalView(listSourceView); }
+            }}
+            title={view === 'month' ? '탭하면 주별보기로' : view === 'week' ? '탭하면 목록보기로' : '탭하면 목록 기준 보기로'}
             className="py-2.5 px-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0"
           >
-            {view === 'month' ? <Rows3 className="w-5 h-5" /> : <Grid3x3 className="w-5 h-5" />}
+            {view === 'month' ? <Rows3 className="w-5 h-5" /> : view === 'week' ? <List className="w-5 h-5" /> : <Grid3x3 className="w-5 h-5" />}
           </button>
         </div>
       </div>
@@ -336,7 +410,15 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
         />
       )}
 
-      {view === 'week' ? (
+      {view === 'list' ? (
+        <CalendarEventList
+          events={events}
+          openYear={listOpenYear}
+          range={listRange}
+          yearGroups={listYearGroups}
+          onOpenYear={(year) => setListSourceView(listSourceView)}
+        />
+      ) : view === 'week' ? (
         <div ref={weekGridWrapperRef} onTouchStart={handleGridTouchStart} onTouchEnd={handleGridTouchEnd}>
           <TimeGrid days={days} events={events} holidayMap={holidayMap} onSlotClick={handleSlotClick} onEventClick={openEditEvent} onDayHeaderClick={(day: Date) => setDayViewDate(day)} availableHeight={weekAvailableHeight} wideView={wideView} />
         </div>
