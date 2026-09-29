@@ -339,12 +339,13 @@ export default function Home() {
     }
   };
 
-  // 인증 확인 중이라도 캐시로 먼저 그릴 수 있으면(optimisticUid) 스피너 없이 곧바로 앱 화면을 보여준다.
-  if (loading && !optimisticUid) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center text-white"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"/><p className="text-slate-400">안전하게 연결 중입니다...</p></div>;
+  // Firebase 인증 확인 중에는 스피너를 띄우지 않고 앱 화면을 바로 그린다.
+  // 이미 저장된 캐시가 있으면 캐시 데이터가 즉시 보이고, 캐시가 없는 첫 실행도 빈 화면을 잠깐 거치지 않고
+  // 앱 UI 자체가 바로 뜬다. 인증 확인이 끝난 뒤에만 로그인 화면으로 전환한다.
   if (!loading && !user) return <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center safe-top"><h1 className="text-5xl font-black mb-4 text-white tracking-tighter italic">Cal2do</h1><p className="text-slate-400 mb-10 max-w-xs">기기를 접거나 꺼도 데이터가 안전하게 보관됩니다.</p><button onClick={handleLogin} className="flex items-center gap-4 bg-white text-black px-10 py-5 rounded-2xl font-black shadow-2xl"><LogIn className="w-6 h-6"/> 구글로 시작하기</button>{authError && <p className="mt-6 max-w-xs text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 break-words">로그인 실패: {authError}</p>}</div>;
   // 캐시로 먼저 그리는 짧은 구간(인증 확인 중)에는 user가 아직 null이라 일정 저장 버튼처럼 `!user`면 조용히 무시하는 곳이 있음 →
   // 하위 화면에는 "로그인 상태임"을 뜻하는 최소 객체를 대신 넘겨서 그 사이에 눌러도 정상 저장되게 한다(실제 요청은 api-client가 인증 확인을 기다림).
-  const viewUser: any = user ?? { uid: optimisticUid };
+  const viewUser: any = user ?? { uid: optimisticUid || '' };
 
   // 탭을 바꿀 때 이전 탭에서의 스크롤 위치가 남아있으면, 새 탭(특히 캘린더)의 "화면에 맞춰 높이 계산"
   // 로직이 잘못된 위치를 기준으로 계산해버려 레이아웃이 어긋나는 문제가 있었음 — 탭 전환 시 항상 맨 위로.
