@@ -242,7 +242,7 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
 
   return (
     <div
-      className="absolute right-0 top-full z-[70] w-[min(96vw,42rem)] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
+      className="absolute right-0 top-full z-[70] w-[min(42rem,calc(100vw-1rem))] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
       style={{ marginTop: pushDownBy ? `${pushDownBy}px` : '0.5rem' }}
     >
       <div className="p-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
