@@ -34,6 +34,11 @@ const bootstrapCacheKey = (uid: string) => BOOTSTRAP_CACHE_PREFIX + uid;
 const LAST_UID_KEY = 'cal2do-last-uid';
 // 서버 렌더링 중에는 useLayoutEffect 경고가 나므로, 브라우저에서만 화면이 그려지기 전에 실행되게 한다.
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+const parseDateInput = (value: string) => {
+  if (!value) return null;
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -482,17 +487,17 @@ export default function Home() {
           <div className="font-black tracking-tight mr-1 hidden sm:block">Cal2do</div>
           <nav className="flex items-center gap-0.5 overflow-x-auto flex-1 no-scrollbar">{tabs.map(([key, label]) => <button key={key} onClick={() => go(key)} className={`px-2.5 py-1.5 rounded-lg text-base font-semibold whitespace-nowrap ${view === key ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{label}</button>)}</nav>
         </div>
-        <div className="relative w-full sm:w-[15.5rem] md:w-[21rem] sm:ml-auto shrink-0">
+        <div className="relative w-full sm:w-[28rem] md:w-[40rem] lg:w-[44rem] sm:ml-auto shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400"/>
-            <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) { setSearchDate(''); setSearchDateEnd(''); } }} placeholder="검색" className="w-full pl-8 pr-[4.7rem] py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-sm" />
+            <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) { setSearchDate(''); setSearchDateEnd(''); } }} placeholder="검색" className="w-full pl-8 pr-[5.4rem] py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-base" />
             <button
               type="button"
               onClick={() => setDateSearchOpen((v) => !v)}
               title="날짜(기간)로 전체 기록 보기"
-              className={`absolute right-1 top-1 bottom-1 px-1.5 rounded-md transition flex items-center gap-1 ${searchDate ? 'text-blue-500 bg-blue-500/10' : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              className={`absolute right-1 top-1 bottom-1 px-2 rounded-md transition flex items-center gap-1 ${searchDate ? 'text-blue-500 bg-blue-500/10' : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
             >
-              <span className="text-[10px] font-bold whitespace-nowrap">날짜검색</span>
+              <span className="text-[13px] font-bold whitespace-nowrap">날짜검색</span>
               <CalendarSearch className="w-4 h-4 shrink-0" />
             </button>
           </div>
@@ -504,11 +509,11 @@ export default function Home() {
                 배경은 없애고, 본문 영역(main) 쪽 배경만 아래에 별도로 둠(구조적으로 항상 본문
                 항목보다 위에 있어 탭스루 자체가 발생하지 않음). 헤더 안(검색창 등)은 이 팝오버
                 바깥을 눌러도 자동으로 안 닫히지만, 메인메뉴와 동일하게 그 정도는 허용함. */}
-            <div ref={dateSearchPopoverRef} className="absolute right-0 top-full mt-1.5 z-[80] w-64 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-2">
-              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">날짜(기간)로 전체 기록 보기</div>
+            <div ref={dateSearchPopoverRef} className="absolute right-0 top-full mt-1.5 z-[80] w-[min(34rem,calc(100vw-1rem))] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-2">
+              <div className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">날짜(기간)로 전체 기록 보기</div>
               <div className="flex items-center gap-2">
-                <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 w-8 shrink-0">시작</label>
-                <input type="date" value={searchDate} onChange={(e) => setSearchDate(e.target.value)} className="flex-1 min-w-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs outline-none" />
+                <label className="text-sm font-bold text-slate-500 dark:text-slate-400 w-9 shrink-0">시작</label>
+                <input type="date" value={searchDate} onChange={(e) => setSearchDate(e.target.value)} className="flex-1 min-w-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-2 text-sm outline-none" />
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 w-8 shrink-0">종료</label>
@@ -524,8 +529,8 @@ export default function Home() {
           {(search.trim() || searchDate) && (
             <GlobalSearch
               query={search}
-              date={searchDate ? new Date(searchDate) : null}
-              dateEnd={searchDateEnd ? new Date(searchDateEnd) : null}
+              date={parseDateInput(searchDate)}
+              dateEnd={parseDateInput(searchDateEnd) || parseDateInput(searchDate)}
               pushDownBy={dateSearchOpen ? dateSearchPopoverHeight + 6 : 0}
               events={events}
               todos={todos}
