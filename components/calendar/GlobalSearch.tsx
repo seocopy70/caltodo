@@ -279,7 +279,7 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   return (
     <div
       ref={resultPanelRef}
-      className="absolute top-full z-[70] w-[min(42rem,calc(100vw-12.5rem))] md:w-[min(42rem,calc(100vw-12.5rem))] max-sm:w-[calc(100vw-1rem)] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
+      className="absolute top-full z-[70] w-[min(52rem,calc(100vw-1rem))] md:w-[min(52rem,calc(100vw-1rem))] max-sm:w-[calc(100vw-1rem)] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
       style={{
         left: resultLeft == null ? 0 : String(resultLeft) + 'px',
         marginTop: pushDownBy ? String(pushDownBy) + 'px' : '0.5rem',
