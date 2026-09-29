@@ -39,19 +39,20 @@ async function fetchGovernmentHolidays(year: number): Promise<HolidayRow[]> {
     items = !raw ? [] : Array.isArray(raw) ? raw : [raw];
   } catch {
     // 공공데이터포털 문서의 기본 포맷(XML)도 직접 처리한다.
-    const itemMatches = text.match(/<item>[\\s\\S]*?<\\/item>/g) || [];
+    const itemMatches = text.match(/<item>[\s\S]*?<\/item>/g) || [];
     items = itemMatches.map((itemXml) => {
       const value = (tag: string) => {
-        const match = itemXml.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+        const match = itemXml.match(new RegExp(`<${tag}>([\s\S]*?)<\/${tag}>`));
         return match?.[1]?.trim() || '';
       };
       return { locdate: value('locdate'), dateName: value('dateName'), isHoliday: value('isHoliday') };
     });
   }
+
   return items
     .filter((item: any) => item?.isHoliday === 'Y' && item?.locdate)
     .map((item: any) => ({
-      date: String(item.locdate).replace(/^(\\d{4})(\\d{2})(\\d{2})$/, '$1-$2-$3'),
+      date: String(item.locdate).replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3'),
       name: String(item.dateName || '공휴일'),
       source: 'data.go.kr/한국천문연구원',
     }));
@@ -60,6 +61,7 @@ async function fetchGovernmentHolidays(year: number): Promise<HolidayRow[]> {
 async function cacheYear(year: number) {
   const holidays = await fetchGovernmentHolidays(year);
   const now = Date.now();
+
   for (const holiday of holidays) {
     await turso.execute({
       sql: `
@@ -82,6 +84,7 @@ async function cacheYear(year: number) {
     sql: 'SELECT date FROM public_holidays WHERE date BETWEEN ? AND ? AND source = ?',
     args: [start, end, 'data.go.kr/한국천문연구원'],
   });
+
   for (const row of existing.rows as any[]) {
     if (!dates.has(String(row.date))) {
       await turso.execute({
@@ -90,6 +93,7 @@ async function cacheYear(year: number) {
       });
     }
   }
+
   return holidays;
 }
 
