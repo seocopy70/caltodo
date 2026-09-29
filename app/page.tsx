@@ -17,6 +17,7 @@ import DataManagementPanel from '../components/calendar/DataManagementPanel';
 import AnniversaryModal from '../components/calendar/AnniversaryModal';
 import TodoEventLinkSettingsModal from '../components/calendar/TodoEventLinkSettingsModal';
 import TodoModal from '../components/calendar/TodoModal';
+import EventModal from '../components/calendar/EventModal';
 import NoteModal from '../components/calendar/NoteModal';
 import VersionModal from '../components/calendar/VersionModal';
 import HelpModal from '../components/calendar/HelpModal';
@@ -71,6 +72,7 @@ export default function Home() {
     if (dateSearchOpen && dateSearchPopoverRef.current) setDateSearchPopoverHeight(dateSearchPopoverRef.current.offsetHeight);
   }, [dateSearchOpen]);
   const [editingTodo, setEditingTodo] = useState<any>(null);
+  const [editingEvent, setEditingEvent] = useState<any>(null);
   const [editingNote, setEditingNote] = useState<any>(null);
   const [editingNoteFocus, setEditingNoteFocus] = useState<{ focus: 'title' | 'content'; lineIndex?: number; charOffset?: number } | null>(null);
   const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
@@ -370,7 +372,7 @@ export default function Home() {
   // 수정할 때마다(체크박스 토글 등으로 updatedAt이 바뀔 때마다) 카드 위치가 요동치지 않도록,
   // 오늘 탭에서는 항상 생성순으로 고정 정렬한다 (activeNotes는 updatedAt 내림차순이라 그대로 쓰면 안 됨).
   const todayNotes = [...activeNotes].filter((n: any) => n.showToday).sort((a: any, b: any) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
-  const anyOverlayOpen = menuOpen || dateSearchOpen || isImportExportOpen || isEmailBackupOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim() || !!searchDate;
+  const anyOverlayOpen = menuOpen || dateSearchOpen || isImportExportOpen || isEmailBackupOpen || isDataManagementOpen || isVersionOpen || isHelpOpen || !!editingEvent || !!editingTodo || !!editingNote || isNewNoteOpen || !!search.trim() || !!searchDate;
 
   const MIN_SWIPE_PX = 60; // 손가락이 살짝 삐끗한 정도(탭 중 미세한 흔들림)까지 스와이프로 오인하지 않도록 최소 이동거리
   // 탭 순서상 direction만큼 옮기고, 새 탭 진입 시 레이아웃이 어긋나지 않도록 항상 맨 위로 스크롤
@@ -530,9 +532,9 @@ export default function Home() {
               notes={activeNotes}
               folders={noteFolders}
               onClose={() => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); }}
-              onEvent={() => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setView('list'); }}
+              onEvent={(e: any) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingEvent(e); }}
               onTodo={(t: any) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingTodo(t); }}
-              onNote={(n: any) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingNote(n); }}
+              onNote={(n: any, matchType?: string, lineIndex?: number, charOffset?: number) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingNote(n); setEditingNoteFocus({ focus: matchType === 'content' ? 'content' : 'title', lineIndex, charOffset }); }}
               onRefresh={refreshData}
               onNotify={notify}
             />
@@ -574,6 +576,7 @@ export default function Home() {
     {isTodoLinkPrefOpen && <TodoEventLinkSettingsModal onClose={() => closeMenuAnd(() => setIsTodoLinkPrefOpen(false))} />}
     {isVersionOpen && <VersionModal onClose={() => closeMenuAnd(() => setIsVersionOpen(false))} />}
     {isHelpOpen && <HelpModal onClose={() => closeMenuAnd(() => setIsHelpOpen(false))} />}
+    {editingEvent && <EventModal date={editingEvent.start} editingEvent={editingEvent} user={viewUser} notify={notify} onClose={() => setEditingEvent(null)} onRefresh={refreshData} onAddLocal={addEventLocal} onPatchLocal={patchEventLocal} onRemoveLocal={removeEventLocal} onReconcileLocal={reconcileEventLocal} allEvents={events} />}
     {editingTodo && <TodoModal todo={editingTodo} folders={todoFolders} notify={notify} onClose={() => setEditingTodo(null)} onRefresh={refreshData} />}
     {(editingNote || isNewNoteOpen) && <NoteModal note={editingNote} folders={noteFolders} secureFolderId={noteFolders.find((f: any) => f.isSecure)?.id || null} initialFocus={editingNoteFocus?.focus} initialLineIndex={editingNoteFocus?.lineIndex} initialCharOffset={editingNoteFocus?.charOffset} onClose={() => { setEditingNote(null); setIsNewNoteOpen(false); setEditingNoteFocus(null); }} onRefresh={refreshData} onNotify={notify} onAddLocal={addNoteLocal} onPatchLocal={patchNoteLocal} onReconcileLocal={reconcileNoteLocal} onRollbackLocal={rollbackNoteLocal} />}
     {toast && <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-xl text-sm font-bold ${toast.type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>{toast.message}</div>}
