@@ -22,16 +22,16 @@ async function syncYear(year: number) {
     const raw = json?.response?.body?.items?.item;
     items = !raw ? [] : Array.isArray(raw) ? raw : [raw];
   } catch {
-    const itemMatches = text.match(/<item>[\\s\\S]*?<\\/item>/g) || [];
+    const itemMatches = text.match(/<item>[\s\S]*?<\/item>/g) || [];
     items = itemMatches.map((itemXml) => {
-      const value = (tag: string) => itemXml.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`))?.[1]?.trim() || '';
+      const value = (tag: string) => itemXml.match(new RegExp(`<${tag}>([\s\S]*?)<\/${tag}>`))?.[1]?.trim() || '';
       return { locdate: value('locdate'), dateName: value('dateName'), isHoliday: value('isHoliday') };
     });
   }
   const holidays = items
     .filter((item: any) => item?.isHoliday === 'Y' && item?.locdate)
     .map((item: any) => ({
-      date: String(item.locdate).replace(/^(\\d{4})(\\d{2})(\\d{2})$/, '$1-$2-$3'),
+      date: String(item.locdate).replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3'),
       name: String(item.dateName || '공휴일'),
     }));
 
