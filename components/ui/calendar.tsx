@@ -141,7 +141,30 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
     ? Math.max(monthAvailableHeight - monthHeaderRowH, 120)
     : undefined;
   const weekOfMonth = Math.ceil((currentDate.getDate() + startOfMonth(currentDate).getDay()) / 7);
-  const holidayMap = getKoreanHolidaysForYears(days.map((d) => d.getFullYear()));
+  const holidayYears = Array.from(new Set(days.map((d) => d.getFullYear())));
+  const [governmentHolidayMap, setGovernmentHolidayMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadGovernmentHolidays = async () => {
+      try {
+        const response = await fetch(`/api/holidays?years=${holidayYears.join(',')}`, { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!cancelled && data?.holidays) setGovernmentHolidayMap(data.holidays);
+      } catch {
+        // 정부 API/네트워크가 일시적으로 unavailable하면 아래의 로컬 계산값을 사용한다.
+      }
+    };
+    loadGovernmentHolidays();
+    return () => { cancelled = true; };
+  }, [holidayYears.join(',')]);
+
+  // 정부 공공데이터가 있으면 그것을 우선하고, 아직 동기화되지 않은 연도는 기존 계산기를 fallback으로 사용한다.
+  const holidayMap = {
+    ...getKoreanHolidaysForYears(holidayYears),
+    ...governmentHolidayMap,
+  };
 
   const closeModal = () => { setIsModalOpen(false); setEditingEvent(null); };
   const openNewEvent = (day: Date) => { setSelectedDate(day); setEditingEvent(null); setIsModalOpen(true); };
