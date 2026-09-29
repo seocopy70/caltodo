@@ -241,7 +241,6 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   const openEditEvent = (event: any) => { setEditingEvent(event); setSelectedDate(event.start); setIsModalOpen(true); };
   // 12개월 한눈에 보기 모달에서 월 제목을 누르면 그 달로, 날짜를 누르면 그 날짜(일별보기)로 이동
   const jumpToMonth = (year: number, month: number) => setCurrentDate(new Date(year, month, 1));
-  const jumpToDay = (day: Date) => { setCurrentDate(day); setCalView('month'); setListSourceView('month'); setDayViewDate(day); };
 
   const handleDayClick = (day: Date) => {
     // 일정 유무와 상관없이 날짜를 탭하면 항상 일별보기를 띄움(일정 없는 날에도 그 안에서 새 일정 추가 가능)
