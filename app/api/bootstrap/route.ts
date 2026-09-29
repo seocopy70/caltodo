@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     turso.execute({ sql: 'SELECT * FROM events WHERE user_id = ? ORDER BY start ASC', args: [uid] }),
     turso.execute({ sql: 'SELECT * FROM todos WHERE user_id = ? ORDER BY completed ASC, order_index ASC, created_at ASC', args: [uid] }),
     // 삭제된(휴지통) 메모는 평소엔 안 쓰는 데이터라 기본 로딩에서 빼고, 보관함을 실제로 열 때만 따로 불러옴
-    turso.execute({ sql: 'SELECT * FROM notes WHERE user_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC', args: [uid] }),
+    turso.execute({ sql: `SELECT n.* FROM notes n LEFT JOIN note_folders f ON f.id = n.folder_id AND f.user_id = n.user_id WHERE n.user_id = ? AND n.deleted_at IS NULL AND COALESCE(f.is_secure, 0) = 0 ORDER BY n.updated_at DESC`, args: [uid] }),
     turso.execute({ sql: 'SELECT * FROM note_folders WHERE user_id = ? ORDER BY order_index ASC, created_at ASC', args: [uid] }).catch(() => ({ rows: [] as any[] })),
     turso.execute({ sql: 'SELECT * FROM todo_folders WHERE user_id = ? ORDER BY order_index ASC, created_at ASC', args: [uid] }).catch(() => ({ rows: [] as any[] })),
   ]);
