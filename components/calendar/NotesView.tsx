@@ -194,6 +194,8 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const [unlockedSecureId, setUnlockedSecureId] = useState<string | null>(null);
   const [secureNotes, setSecureNotes] = useState<any[]>([]);
   const [secureSearchQuery, setSecureSearchQuery] = useState('');
+  // 기본은 2자 이상 검색. 이 옵션은 앱을 닫으면 기본값(제한 ON)으로 돌아감.
+  const [secureSearchMinUnit, setSecureSearchMinUnit] = useState(true);
   const [secureMatchIndexes, setSecureMatchIndexes] = useState<Record<string, number>>({});
   const [secureFocusedMatch, setSecureFocusedMatch] = useState<{ noteId: string; index: number } | null>(null);
   const secureMatchRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -224,8 +226,12 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
         : visibleForAll.filter((n: any) => n.folderId === activeFolderId);
   // 보안폴더 안에서만 쓰는 로컬 검색(전역 검색은 보안폴더 메모를 애초에 제외하므로 별도로 둠)
   const secureQuery = secureSearchQuery.trim().toLowerCase();
+  const secureQueryLength = Array.from(secureQuery).length;
+  const secureSearchTooShort = secureSearchMinUnit && secureQueryLength > 0 && secureQueryLength < 2;
   const activeNotes = isInUnlockedSecureFolder && secureQuery
-    ? activeNotesBeforeSearch.filter((n: any) => `${n.title} ${n.content || ''}`.toLowerCase().includes(secureQuery))
+    ? (secureSearchTooShort
+      ? []
+      : activeNotesBeforeSearch.filter((n: any) => `${n.title} ${n.content || ''}`.toLowerCase().includes(secureQuery)))
     : activeNotesBeforeSearch;
 
   // 보안 검색은 일반 검색과 같은 "메모 단위 결과"를 유지한다.
@@ -234,7 +240,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     setSecureMatchIndexes({});
     setSecureFocusedMatch(null);
     secureMatchRefs.current = {};
-  }, [secureQuery, activeFolderId]);
+  }, [secureQuery, activeFolderId, secureSearchMinUnit]);
 
   useEffect(() => {
     if (!secureFocusedMatch) return;
@@ -464,16 +470,31 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
       {isInUnlockedSecureFolder && (
         <div className="relative">
           <SearchIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          <input
-            value={secureSearchQuery}
-            onChange={(e) => setSecureSearchQuery(e.target.value)}
-            placeholder="보안폴더 안에서 검색"
-            className={`w-full pl-9 ${secureQuery ? 'pr-3' : 'pr-3'} py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none text-sm`}
-          />
-
+          <div className="flex items-center gap-2">
+            <input
+              value={secureSearchQuery}
+              onChange={(e) => setSecureSearchQuery(e.target.value)}
+              placeholder="보안폴더 안에서 검색"
+              className="flex-1 min-w-0 pl-9 pr-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => setSecureSearchMinUnit((prev) => !prev)}
+              title={secureSearchMinUnit ? '1자 검색도 허용' : '2자 이상만 검색'}
+              aria-pressed={secureSearchMinUnit}
+              className={`shrink-0 px-2.5 py-2 rounded-xl text-[11px] font-bold border transition ${secureSearchMinUnit
+                ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-500/10 dark:border-blue-500/30 dark:text-blue-400'
+                : 'bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-400'}`}
+            >
+              {secureSearchMinUnit ? '최소 2자' : '제한 없음'}
+            </button>
+          </div>
+          {secureSearchTooShort && (
+            <div className="mt-1.5 pl-1 text-[11px] text-slate-400">1자 검색은 ‘제한 없음’을 눌러 허용할 수 있어요.</div>
+          )}
         </div>
       )}
-      {activeNotes.length === 0 && <div className="text-center text-slate-500 py-16 text-sm">{secureQuery ? '검색 결과가 없어요.' : activeFolderId === 'all' ? '작성된 메모가 없어요.' : '이 폴더에는 메모가 없어요.'}</div>}
+      {activeNotes.length === 0 && <div className="text-center text-slate-500 py-16 text-sm">{secureSearchTooShort ? '2자 이상 입력하면 검색할 수 있어요.' : secureQuery ? '검색 결과가 없어요.' : activeFolderId === 'all' ? '작성된 메모가 없어요.' : '이 폴더에는 메모가 없어요.'}</div>}
 
       {layoutMode === 'card' ? (
         <div className="columns-2 gap-2 sm:gap-3 [column-fill:_balance]">
