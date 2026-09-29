@@ -498,7 +498,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
             </div>
         </div>
       )}
-      {activeNotes.length === 0 && <div className="text-center text-slate-500 py-16 text-sm">{secureSearchTooShort ? '2자 이상 입력하면 검색할 수 있어요.' : secureQuery ? '검색 결과가 없어요.' : activeFolderId === 'all' ? '작성된 메모가 없어요.' : '이 폴더에는 메모가 없어요.'}</div>}
+      {activeNotes.length === 0 && <div className="text-center text-slate-500 py-16 text-sm">{secureQuery ? '검색 결과가 없어요.' : activeFolderId === 'all' ? '작성된 메모가 없어요.' : '이 폴더에는 메모가 없어요.'}</div>}
 
       {layoutMode === 'card' ? (
         <div className="columns-2 gap-2 sm:gap-3 [column-fill:_balance]">
@@ -537,6 +537,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
                             activeMatchIndex={contentMatchIndex}
                             matchRefs={secureMatchRefs}
                             onToggleLine={(idx) => toggleLine(note, idx)}
+                            snippetOnly
                           />
                         ) : (
                           <NoteContent content={shown} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} onLineClick={(idx: number, charOffset?: number) => onEditNote?.(note, 'content', idx, charOffset)} />
