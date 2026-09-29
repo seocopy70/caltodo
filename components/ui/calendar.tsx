@@ -406,7 +406,6 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           initialYear={currentDate.getFullYear()}
           onClose={() => setIsDatePickerOpen(false)}
           onPickMonth={jumpToMonth}
-          onPickDay={jumpToDay}
         />
       )}
 
