@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   format, addMonths, subMonths, startOfMonth, endOfMonth,
   startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth,
-  isSameDay, addDays, subDays
+  isSameDay, addDays, subDays, getYear, startOfDay
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, CalendarDays, Grid3x3, Rows3, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Grid3x3, Rows3, Columns3, Maximize2, Minimize2, MapPin, AlignLeft } from 'lucide-react';
 import { getKoreanHolidaysForYears } from '../../lib/holidays';
 import { eventOccursOnDay, getRecurrenceType, getOccurrenceTimes } from '../../lib/recurrence';
 import KoreanLunarCalendar from 'korean-lunar-calendar';
@@ -68,8 +68,137 @@ function useFitAvailableHeight(active: boolean, ref: React.RefObject<HTMLElement
   return height;
 }
 
+// 일정 목록 보기(예전 메뉴의 "일정 목록 보기"를 대체): 처음엔 올해만 펼쳐서 오늘 위치에 맞춰 보여주고,
+// 상단 "오늘" 버튼(jumpTick)으로 언제든 오늘 위치로 돌아오며, allOpen 토글로 모든 연도를 열고 닫는다.
+function CalendarEventList({ events, ascending, allOpen, jumpTick, onEventClick }: any) {
+  const currentYear = new Date().getFullYear();
+  const [openYears, setOpenYears] = useState<Record<string, boolean>>({ [String(currentYear)]: true });
+  const todayRef = useRef<HTMLDivElement>(null);
+
+  const years = useMemo(() => {
+    const map = new Map<number, any[]>();
+    [...events]
+      .sort((a: any, b: any) => (ascending ? a.start.getTime() - b.start.getTime() : b.start.getTime() - a.start.getTime()))
+      .forEach((e: any) => {
+        const y = getYear(e.start);
+        if (!map.has(y)) map.set(y, []);
+        map.get(y)!.push(e);
+      });
+    // 올해 일정이 하나도 없어도 "오늘" 위치 표시가 있도록 올해 묶음은 항상 만든다.
+    if (!map.has(currentYear)) map.set(currentYear, []);
+    return Array.from(map.entries()).sort((a, b) => (ascending ? a[0] - b[0] : b[0] - a[0]));
+  }, [events, ascending, currentYear]);
+  const yearsRef = useRef(years);
+  yearsRef.current = years;
+
+  const scrollToToday = (behavior: ScrollBehavior) => {
+    setOpenYears((prev) => ({ ...prev, [String(currentYear)]: true }));
+    setTimeout(() => todayRef.current?.scrollIntoView({ behavior, block: 'center' }), 50);
+  };
+
+  // 처음 열릴 때: 일정 데이터가 실제로 들어온 뒤 딱 한 번 오늘 위치로 이동(데이터가 비동기로 채워질 수 있음)
+  const didAutoJumpRef = useRef(false);
+  useEffect(() => {
+    if (didAutoJumpRef.current || events.length === 0) return;
+    didAutoJumpRef.current = true;
+    scrollToToday('auto');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events.length]);
+
+  // 상단 "오늘" 버튼
+  const firstJumpRef = useRef(true);
+  useEffect(() => {
+    if (firstJumpRef.current) { firstJumpRef.current = false; return; }
+    scrollToToday('smooth');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpTick]);
+
+  // 정렬 방향을 바꾸면 순서가 뒤집혀 위치를 잃기 쉬우므로 오늘 위치로 다시 맞춤
+  const firstSortRef = useRef(true);
+  useEffect(() => {
+    if (firstSortRef.current) { firstSortRef.current = false; return; }
+    scrollToToday('auto');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ascending]);
+
+  // 모두 열기 / 닫기(닫기 = 올해만 열린 처음 상태)
+  const firstAllOpenRef = useRef(true);
+  useEffect(() => {
+    if (firstAllOpenRef.current) { firstAllOpenRef.current = false; return; }
+    if (allOpen) setOpenYears(Object.fromEntries(yearsRef.current.map(([y]) => [String(y), true])));
+    else { setOpenYears({ [String(currentYear)]: true }); scrollToToday('auto'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allOpen]);
+
+  const toggleYear = (year: number) => setOpenYears((prev) => ({ ...prev, [String(year)]: !prev[String(year)] }));
+
+  const now = new Date();
+  const todayStart = startOfDay(now).getTime();
+  const todayEnd = startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)).getTime();
+
+  return (
+    <div className="space-y-2 pb-3">
+      {years.every(([, list]) => list.length === 0) && <div className="text-center text-slate-500 py-6 text-sm">등록된 일정이 없습니다.</div>}
+      {years.map(([year, yearEvents]: [number, any[]]) => {
+        const open = !!openYears[String(year)];
+        const isCurrent = year === currentYear;
+        const markerIndex = isCurrent
+          ? (() => { const i = yearEvents.findIndex((e: any) => (ascending ? e.start.getTime() >= todayStart : e.start.getTime() < todayEnd)); return i < 0 ? yearEvents.length : i; })()
+          : -1;
+        return (
+          <section key={year} className="space-y-1.5">
+            <button type="button" onClick={() => toggleYear(year)} className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50">
+              <span className="font-black text-base">{year}년 {isCurrent && <span className="text-[10px] text-blue-500 dark:text-blue-400 ml-1">올해</span>}</span>
+              {open ? <ChevronLeft className="w-4 h-4 rotate-[-90deg]" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+            {open && (
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/30 overflow-hidden divide-y divide-slate-100 dark:divide-slate-700/30">
+                {yearEvents.length === 0 && !isCurrent && <div className="text-center text-slate-500 py-7 text-sm">일정이 없습니다.</div>}
+                {yearEvents.map((event: any, idx: number) => {
+                  const repeated = getRecurrenceType(event) !== 'none';
+                  const isTodayEvent = event.start.getTime() >= todayStart && event.start.getTime() < todayEnd;
+                  return (
+                    <div key={event.id}>
+                      {idx === markerIndex && <TodayMarker markerRef={todayRef} now={now} />}
+                      <div onClick={() => onEventClick?.(event)} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-blue-500/5 ${repeated ? 'bg-violet-50 dark:bg-violet-500/10' : ''} ${isTodayEvent ? 'ring-2 ring-inset ring-blue-500/60' : ''}`}>
+                        <div className="w-16 shrink-0 flex flex-col items-start leading-tight">
+                          <span className="text-[15px] font-black text-blue-600 dark:text-blue-400">{format(event.start, 'M/d')}</span>
+                          <span className="text-sm font-bold text-slate-400 dark:text-slate-500">{format(event.start, 'HH:mm')}</span>
+                        </div>
+                        <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-[15px] truncate">{event.title}</span>
+                          {event.location ? <span className="text-[15px] text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0"><MapPin className="w-3.5 h-3.5" />{event.location}</span> : event.description ? <span className="text-[15px] text-slate-500 dark:text-slate-400 flex items-center gap-1 min-w-0 truncate"><AlignLeft className="w-3.5 h-3.5 shrink-0" />{event.description}</span> : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {markerIndex >= yearEvents.length && <TodayMarker markerRef={todayRef} now={now} />}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function TodayMarker({ markerRef, now }: { markerRef: React.RefObject<HTMLDivElement>; now: Date }) {
+  return (
+    <div ref={markerRef} className="flex items-center gap-2 px-4 py-1.5 bg-blue-500/5">
+      <div className="h-px flex-1 bg-blue-500/60" />
+      <span className="text-xs font-black text-blue-500 dark:text-blue-400 whitespace-nowrap">오늘 · {format(now, 'M월 d일 (EEE)', { locale: ko })}</span>
+      <div className="h-px flex-1 bg-blue-500/60" />
+    </div>
+  );
+}
+
 export default function Calendar({ initialView = 'month', events, user, onNotify, onRefresh, onAddEvent, onPatchEvent, onRemoveEvent, onReconcileEvent, swipeMode = 'date' }: any) {
-  const [view, setCalView] = useState<'month' | 'week'>(initialView);
+  const [view, setCalView] = useState<'month' | 'week' | 'list'>(initialView === 'week' ? 'week' : 'month');
+  // 일정 목록 보기 전용 상태: 모든 연도 열기 여부 / 정렬 방향(시간순=오래된 것부터) / 상단 "오늘" 버튼 신호
+  const [listAllOpen, setListAllOpen] = useState(false);
+  const [listAscending, setListAscending] = useState(true);
+  const [listJumpTick, setListJumpTick] = useState(0);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -94,6 +223,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   const calRootRef = useRef<HTMLDivElement>(null);
   const applyPinchExpand = (expand: boolean) => {
     if (isModalOpen || dayViewDate || isDatePickerOpen) return;
+    if (view === 'list') { setListAllOpen(expand); return; }
     const isWideScreen = typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches;
     if (isWideScreen) { if (view === 'month') setDesktopExpanded(expand); }
     else setWideView(expand);
@@ -171,7 +301,6 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   const openEditEvent = (event: any) => { setEditingEvent(event); setSelectedDate(event.start); setIsModalOpen(true); };
   // 12개월 한눈에 보기 모달에서 월 제목을 누르면 그 달로, 날짜를 누르면 그 날짜(일별보기)로 이동
   const jumpToMonth = (year: number, month: number) => setCurrentDate(new Date(year, month, 1));
-  const jumpToDay = (day: Date) => { setCurrentDate(day); setDayViewDate(day); };
 
   const handleDayClick = (day: Date) => {
     // 일정 유무와 상관없이 날짜를 탭하면 항상 일별보기를 띄움(일정 없는 날에도 그 안에서 새 일정 추가 가능)
@@ -265,7 +394,15 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
 
   return (
     <div ref={calRootRef} className="flex flex-col h-full animate-in fade-in duration-500">
-      <div className="flex items-center gap-2 mb-3 flex-wrap gap-y-2">
+      {/* 목록 보기에서는 툴바를 헤더 바로 아래에 붙여(sticky), 목록을 한참 내려도 오늘/전체열기/정렬 버튼을 바로 쓸 수 있게 함.
+          top 값은 page.tsx가 측정해 두는 실제 헤더 높이(--app-header-h). */}
+      <div
+        className={`flex items-center gap-2 mb-3 flex-wrap gap-y-2 ${view === 'list' ? 'sticky z-20 -mx-2.5 px-2.5 sm:-mx-4 sm:px-4 py-2 mb-1 bg-slate-50/95 dark:bg-[#0f172a]/95 backdrop-blur' : ''}`}
+        style={view === 'list' ? { top: 'var(--app-header-h, 56px)' } : undefined}
+      >
+        {view === 'list' ? (
+          <h2 className="text-lg sm:text-2xl font-bold whitespace-nowrap px-2 py-1 shrink-0">일정 목록</h2>
+        ) : (
         <button onClick={() => setIsDatePickerOpen((v) => !v)} className="group flex items-center gap-1.5 text-left rounded-xl px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition min-w-0 shrink-0" title="연월 선택">
           <h2 className="text-lg sm:text-2xl font-bold whitespace-nowrap">
             {view === 'month' ? (
@@ -282,10 +419,15 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           </h2>
           <CalendarDays className="w-5 h-5 text-slate-400 group-hover:text-blue-500 shrink-0" />
         </button>
+        )}
 
-        {/* 월/주 이동 + 오늘 버튼: 줄 가운데 */}
+        {/* 월/주 이동 + 오늘 버튼: 줄 가운데. 목록 보기에서는 좌우 이동이 필요 없고, "오늘"은 목록 안에서 오늘 위치로 되돌아오는 용도 */}
         <div className="flex-1 flex justify-center">
+          {view === 'list' ? (
+            <button onClick={() => setListJumpTick((t) => t + 1)} className="px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 whitespace-nowrap">오늘</button>
+          ) : (
           <div className="flex gap-1.5 sm:gap-2"><button onClick={() => setCurrentDate(view === 'month' ? subMonths(currentDate, 1) : subDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronLeft/></button><button onClick={() => setCurrentDate(new Date())} className="px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 whitespace-nowrap">오늘</button><button onClick={() => setCurrentDate(view === 'month' ? addMonths(currentDate, 1) : addDays(currentDate, 7))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition"><ChevronRight/></button></div>
+          )}
         </div>
 
         {/* 토글 버튼들: 줄 오른쪽 끝(펼치기(넓은화면: 펼치기 / 좁은화면: 넓게보기) -> 월/주 토글 순서로 통일) */}
@@ -293,6 +435,28 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           {/* 화면이 이미 넓은 경우(sm 이상)를 위한 펼치기: 좌우로 늘릴 필요는 없지만, 월별보기 칸 높이는
               그대로 고정이라 일정이 많은 날짜는 잘릴 수 있어서 세로(칸 높이)만 늘려주는 별도 버튼.
               모바일 넓게보기 버튼과 정반대 조건(hidden sm:inline-flex)이라 서로 겹쳐 보이지 않음. */}
+          {view === 'list' && (
+            <>
+              {/* 모든 연도 열기 / 닫기(닫기 = 올해만 열린 상태). 아이콘은 월별보기의 펼치기/줄이기와 동일 */}
+              <button
+                type="button"
+                onClick={() => setListAllOpen((v) => !v)}
+                title={listAllOpen ? '탭하면 올해만 열어 보기' : '탭하면 모든 연도 열기'}
+                className="py-2.5 px-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0"
+              >
+                {listAllOpen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+              </button>
+              {/* 정렬 토글: 시간순(오래된 것부터) <-> 최신순 */}
+              <button
+                type="button"
+                onClick={() => setListAscending((v) => !v)}
+                title={listAscending ? '탭하면 최신순으로' : '탭하면 시간순으로'}
+                className="py-2.5 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0 text-xs font-bold whitespace-nowrap leading-5"
+              >
+                {listAscending ? '시간순 ↑' : '최신순 ↓'}
+              </button>
+            </>
+          )}
           {view === 'month' && (
             <button
               type="button"
@@ -311,18 +475,23 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
             type="button"
             onClick={() => setWideView((v) => !v)}
             title={wideView ? '탭하면 화면에 맞춰 보기' : '탭하면 넓고 길게 보기(일정 다 보이게)'}
-            className="sm:hidden py-2.5 px-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0"
+            className={`${view === 'list' ? 'hidden' : 'sm:hidden'} py-2.5 px-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0`}
           >
             {wideView ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
           </button>
           {/* 월별/주별보기 전환: 메모탭 보기옵션처럼 한 칸짜리 아이콘 토글(탭하면 전환될 모드의 아이콘을 보여줌) */}
           <button
             type="button"
-            onClick={() => setCalView((v) => (v === 'month' ? 'week' : 'month'))}
-            title={view === 'month' ? '탭하면 주별보기로' : '탭하면 월별보기로'}
+            onClick={() => {
+              // 월 -> 주 -> 목록 -> 월. 목록에 들어올 때는 항상 "올해만 열림 + 오늘 위치"의 처음 상태로 시작
+              if (view === 'month') setCalView('week');
+              else if (view === 'week') { setListAllOpen(false); setListAscending(true); setCurrentDate(new Date()); setCalView('list'); }
+              else setCalView('month');
+            }}
+            title={view === 'month' ? '탭하면 주별보기로' : view === 'week' ? '탭하면 목록보기로' : '탭하면 월별보기로'}
             className="py-2.5 px-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 shrink-0"
           >
-            {view === 'month' ? <Rows3 className="w-5 h-5" /> : <Grid3x3 className="w-5 h-5" />}
+            {view === 'month' ? <Columns3 className="w-5 h-5" /> : view === 'week' ? <Rows3 className="w-5 h-5" /> : <Grid3x3 className="w-5 h-5" />}
           </button>
         </div>
       </div>
@@ -332,11 +501,18 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           initialYear={currentDate.getFullYear()}
           onClose={() => setIsDatePickerOpen(false)}
           onPickMonth={jumpToMonth}
-          onPickDay={jumpToDay}
         />
       )}
 
-      {view === 'week' ? (
+      {view === 'list' ? (
+        <CalendarEventList
+          events={events}
+          ascending={listAscending}
+          allOpen={listAllOpen}
+          jumpTick={listJumpTick}
+          onEventClick={openEditEvent}
+        />
+      ) : view === 'week' ? (
         <div ref={weekGridWrapperRef} onTouchStart={handleGridTouchStart} onTouchEnd={handleGridTouchEnd}>
           <TimeGrid days={days} events={events} holidayMap={holidayMap} onSlotClick={handleSlotClick} onEventClick={openEditEvent} onDayHeaderClick={(day: Date) => setDayViewDate(day)} availableHeight={weekAvailableHeight} wideView={wideView} />
         </div>

@@ -15,7 +15,7 @@ const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
  * - 맨 위 "OOOO년"을 누르면 연도를 직접 골라 이동하는 목록이 뜸
  * - 월 제목을 누르면 그 달로, 날짜를 누르면 그 날짜로 이동(둘 다 모달은 닫힘)
  */
-export default function YearOverviewModal({ initialYear, onClose, onPickMonth, onPickDay }: { initialYear: number; onClose: () => void; onPickMonth: (year: number, month: number) => void; onPickDay: (date: Date) => void; }) {
+export default function YearOverviewModal({ initialYear, onClose, onPickMonth }: { initialYear: number; onClose: () => void; onPickMonth: (year: number, month: number) => void; }) {
   useModalBackClose(onClose);
   const [year, setYear] = useState(initialYear);
   const [yearListOpen, setYearListOpen] = useState(false);
@@ -88,7 +88,7 @@ export default function YearOverviewModal({ initialYear, onClose, onPickMonth, o
                     <button
                       key={i}
                       disabled={!inMonth}
-                      onClick={() => { onPickDay(day); onClose(); }}
+                      onClick={() => { onPickMonth(year, month); onClose(); }}
                       className={[
                         'text-[10px] leading-4 rounded-sm mx-auto w-4',
                         !inMonth ? 'invisible' : '',

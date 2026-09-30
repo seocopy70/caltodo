@@ -101,8 +101,8 @@ function EventRow({ event, onEdit }: any) {
       <span className="text-sm font-bold text-slate-400 dark:text-slate-500">{format(event.start, 'HH:mm')}</span>
     </div>
     <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-      <div className="flex items-center gap-1.5 min-w-0"><span className="font-bold text-sm truncate">{event.title}</span></div>
-      {event.location ? <span className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0"><MapPin className="w-3.5 h-3.5" />{event.location}</span> : event.description ? <span className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0 truncate"><AlignLeft className="w-3.5 h-3.5 shrink-0" />{event.description}</span> : null}
+      <div className="flex items-center gap-1.5 min-w-0"><span className="font-bold text-[15px] truncate">{event.title}</span></div>
+      {event.location ? <span className="text-[15px] text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0"><MapPin className="w-3.5 h-3.5" />{event.location}</span> : event.description ? <span className="text-[15px] text-slate-500 dark:text-slate-400 flex items-center gap-1 shrink-0 truncate"><AlignLeft className="w-3.5 h-3.5 shrink-0" />{event.description}</span> : null}
     </div>
   </div>;
 }
