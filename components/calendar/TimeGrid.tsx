@@ -6,7 +6,8 @@ import { ko } from 'date-fns/locale';
 import { MapPin, AlignLeft, Repeat, CalendarRange } from 'lucide-react';
 import { eventOccursOnDay, getRecurrenceType, getOccurrenceTimes } from '../../lib/recurrence';
 
-const HOUR_HEIGHT = 38; // px per hour (기존 42 대비 살짝 축소 — 그리드 전체 높이를 조금 줄임)
+const DAY_HOUR_HEIGHT = 38; // 일별보기(하루 보기 팝업)의 시간당 높이 — 기존 그대로
+const WEEK_HOUR_HEIGHT = 34; // 주별보기 시간당 높이 — 더 많은 시간대가 한 화면에 보이도록 줄임
 const ALL_HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SCROLL_TO_HOUR = 6; // 탭 진입 시 06시 위치로 스크롤 (위아래로 스크롤하면 00~24시 전체 확인 가능)
 const WEEK_VISIBLE_HOURS_FALLBACK = 13; // availableHeight를 아직 측정 못했을 때(첫 렌더)만 쓰는 기본값
@@ -65,6 +66,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
   const [topSectionHeight, setTopSectionHeight] = useState(0);
   const HOURS: number[] = ALL_HOURS;
   const isWeekView = days.length > 1;
+  const hourH = isWeekView ? WEEK_HOUR_HEIGHT : DAY_HOUR_HEIGHT;
   // 주별보기는 기본적으로 최소 폭을 두지 않고 화면 너비에 맞춰 7칸이 균등하게 눌려 들어가게 함
   // (좁은 화면에서 가로 스크롤 없이 한 화면에 다 보이도록). "넓게보기"를 켰을 때만 예외적으로
   // 폰 넓은화면 기본 폭(640px)을 강제해서 이 컴포넌트가 이미 갖고 있던 data-hscroll 가로 스크롤이
@@ -78,11 +80,11 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
     const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
-  const nowTop = (now.getHours() * 60 + now.getMinutes()) / 60 * HOUR_HEIGHT;
+  const nowTop = (now.getHours() * 60 + now.getMinutes()) / 60 * hourH;
   const todayInView = days.some((d: Date) => isSameDay(d, now));
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = SCROLL_TO_HOUR * HOUR_HEIGHT;
+    if (scrollRef.current) scrollRef.current.scrollTop = SCROLL_TO_HOUR * hourH;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -102,7 +104,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
   const weekBodyMaxHeight = isWeekView
     ? (availableHeight != null && topSectionHeight > 0
         ? Math.max(availableHeight - topSectionHeight - 4, MIN_BODY_HEIGHT)
-        : WEEK_VISIBLE_HOURS_FALLBACK * HOUR_HEIGHT)
+        : WEEK_VISIBLE_HOURS_FALLBACK * hourH)
     : '65vh';
 
   return (
@@ -141,11 +143,11 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
           {/* 종일 일정: 기본 높이를 시간 그리드 한 칸과 동일하게 맞춤 */}
           {allDayEvents.length > 0 && (
             <div className="flex border-b border-slate-100 dark:border-slate-800/60">
-              <div style={{ minHeight: HOUR_HEIGHT }} className="w-9 shrink-0 text-[9px] text-slate-400 flex items-center justify-center">종일</div>
+              <div style={{ minHeight: hourH }} className="w-9 shrink-0 text-[9px] text-slate-400 flex items-center justify-center">종일</div>
               {days.map((day: Date, i: number) => (
-                <div key={i} style={{ minHeight: HOUR_HEIGHT, ...colStyle }} className={`flex-1 min-w-0 border-l border-slate-50 dark:border-slate-800/40 first:border-l-0 p-1 ${isWeekView ? 'space-y-0.5' : 'space-y-1'}`}>
+                <div key={i} style={{ minHeight: hourH, ...colStyle }} className={`flex-1 min-w-0 border-l border-slate-50 dark:border-slate-800/40 first:border-l-0 p-1 ${isWeekView ? 'space-y-px' : 'space-y-1'}`}>
                   {allDayEvents.filter((e: any) => eventOccursOnDay(e, day)).map((e: any, idx: number) => (
-                    <div key={idx} onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }} className={`px-1.5 py-0.5 rounded-full text-sm font-bold truncate flex items-center gap-1 cursor-pointer ${colorClasses(e)}`}>
+                    <div key={idx} onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }} className={`px-1.5 ${isWeekView ? 'py-px text-[13.5px]' : 'py-0.5 text-sm'} rounded-full font-bold truncate flex items-center gap-1 cursor-pointer ${colorClasses(e)}`}>
                       {/* 일별보기에서만 반복/기간 표시 아이콘을 보여줌(월/주별보기는 자리가 좁아 생략) */}
                       {!isWeekView && getRecurrenceType(e) !== 'none' && <Repeat className="w-2.5 h-2.5 shrink-0" />}
                       {!isWeekView && !!e.endDate && <CalendarRange className="w-2.5 h-2.5 shrink-0" />}
@@ -166,7 +168,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
           <div ref={scrollRef} data-vscroll className="flex overflow-y-auto touch-pan-x touch-pan-y" style={{ maxHeight: weekBodyMaxHeight }}>
             <div className="w-9 shrink-0">
               {HOURS.map((h) => (
-                <div key={h} style={{ height: HOUR_HEIGHT }} className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-right pr-1 -translate-y-1.5 border-t border-slate-50 dark:border-slate-800/40">{h === 0 ? '' : `${h}시`}</div>
+                <div key={h} style={{ height: hourH }} className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-right pr-1 -translate-y-1.5 border-t border-slate-50 dark:border-slate-800/40">{h === 0 ? '' : `${h}시`}</div>
               ))}
             </div>
             {days.map((day: Date, i: number) => {
@@ -180,7 +182,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                   {HOURS.map((h) => (
                     <div
                       key={h}
-                      style={{ height: HOUR_HEIGHT }}
+                      style={{ height: hourH }}
                       onClick={() => onSlotClick?.(day, h)}
                       className="border-t border-slate-50 dark:border-slate-800/40 hover:bg-blue-500/5 cursor-pointer"
                     />
@@ -194,22 +196,22 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                   )}
                   {dayItems.map((item: any, idx: number) => {
                     const { event: e, start, end } = item;
-                    const top = (start.getHours() * 60 + start.getMinutes()) / 60 * HOUR_HEIGHT;
+                    const top = (start.getHours() * 60 + start.getMinutes()) / 60 * hourH;
                     const durationMin = Math.max((end.getTime() - start.getTime()) / 60000, 20);
                     // 배경색 박스 높이를 폰트보다 살짝만 크게 축소
-                    const height = Math.max((durationMin / 60) * HOUR_HEIGHT - (isWeekView ? 3 : 0), 15);
+                    const height = Math.max((durationMin / 60) * hourH - (isWeekView ? 5 : 0), 15);
                     const pos = layout.get(e) || { widthPct: 100, leftPct: 0 };
                     const extraInfo = e.location || e.description || '';
                     const ExtraIcon = e.location ? MapPin : AlignLeft; // 장소면 MapPin, 메모(설명)면 AlignLeft — 오늘탭과 동일한 아이콘 규칙
                     // 일별보기: 옆으로(같은 줄), 주별보기: 박스가 기본 그리드 높이보다 클 때만 아래쪽에
                     const showBeside = !isWeekView && pos.widthPct >= 45 && !!extraInfo;
-                    const showBelow = isWeekView && height > HOUR_HEIGHT && pos.widthPct >= 45 && !!extraInfo;
+                    const showBelow = isWeekView && height > hourH && pos.widthPct >= 45 && !!extraInfo;
                     return (
                       <div
                         key={idx}
                         onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }}
                         style={{ position: 'absolute', top, height, width: `calc(${pos.widthPct}% - 2px)`, left: `${pos.leftPct}%` }}
-                        className={`px-1.5 py-0.5 rounded-lg text-sm font-bold cursor-pointer overflow-hidden flex flex-col justify-center border-l-4 ${colorClasses(e)}`}
+                        className={`px-1.5 py-px rounded-lg ${isWeekView ? 'text-[13.5px] leading-[1.2]' : 'text-sm'} font-bold cursor-pointer overflow-hidden flex flex-col justify-center border-l-4 ${colorClasses(e)}`}
                       >
                         <div className="flex items-center gap-1.5 min-w-0">
                           {!isWeekView && getRecurrenceType(e) !== 'none' && <Repeat className="w-2.5 h-2.5 shrink-0" />}

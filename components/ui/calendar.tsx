@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   format, addMonths, subMonths, startOfMonth, endOfMonth,
   startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth,
@@ -50,7 +50,11 @@ function useFitAvailableHeight(active: boolean, ref: React.RefObject<HTMLElement
     const recompute = () => {
       const el = ref.current;
       if (!el) return;
-      const top = Math.max(el.getBoundingClientRect().top, 0);
+      // 화면(뷰포트) 기준 top은 "지금 페이지가 얼마나 스크롤돼 있는지"에 따라 달라짐 — 목록보기에서 아래로
+      // 스크롤한 채 월별/주별보기로 돌아오면 top이 음수(위로 밀려난 값)라서 0으로 고정되어 남은 높이를
+      // 그만큼 크게 잘못 계산했고, 그 결과 그리드가 화면보다 커져 위 고정영역이 위로 올라가 버렸음.
+      // 그래서 스크롤량을 더한 "문서 기준 위치"로 계산해 스크롤 상태와 무관하게 항상 같은 값이 나오게 함.
+      const top = Math.max(el.getBoundingClientRect().top + window.scrollY, 0);
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
       // 아래 여백: 본문(main)의 아래쪽 패딩(폰 10px / 넓은 화면 16px)보다 조금 더 남겨야 페이지 자체가 스크롤되지 않음
       setHeight(Math.max(viewportHeight - top - 18, 0));
@@ -138,7 +142,7 @@ function CalendarEventList({ events, ascending, allOpen, jumpTick, onEventClick 
   const todayEnd = startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)).getTime();
 
   return (
-    <div className="space-y-2 pb-3">
+    <div className="space-y-1.5 pb-3">
       {years.every(([, list]) => list.length === 0) && <div className="text-center text-slate-500 py-6 text-sm">등록된 일정이 없습니다.</div>}
       {years.map(([year, yearEvents]: [number, any[]]) => {
         const open = !!openYears[String(year)];
@@ -161,8 +165,8 @@ function CalendarEventList({ events, ascending, allOpen, jumpTick, onEventClick 
                   return (
                     <div key={event.id}>
                       {idx === markerIndex && <TodayMarker markerRef={todayRef} now={now} />}
-                      <div onClick={() => onEventClick?.(event)} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-blue-500/5 ${repeated ? 'bg-violet-50 dark:bg-violet-500/10' : ''} ${isTodayEvent ? 'ring-2 ring-inset ring-blue-500/60' : ''}`}>
-                        <div className="w-16 shrink-0 flex flex-col items-start leading-tight">
+                      <div onClick={() => onEventClick?.(event)} className={`flex items-center gap-3 px-4 py-1.5 cursor-pointer hover:bg-blue-500/5 ${repeated ? 'bg-violet-50 dark:bg-violet-500/10' : ''} ${isTodayEvent ? 'ring-2 ring-inset ring-blue-500/60' : ''}`}>
+                        <div className="w-16 shrink-0 flex flex-col items-start leading-[1.15]">
                           <span className="text-[15px] font-black text-blue-600 dark:text-blue-400">{format(event.start, 'M/d')}</span>
                           <span className="text-sm font-bold text-slate-400 dark:text-slate-500">{format(event.start, 'HH:mm')}</span>
                         </div>
@@ -235,15 +239,20 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   // (전체 사용 가능 높이에서 이 만큼을 빼야 날짜 칸 스크롤 영역의 높이를 정확히 구할 수 있음).
   const monthHeaderRowRef = useRef<HTMLDivElement>(null);
   const [monthHeaderRowH, setMonthHeaderRowH] = useState<number | null>(null);
+  // 요일칸 줄은 월별보기에서만 존재하므로, 주별/목록보기를 거쳐 월별보기로 돌아올 때마다 새 요소가 만들어진다.
+  // 예전에는 처음 한 번만 관찰해서(의존성 []), 다른 보기로 갔다 오면 사라진 요소의 높이(0)가 그대로 남아
+  // 칸 높이가 요일칸 줄(약 36px)만큼 크게 계산되었고, 그 결과 월별보기가 화면 밖으로 넘쳐 위 고정영역이 올라갔음.
+  // → 보기가 바뀔 때마다 다시 붙이고, 0(=화면에 없음)은 무시한다.
   useEffect(() => {
+    if (view !== 'month') return;
     const el = monthHeaderRowRef.current;
     if (!el) return;
-    const update = () => setMonthHeaderRowH(el.offsetHeight);
+    const update = () => { if (el.offsetHeight > 0) setMonthHeaderRowH(el.offsetHeight); };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [view]);
 
   const monthStart = startOfMonth(currentDate);
   const weekStart = startOfWeek(currentDate);
@@ -252,6 +261,11 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
 
   // 구글/삼성 캘린더처럼 월별보기를 스크롤 없이 화면 안에 다 들어오게: 그리드가 시작하는 위치부터
   // 화면 맨 아래까지 남은 높이를 실측해서, 그 안에 주 수(numWeeks)만큼 칸을 나눠 담는다.
+  // 목록보기에서 내려놓은 스크롤이 남은 채로 월별/주별보기로 오면 위 고정영역이 화면 밖으로 밀려나 있으므로,
+  // 이 두 보기로 들어올 때는 항상 맨 위로 되돌림(두 보기는 화면에 딱 맞아 원래 페이지 스크롤이 없음).
+  useLayoutEffect(() => {
+    if (view === 'month' || view === 'week') window.scrollTo(0, 0);
+  }, [view]);
   const monthAvailableHeight = useFitAvailableHeight(view === 'month', monthGridWrapperRef, numWeeks);
   // 주별보기 시간표도 동일한 방식으로 화면 안에 경계가 보이도록 남은 높이를 실측(내부는 스크롤).
   const weekAvailableHeight = useFitAvailableHeight(view === 'week', weekGridWrapperRef, 0);
@@ -382,10 +396,10 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
             ) : (
               <>
                 {/* 월별보기에서는 칸이 좁아 추가정보(장소 등)는 보여주지 않고 제목만 표시 */}
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {visibleEvents.map((event: any, idx: number) => {
                     const isRecurring = getRecurrenceType(event) !== 'none';
-                    return <div key={idx} onClick={(e) => { e.stopPropagation(); openEditEvent(event); }} className={`py-[3px] px-2 rounded-full text-xs font-bold border-l-4 truncate flex items-center gap-1.5 min-w-0 ${isRecurring ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-400 dark:text-violet-100' : event.color === 'green' ? 'bg-emerald-50 border-emerald-600 text-emerald-900 dark:bg-emerald-500/20 dark:border-emerald-500 dark:text-emerald-100' : event.color === 'rose' ? 'bg-rose-50 border-rose-600 text-rose-900 dark:bg-rose-500/20 dark:border-rose-500 dark:text-rose-100' : event.color === 'amber' ? 'bg-amber-50 border-amber-600 text-amber-900 dark:bg-amber-500/20 dark:border-amber-500 dark:text-amber-100' : event.color === 'violet' ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-500 dark:text-violet-100' : 'bg-blue-50 border-blue-600 text-blue-900 dark:bg-blue-500/20 dark:border-blue-500 dark:text-blue-100'}`}><span className="truncate">{event.title}</span></div>;
+                    return <div key={idx} onClick={(e) => { e.stopPropagation(); openEditEvent(event); }} className={`py-[1.5px] px-2 rounded-full text-[11.5px] leading-4 font-bold border-l-4 truncate flex items-center gap-1.5 min-w-0 ${isRecurring ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-400 dark:text-violet-100' : event.color === 'green' ? 'bg-emerald-50 border-emerald-600 text-emerald-900 dark:bg-emerald-500/20 dark:border-emerald-500 dark:text-emerald-100' : event.color === 'rose' ? 'bg-rose-50 border-rose-600 text-rose-900 dark:bg-rose-500/20 dark:border-rose-500 dark:text-rose-100' : event.color === 'amber' ? 'bg-amber-50 border-amber-600 text-amber-900 dark:bg-amber-500/20 dark:border-amber-500 dark:text-amber-100' : event.color === 'violet' ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-500 dark:text-violet-100' : 'bg-blue-50 border-blue-600 text-blue-900 dark:bg-blue-500/20 dark:border-blue-500 dark:text-blue-100'}`}><span className="truncate">{event.title}</span></div>;
                   })}
                   {hiddenCount > 0 && <div onClick={(e) => { e.stopPropagation(); setDayViewDate(day); }} className="text-[10px] font-bold text-slate-500 dark:text-slate-400 pl-1.5 hover:text-blue-500 dark:hover:text-blue-400">+{hiddenCount}개 더</div>}
                 </div>
