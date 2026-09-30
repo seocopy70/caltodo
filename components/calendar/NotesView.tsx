@@ -5,7 +5,7 @@ import type { MutableRefObject, ReactNode } from 'react';
 import { api } from '../../lib/api-client';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { Plus, Trash2, StickyNote, Archive, RotateCcw, Star, LayoutGrid, List, Folder, FolderPlus, Pencil, X, ChevronDown, Check, ShieldCheck, ShieldOff, Lock, Search as SearchIcon } from 'lucide-react';
+import { Plus, Trash2, StickyNote, Archive, RotateCcw, Star, LayoutGrid, List, Folder, FolderPlus, Pencil, X, ChevronDown, Check, ShieldCheck, ShieldOff, Lock } from 'lucide-react';
 import NoteViewModal from './NoteViewModal';
 import SecureFolderModal from './SecureFolderModal';
 import FolderModal from './FolderModal';
@@ -59,6 +59,26 @@ function secureMatchCount(text: string, query: string) {
     index = lower.indexOf(query, index + Math.max(1, query.length));
   }
   return count;
+}
+
+function SecureMatchNav({ index, count, onMove }: { index: number; count: number; onMove: (delta: -1 | 1) => void }) {
+  return (
+    <div className="flex items-center justify-end gap-1 mt-1.5">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onMove(-1); }}
+        aria-label="이 메모의 이전 검색 결과"
+        className="px-2 py-0.5 rounded-md text-base font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"
+      >‹</button>
+      <span className="min-w-[3.5rem] text-center text-[11px] font-bold text-slate-500 dark:text-slate-400">{index + 1} / {count}</span>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onMove(1); }}
+        aria-label="이 메모의 다음 검색 결과"
+        className="px-2 py-0.5 rounded-md text-base font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"
+      >›</button>
+    </div>
+  );
 }
 
 function SecureSearchContent({ content, format, query, noteId, activeMatchIndex, matchRefs, onToggleLine, snippetOnly = false }: {
@@ -142,7 +162,8 @@ function SecureSearchContent({ content, format, query, noteId, activeMatchIndex,
   }
 
   if (format === 'numbered') {
-    let n = 0;
+    // 스니펫(앞뒤 3줄만 보여주는 경우)에서도 원래 메모의 번호가 유지되도록, 잘려나간 앞부분의 빈 줄 아닌 줄 수만큼 번호를 이어 붙인다.
+    let n = snippetOnly ? allLines.slice(0, lineStartOffset).filter((l) => l.trim()).length : 0;
     return (
       <div className="break-words [overflow-wrap:anywhere]">
         {lines.map((line, i) => {
@@ -162,15 +183,18 @@ function SecureSearchContent({ content, format, query, noteId, activeMatchIndex,
     );
   }
 
+  const plainBase = snippetOnly
+    ? allLines.slice(0, lineStartOffset).reduce((sum, l) => sum + secureMatchCount(l, query), 0)
+    : 0;
   return (
     <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-      <SearchHighlightedText text={content} query={query} matchRefs={matchRefs} matchKeyPrefix={noteId} activeMatchIndex={activeMatchIndex} />
+      <SearchHighlightedText text={snippetOnly ? lines.join('\n') : content} query={query} matchBase={plainBase} matchRefs={matchRefs} matchKeyPrefix={noteId} activeMatchIndex={activeMatchIndex} />
     </div>
   );
 }
 
 
-export default function NotesView({ notes, folders = [], user, onNotify, onRefresh, onNewNote, onEditNote, onPatchNote, onSwipeHint }: any) {
+export default function NotesView({ notes, folders = [], user, onNotify, onRefresh, onNewNote, onEditNote, onPatchNote, onSwipeHint, secureSearchQuery = '', onSecureSearchModeChange }: any) {
   const [showTrash, setShowTrash] = useState(false);
   // 삭제된 메모는 매번 앱을 열 때마다 같이 안 불러오고, 보관함을 실제로 펼쳤을 때만 따로 불러옴
   // (평소엔 안 쓰는 데이터라 매번 가져오면 그만큼 느려짐)
@@ -216,8 +240,6 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
   const [secureModal, setSecureModal] = useState<{ folder: any; mode: 'setup' | 'unlock' | 'disable' } | null>(null);
   const [unlockedSecureId, setUnlockedSecureId] = useState<string | null>(null);
   const [secureNotes, setSecureNotes] = useState<any[]>([]);
-  const [secureSearchQuery, setSecureSearchQuery] = useState('');
-  // 기본은 2자 이상 검색. 이 옵션은 앱을 닫으면 기본값(제한 ON)으로 돌아감.
   const [secureMatchIndexes, setSecureMatchIndexes] = useState<Record<string, number>>({});
   const [secureFocusedMatch, setSecureFocusedMatch] = useState<{ noteId: string; index: number } | null>(null);
   const secureMatchRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -247,10 +269,17 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
         ? (isInUnlockedSecureFolder ? visibleSecureNotes : [])
         : visibleForAll.filter((n: any) => n.folderId === activeFolderId);
   // 보안폴더 안에서만 쓰는 로컬 검색(전역 검색은 보안폴더 메모를 애초에 제외하므로 별도로 둠)
-  const secureQuery = secureSearchQuery.trim().toLowerCase();
-  const activeNotes = isInUnlockedSecureFolder && secureQuery
+  // 검색어는 상단 검색창(page.tsx)에서 내려온다 — 잠금 해제된 보안폴더 안에서만 적용.
+  const secureQuery = isInUnlockedSecureFolder ? String(secureSearchQuery || '').trim().toLowerCase() : '';
+  const activeNotes = secureQuery
     ? activeNotesBeforeSearch.filter((n: any) => `${n.title} ${n.content || ''}`.toLowerCase().includes(secureQuery))
     : activeNotesBeforeSearch;
+
+  // 잠금 해제된 보안폴더에 있는 동안 상단 검색창을 "보안검색"으로 바꾸도록 알린다(폴더를 나가거나 탭을 떠나면 해제).
+  useEffect(() => {
+    onSecureSearchModeChange?.(isInUnlockedSecureFolder);
+  }, [isInUnlockedSecureFolder, onSecureSearchModeChange]);
+  useEffect(() => () => { onSecureSearchModeChange?.(false); }, [onSecureSearchModeChange]);
 
   // 보안 검색은 일반 검색과 같은 "메모 단위 결과"를 유지한다.
   // 제목은 검색/강조만 하고, 꺾쇠 이동 대상은 본문에 실제로 등장한 검색 결과만 포함한다.
@@ -358,7 +387,6 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
     }
     setActiveFolderId(id);
     setFolderPickerOpen(false);
-    setSecureSearchQuery('');
     if (secureFolder && id === secureFolder.id && unlockedSecureId !== secureFolder.id) {
       setSecureModal({ folder: secureFolder, mode: 'unlock' });
     }
@@ -485,19 +513,6 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
         <button onClick={() => setSecureModal({ folder: secureFolder, mode: 'unlock' })} className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold">잠금 해제</button>
       </div>
     ) : <>
-      {isInUnlockedSecureFolder && (
-        <div className="relative">
-          <SearchIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          <div className="flex items-center gap-2">
-            <input
-              value={secureSearchQuery}
-              onChange={(e) => setSecureSearchQuery(e.target.value)}
-              placeholder="보안폴더 안에서 검색"
-              className="flex-1 min-w-0 pl-9 pr-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none text-sm"
-            />
-            </div>
-        </div>
-      )}
       {activeNotes.length === 0 && <div className="text-center text-slate-500 py-16 text-sm">{secureQuery ? '검색 결과가 없어요.' : activeFolderId === 'all' ? '작성된 메모가 없어요.' : '이 폴더에는 메모가 없어요.'}</div>}
 
       {layoutMode === 'card' ? (
@@ -543,23 +558,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
                           <NoteContent content={shown} format={note.format} onToggleLine={(idx) => toggleLine(note, idx)} onLineClick={(idx: number, charOffset?: number) => onEditNote?.(note, 'content', idx, charOffset)} />
                         )}
                         {secureQuery && contentMatchCount > 1 && (
-                          <div className="flex items-center justify-end gap-1 mt-1.5">
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); moveSecureNoteMatch(note.id, contentMatchCount, -1); }}
-                              aria-label="이 메모의 이전 검색 결과"
-                              className="px-1.5 py-0.5 rounded-md text-sm font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"
-                            >‹</button>
-                            <span className="min-w-[3.5rem] text-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                              {(contentMatchIndex + 1)} / {contentMatchCount}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); moveSecureNoteMatch(note.id, contentMatchCount, 1); }}
-                              aria-label="이 메모의 다음 검색 결과"
-                              className="px-1.5 py-0.5 rounded-md text-sm font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"
-                            >›</button>
-                          </div>
+                          <SecureMatchNav index={contentMatchIndex} count={contentMatchCount} onMove={(d) => moveSecureNoteMatch(note.id, contentMatchCount, d)} />
                         )}
                         {isLong && (
                           <button
@@ -598,12 +597,32 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
             const titleMatchCount = secureMatchCount(String(note.title || ''), secureQuery);
             const contentMatchCount = secureMatchCount(String(note.content || ''), secureQuery);
             return (
-              <button key={note.id} onClick={() => setViewingNote(note)} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-left">
+              <div key={note.id}>
+              <div onClick={() => setViewingNote(note)} className="w-full flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 text-left">
                 <StickyNote className={`w-4 h-4 shrink-0 ${iconColorClass}`} />
                 <span className="flex-1 min-w-0 font-bold text-base truncate text-slate-900 dark:text-white">{secureQuery && titleMatchCount > 0 ? <SearchHighlightedText text={note.title || ''} query={secureQuery} matchRefs={secureMatchRefs} matchKeyPrefix={`${note.id}:title`} /> : note.title}</span>
                 {note.showToday && <Star className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="currentColor" />}
                 <button title="보관함으로 이동" onClick={(e) => { e.stopPropagation(); remove(note.id); }} className="text-slate-400 dark:text-slate-600 hover:text-rose-500 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
-              </button>
+              </div>
+                {/* 보안검색 중이고 본문에서 검색어가 잡히면, 제목만 보이는 목록에서도 앞뒤 3줄 미리보기 + 강조 + 이전/다음 이동을 보여준다 */}
+                {secureQuery && contentMatchCount > 0 && (
+                  <div className="px-4 pb-3 -mt-1 text-base text-slate-600 dark:text-slate-400 leading-relaxed min-w-0">
+                    <SecureSearchContent
+                      content={note.content || ''}
+                      format={note.format}
+                      query={secureQuery}
+                      noteId={note.id}
+                      activeMatchIndex={Math.min(secureMatchIndexes[note.id] ?? 0, contentMatchCount - 1)}
+                      matchRefs={secureMatchRefs}
+                      onToggleLine={(idx) => toggleLine(note, idx)}
+                      snippetOnly
+                    />
+                    {contentMatchCount > 1 && (
+                      <SecureMatchNav index={Math.min(secureMatchIndexes[note.id] ?? 0, contentMatchCount - 1)} count={contentMatchCount} onMove={(d) => moveSecureNoteMatch(note.id, contentMatchCount, d)} />
+                    )}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

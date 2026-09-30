@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { CalendarDays, CheckSquare, FileText, X, Trash2 } from 'lucide-react';
 import { format, startOfDay } from 'date-fns';
@@ -68,45 +68,9 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [category, setCategory] = useState<Category>('all');
-  const resultPanelRef = useRef<HTMLDivElement>(null);
-  const [resultLeft, setResultLeft] = useState<number | null>(null);
-  const lastViewportWidthRef = useRef<number | null>(null);
 
   const q = (query || '').trim().toLowerCase();
 
-  useLayoutEffect(() => {
-    const panel = resultPanelRef.current;
-    const anchor = panel?.parentElement;
-    if (!panel || !anchor) return;
-    const updatePosition = () => {
-      const anchorRect = anchor.getBoundingClientRect();
-      const panelRect = panel.getBoundingClientRect();
-      const viewportWidth = document.documentElement.clientWidth;
-      const panelWidth = panelRect.width;
-      const margin = viewportWidth >= 768 ? 100 : 8;
-      // 검색결과창은 입력창 위치를 기준으로 붙이지 않고 현재 layout viewport 중앙에 배치한다.
-      // window.innerWidth와 100vw를 섞어 계산하면 모바일 키보드가 처음 나타날 때
-      // visual/layout viewport 변화로 가로 위치가 순간적으로 틀어질 수 있으므로
-      // CSS layout viewport와 같은 documentElement.clientWidth를 기준으로 계산한다.
-      const targetLeft = (viewportWidth - panelWidth) / 2;
-      const minLeft = margin - anchorRect.left;
-      const maxLeft = viewportWidth - margin - panelWidth - anchorRect.left;
-      setResultLeft(Math.min(maxLeft, Math.max(minLeft, targetLeft - anchorRect.left)));
-    };
-    updatePosition();
-    lastViewportWidthRef.current = document.documentElement.clientWidth;
-    const handleResize = () => {
-      // 모바일 키보드가 열리고 닫힐 때는 보통 높이만 변한다.
-      // 가로 폭이 그대로인데 위치를 다시 계산하면 wide-phone에서
-      // 첫 키보드 표시 순간 검색결과창의 가로 위치가 튀는 문제가 생길 수 있다.
-      const nextWidth = document.documentElement.clientWidth;
-      if (lastViewportWidthRef.current === nextWidth) return;
-      lastViewportWidthRef.current = nextWidth;
-      updatePosition();
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [query, date, dateEnd, category, events, todos, notes]);
   const notify = onNotify || (() => {});
 
   const rangeStart = date ? startOfDay(date) : null;
@@ -277,13 +241,11 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
   ) : null;
 
   return (
+    // 부모(헤더 줄, position: relative) 기준으로 가운데에 붙인다. 폭은 화면 폭 - 1rem 이내로 제한되어
+    // 좌우로 화면을 벗어나지 않는다(예전의 자바스크립트 위치 계산은 필요 없어 제거).
     <div
-      ref={resultPanelRef}
-      className="absolute top-full z-[70] w-[min(52rem,calc(100vw-1rem))] md:w-[min(52rem,calc(100vw-1rem))] max-sm:w-[calc(100vw-1rem)] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
-      style={{
-        left: resultLeft == null ? 0 : String(resultLeft) + 'px',
-        marginTop: pushDownBy ? String(pushDownBy) + 'px' : '0.5rem',
-      }}
+      className="absolute top-full left-1/2 -translate-x-1/2 z-[70] w-[min(32rem,calc(100vw-1rem))] max-h-[78vh] overflow-hidden rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl"
+      style={{ marginTop: pushDownBy ? String(pushDownBy) + 'px' : '0.5rem' }}
     >
       <div className="p-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
         <span className="text-xs text-slate-500 dark:text-slate-400">{dateLabel ? `${dateLabel} 전체 기록 ${total}건` : `검색 결과 ${total}건`}</span>

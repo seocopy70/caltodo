@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { auth, googleProvider } from '../lib/firebase';
 import { api } from '../lib/api-client';
 import { autoPriorityForDueDate } from '../lib/todoAutoColor';
@@ -9,7 +9,6 @@ import Calendar from '../components/ui/calendar';
 import HomeView from '../components/calendar/HomeView';
 import TodoView from '../components/calendar/TodoView';
 import NotesView from '../components/calendar/NotesView';
-import EventListView from '../components/calendar/EventListView';
 import GlobalSearch from '../components/calendar/GlobalSearch';
 import ImportExportPanel from '../components/calendar/ImportExportPanel';
 import EmailBackupPanel from '../components/calendar/EmailBackupPanel';
@@ -46,7 +45,7 @@ export default function Home() {
   // 인증 확인이 끝나기 전에 캐시로 먼저 화면을 보여주는 중인지(값=그때 가정한 uid). null이면 기존처럼 스피너.
   const [optimisticUid, setOptimisticUid] = useState<string | null>(null);
   const optimisticUidRef = useRef<string | null>(null);
-  const [view, setView] = useState<'today' | 'calendar' | 'list' | 'todo' | 'notes'>('today');
+  const [view, setView] = useState<'today' | 'calendar' | 'todo' | 'notes'>('today');
   // 일정탭 전용: 좌우 스와이프가 지금 "월/주 이동"인지 "탭 이동"인지 — 위/아래로 스와이프할 때마다 토글됨
   const [calSwipeMode, setCalSwipeMode] = useState<'date' | 'tabs'>('date');
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -70,6 +69,19 @@ export default function Home() {
   const [searchDate, setSearchDate] = useState(''); // 날짜검색 시작일(기간검색의 시작, 하루만 고르면 이 값만 채워짐)
   const [searchDateEnd, setSearchDateEnd] = useState(''); // 날짜검색 종료일(선택)
   const [dateSearchOpen, setDateSearchOpen] = useState(false); // 날짜검색 팝오버(시작/종료일 입력) 열림 여부
+  // 날짜 입력값(yyyy-mm-dd)을 로컬 날짜로 바꾼 값 — 매 렌더마다 새 Date 객체가 만들어져 검색 결과가 불필요하게 다시 계산되지 않도록 메모
+  const searchDateObj = useMemo(() => parseDateInput(searchDate), [searchDate]);
+  const searchDateEndObj = useMemo(() => parseDateInput(searchDateEnd), [searchDateEnd]);
+  // 잠금 해제된 보안폴더 안에 있을 때는 상단 검색창이 "보안검색"(그 폴더 메모만 검색) 역할을 한다.
+  // NotesView가 알려주며(onSecureSearchModeChange), 모드가 바뀌면 이전 검색어는 비운다.
+  const [secureSearchMode, setSecureSearchMode] = useState(false);
+  const secureSearchModeRef = useRef(false);
+  const handleSecureSearchMode = useCallback((active: boolean) => {
+    if (secureSearchModeRef.current === active) return;
+    secureSearchModeRef.current = active;
+    setSecureSearchMode(active);
+    setSearch(''); setSearchDate(''); setSearchDateEnd(''); setDateSearchOpen(false);
+  }, []);
   const dateSearchPopoverRef = useRef<HTMLDivElement>(null);
   const [dateSearchPopoverHeight, setDateSearchPopoverHeight] = useState(0);
   // 팝오버가 열려있는 동안 검색결과(GlobalSearch)를 그 아래로 밀어내기 위해 실제 높이를 측정
@@ -456,14 +468,6 @@ export default function Home() {
       return;
     }
 
-    // 일정 목록 보기: 탭바/스와이프 순환에서 제외된 화면이라, 좌우 스와이프는(방향 무관) 그냥 오늘탭으로 감
-    if (view === 'list') {
-      if (!isHorizontalDominant || Math.abs(deltaX) < MIN_SWIPE_PX) return;
-      setView('today');
-      window.scrollTo(0, 0);
-      return;
-    }
-
     // 그 외 탭(오늘/할일/메모): 기존처럼 가로 스와이프만 탭 전환
     if (!isHorizontalDominant) return;
     if (grid) {
@@ -481,7 +485,7 @@ export default function Home() {
 
   return <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="min-h-screen bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100">
     <header ref={headerRef} className="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur">
-      <div className="max-w-7xl mx-auto px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-1.5">
+      <div className="relative max-w-7xl mx-auto px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-1.5">
         <div className="flex items-center gap-1.5">
           <button onClick={() => setMenuOpen((v) => !v)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0" aria-label="메뉴"><Menu className="w-5 h-5" /></button>
           <div className="font-black tracking-tight mr-1 hidden sm:block">Cal2do</div>
@@ -489,62 +493,79 @@ export default function Home() {
         </div>
         <div className="relative w-[15.5rem] sm:w-[15.5rem] md:w-[21rem] sm:ml-auto shrink-0">
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400"/>
-            <input value={search} onChange={(e) => { setSearch(e.target.value); if (e.target.value.trim()) { setSearchDate(''); setSearchDateEnd(''); } }} placeholder="검색" className="w-full pl-8 pr-[5.4rem] py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-base" />
-            <button
-              type="button"
-              onClick={() => setDateSearchOpen((v) => !v)}
-              title="날짜(기간)로 전체 기록 보기"
-              className={`absolute right-1 top-1 bottom-1 px-2 rounded-md transition flex items-center gap-1 ${searchDate ? 'text-blue-500 bg-blue-500/10' : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
-            >
-              <span className="text-[13px] font-bold whitespace-nowrap">날짜검색</span>
-              <CalendarSearch className="w-4 h-4 shrink-0" />
-            </button>
+            <Search className="absolute left-2.5 top-3 w-4 h-4 text-slate-400"/>
+            {/* 잠금 해제된 보안폴더 안에서는 이 검색창이 보안검색(그 폴더 메모만 대상) — 돋보기 옆에 표시 */}
+            {secureSearchMode && <span className="absolute left-8 top-1/2 -translate-y-1/2 text-[13px] font-bold text-amber-500 dark:text-amber-400 whitespace-nowrap pointer-events-none">보안검색</span>}
+            <input
+              value={search}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSearch(v);
+                if (secureSearchMode) return;
+                // 검색어를 입력하기 시작하면 날짜검색은 해제하고, 열려 있던 날짜검색 팝업도 닫는다.
+                if (v.trim()) { setSearchDate(''); setSearchDateEnd(''); setDateSearchOpen(false); }
+              }}
+              placeholder={secureSearchMode ? '' : '검색'}
+              className={`w-full ${secureSearchMode ? 'pl-[5.6rem] pr-3' : 'pl-8 pr-[5.4rem]'} py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none text-base`}
+            />
+            {!secureSearchMode && (
+              <button
+                type="button"
+                onClick={() => setDateSearchOpen((v) => !v)}
+                title="날짜(기간)로 전체 기록 보기"
+                className={`absolute right-1 top-1 bottom-1 px-2 rounded-md transition flex items-center gap-1 ${searchDate ? 'text-blue-500 bg-blue-500/10' : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              >
+                <span className="text-[13px] font-bold whitespace-nowrap">날짜검색</span>
+                <CalendarSearch className="w-4 h-4 shrink-0" />
+              </button>
+            )}
           </div>
-          {dateSearchOpen && <>
+          {dateSearchOpen && !secureSearchMode && <>
             <ModalBackCloseGuard onClose={() => setDateSearchOpen(false)} />
             {/* 메인메뉴와 동일한 원인(화면 전체를 덮는 배경 + onClick 방식은, 배경이 사라진 직후
                 브라우저가 뒤늦게 쏘는 합성 클릭이 그 아래(할일/메모/일정 항목)까지 뚫고 들어가
                 수정창을 열어버리는 탭스루 문제가 있었음)이라 같은 방식으로 고침: 화면 전체를 덮는
                 배경은 없애고, 본문 영역(main) 쪽 배경만 아래에 별도로 둠(구조적으로 항상 본문
-                항목보다 위에 있어 탭스루 자체가 발생하지 않음). 헤더 안(검색창 등)은 이 팝오버
-                바깥을 눌러도 자동으로 안 닫히지만, 메인메뉴와 동일하게 그 정도는 허용함. */}
-            <div ref={dateSearchPopoverRef} className="absolute right-0 top-full mt-1.5 z-[80] w-[min(34rem,calc(100vw-1rem))] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-2">
+                항목보다 위에 있어 탭스루 자체가 발생하지 않음). 이 배경은 헤더(z-40)보다 아래(z-[35])에 있어야
+                헤더 밖으로 튀어나온 이 팝오버가 가려져 눌리지 않는 일이 없음. */}
+            <div ref={dateSearchPopoverRef} className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 z-[80] w-[min(19rem,calc(100vw-1.5rem))] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-2">
               <div className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">날짜(기간)로 전체 기록 보기</div>
               <div className="flex items-center gap-2">
                 <label className="text-sm font-bold text-slate-500 dark:text-slate-400 w-9 shrink-0">시작</label>
-                <input type="date" value={searchDate} onChange={(e) => setSearchDate(e.target.value)} className="flex-1 min-w-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-2 text-sm outline-none" />
+                <input type="date" value={searchDate} onChange={(e) => setSearchDate(e.target.value)} className="flex-1 min-w-0 min-h-[2.5rem] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-2 text-sm outline-none [color-scheme:light] dark:[color-scheme:dark]" />
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 w-8 shrink-0">종료</label>
+                <label className="text-sm font-bold text-slate-500 dark:text-slate-400 w-9 shrink-0">종료</label>
                 {/* 종료일은 선택 사항 — 비워두면 시작일 하루만 검색(기존과 동일) */}
-                <input type="date" value={searchDateEnd} min={searchDate || undefined} onChange={(e) => setSearchDateEnd(e.target.value)} className="flex-1 min-w-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs outline-none" />
+                <input type="date" value={searchDateEnd} min={searchDate || undefined} onChange={(e) => setSearchDateEnd(e.target.value)} className="flex-1 min-w-0 min-h-[2.5rem] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-2 text-sm outline-none [color-scheme:light] dark:[color-scheme:dark]" />
               </div>
               <div className="flex items-center justify-between pt-1">
-                <button type="button" onClick={() => { setSearchDate(''); setSearchDateEnd(''); }} className="text-[11px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">초기화</button>
-                <button type="button" disabled={!searchDate} onClick={() => { setSearch(''); setDateSearchOpen(false); }} className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed">검색</button>
+                <button type="button" onClick={() => { setSearchDate(''); setSearchDateEnd(''); }} className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">초기화</button>
+                <button type="button" disabled={!searchDate} onClick={() => { setSearch(''); setDateSearchOpen(false); }} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed">검색</button>
               </div>
             </div>
           </>}
-          {(search.trim() || searchDate) && (
-            <GlobalSearch
-              query={search}
-              date={parseDateInput(searchDate)}
-              dateEnd={parseDateInput(searchDateEnd) || parseDateInput(searchDate)}
-              pushDownBy={dateSearchOpen ? dateSearchPopoverHeight + 6 : 0}
-              events={events}
-              todos={todos}
-              notes={activeNotes}
-              folders={noteFolders}
-              onClose={() => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); }}
-              onEvent={(e: any) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingEvent(e); }}
-              onTodo={(t: any) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingTodo(t); }}
-              onNote={(n: any, matchType?: string, lineIndex?: number, charOffset?: number) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingNote(n); setEditingNoteFocus({ focus: matchType === 'content' ? 'content' : 'title', lineIndex, charOffset }); }}
-              onRefresh={refreshData}
-              onNotify={notify}
-            />
-          )}
         </div>
+        {/* 검색결과창은 검색창(좁음)이 아니라 헤더 줄 전체를 기준으로 가운데에 붙인다 — 폭이 화면보다 좁게 제한되므로
+            어떤 화면 폭에서도 좌우로 화면을 벗어나지 않고, 예전처럼 위치를 자바스크립트로 계산할 필요가 없다. */}
+        {!secureSearchMode && (search.trim() || searchDate) && (
+          <GlobalSearch
+            query={search}
+            date={searchDateObj}
+            dateEnd={searchDateEndObj || searchDateObj}
+            pushDownBy={dateSearchOpen ? dateSearchPopoverHeight + 6 : 0}
+            events={events}
+            todos={todos}
+            notes={activeNotes}
+            folders={noteFolders}
+            onClose={() => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); }}
+            onEvent={(e: any) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingEvent(e); }}
+            onTodo={(t: any) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingTodo(t); }}
+            onNote={(n: any, matchType?: string, lineIndex?: number, charOffset?: number) => { setSearch(''); setSearchDate(''); setSearchDateEnd(''); setEditingNote(n); setEditingNoteFocus({ focus: matchType === 'content' ? 'content' : 'title', lineIndex, charOffset }); }}
+            onRefresh={refreshData}
+            onNotify={notify}
+          />
+        )}
       </div>
     </header>
     {menuOpen && <>
@@ -570,8 +591,8 @@ export default function Home() {
           한 번 더 쏘는 합성 클릭이 그 배경이 사라진 뒤 아래 항목까지 뚫고 들어가는 경우가 있었음).
           헤더(햄버거 버튼·검색·탭바)는 이 배경 범위 밖이라 평소처럼 그대로 눌림 — 탭을 누르면
           go()가 알아서 메뉴도 닫아주므로 "탭은 눌러서 이동" 요구사항도 자연히 충족됨. */}
-      {(menuOpen || dateSearchOpen) && <div className="absolute inset-0 z-[45]" onClick={() => { setMenuOpen(false); setDateSearchOpen(false); }} />}
-      {view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} noteFolders={noteFolders} user={viewUser} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'content', lineIndex, charOffset }); }} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={viewUser} onRefresh={refreshData} onNotify={notify} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} swipeMode={calSwipeMode} /> : view === 'list' ? <EventListView events={events} user={viewUser} onRefresh={refreshData} onNotify={notify} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={viewUser} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onSwipeHint={showSwipeModeHint} onAddEvent={addEventLocal} onReconcileEvent={reconcileEventLocal} onRemoveEvent={removeEventLocal} /> : <NotesView notes={notes} folders={noteFolders} user={viewUser} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex, charOffset }); }} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onSwipeHint={showSwipeModeHint} />}
+      {(menuOpen || dateSearchOpen) && <div className="absolute inset-0 z-[35]" onClick={() => { setMenuOpen(false); setDateSearchOpen(false); }} />}
+      {view === 'today' ? <HomeView events={events} todos={todos} notes={todayNotes} todoFolders={todoFolders} noteFolders={noteFolders} user={viewUser} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'content', lineIndex, charOffset }); }} /> : view === 'calendar' ? <Calendar key="calendar-view" events={events} user={viewUser} onRefresh={refreshData} onNotify={notify} onAddEvent={addEventLocal} onPatchEvent={patchEventLocal} onRemoveEvent={removeEventLocal} onReconcileEvent={reconcileEventLocal} swipeMode={calSwipeMode} /> : view === 'todo' ? <TodoView todos={todos} folders={todoFolders} user={viewUser} onNotify={notify} onRefresh={refreshData} onPatchTodo={patchTodoLocal} onRemoveTodo={removeTodoLocal} onAddTodo={addTodoLocal} onReconcileTodo={reconcileTodoLocal} onSwipeHint={showSwipeModeHint} onAddEvent={addEventLocal} onReconcileEvent={reconcileEventLocal} onRemoveEvent={removeEventLocal} /> : <NotesView secureSearchQuery={secureSearchMode ? search : ''} onSecureSearchModeChange={handleSecureSearchMode} notes={notes} folders={noteFolders} user={viewUser} onNotify={notify} onRefresh={refreshData} onNewNote={() => setIsNewNoteOpen(true)} onEditNote={(n: any, focus?: 'title' | 'content', lineIndex?: number, charOffset?: number) => { setEditingNote(n); setEditingNoteFocus({ focus: focus || 'title', lineIndex, charOffset }); }} onPatchNote={patchNoteLocal} onAddNote={addNoteLocal} onReconcileNote={reconcileNoteLocal} onSwipeHint={showSwipeModeHint} />}
     </main>
     {isImportExportOpen && user && <ImportExportPanel user={user} events={events} todos={todos} notes={activeNotes} folders={noteFolders} todoFolders={todoFolders} onClose={() => closeMenuAnd(() => setIsImportExportOpen(false))} onRefresh={refreshData} onNotify={notify} />}
     {isEmailBackupOpen && user && <EmailBackupPanel user={user} onClose={() => closeMenuAnd(() => setIsEmailBackupOpen(false))} onNotify={notify} />}
