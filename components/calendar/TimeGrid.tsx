@@ -130,8 +130,8 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                   onClick={isWeekView ? () => onDayHeaderClick?.(day) : undefined}
                   className={`flex-1 min-w-0 text-center py-1.5 border-l border-slate-100 dark:border-slate-800/60 first:border-l-0 ${isWeekView ? 'cursor-pointer hover:bg-blue-500/5' : ''}`}
                 >
-                  <div className={`text-[10px] font-bold ${weekdayColorClass}`}>{format(day, 'EEE', { locale: ko })}</div>
-                  <div className={`mx-auto mt-0.5 w-7 h-7 rounded-full flex items-center justify-center text-sm font-black ${isToday ? 'bg-blue-600 text-white' : weekdayColorClass}`}>{format(day, 'd')}</div>
+                  <div className={`${isWeekView ? 'text-[15px] leading-tight' : 'text-[10px]'} font-bold ${weekdayColorClass}`}>{format(day, 'EEE', { locale: ko })}</div>
+                  <div className={`mx-auto mt-0.5 w-7 h-7 rounded-full flex items-center justify-center ${isWeekView ? 'text-base' : 'text-sm'} font-black ${isToday ? 'bg-blue-600 text-white' : weekdayColorClass}`}>{format(day, 'd')}</div>
                   {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate px-1 mt-0.5">{holidayName}</div>}
                 </div>
               );
@@ -143,7 +143,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
             <div className="flex border-b border-slate-100 dark:border-slate-800/60">
               <div style={{ minHeight: HOUR_HEIGHT }} className="w-9 shrink-0 text-[9px] text-slate-400 flex items-center justify-center">종일</div>
               {days.map((day: Date, i: number) => (
-                <div key={i} style={{ minHeight: HOUR_HEIGHT, ...colStyle }} className="flex-1 min-w-0 border-l border-slate-50 dark:border-slate-800/40 first:border-l-0 p-1 space-y-1">
+                <div key={i} style={{ minHeight: HOUR_HEIGHT, ...colStyle }} className={`flex-1 min-w-0 border-l border-slate-50 dark:border-slate-800/40 first:border-l-0 p-1 ${isWeekView ? 'space-y-0.5' : 'space-y-1'}`}>
                   {allDayEvents.filter((e: any) => eventOccursOnDay(e, day)).map((e: any, idx: number) => (
                     <div key={idx} onClick={(ev) => { ev.stopPropagation(); onEventClick?.(e); }} className={`px-1.5 py-0.5 rounded-full text-sm font-bold truncate flex items-center gap-1 cursor-pointer ${colorClasses(e)}`}>
                       {/* 일별보기에서만 반복/기간 표시 아이콘을 보여줌(월/주별보기는 자리가 좁아 생략) */}
@@ -197,7 +197,7 @@ export default function TimeGrid({ days, events, holidayMap, onSlotClick, onEven
                     const top = (start.getHours() * 60 + start.getMinutes()) / 60 * HOUR_HEIGHT;
                     const durationMin = Math.max((end.getTime() - start.getTime()) / 60000, 20);
                     // 배경색 박스 높이를 폰트보다 살짝만 크게 축소
-                    const height = Math.max((durationMin / 60) * HOUR_HEIGHT, 15);
+                    const height = Math.max((durationMin / 60) * HOUR_HEIGHT - (isWeekView ? 3 : 0), 15);
                     const pos = layout.get(e) || { widthPct: 100, leftPct: 0 };
                     const extraInfo = e.location || e.description || '';
                     const ExtraIcon = e.location ? MapPin : AlignLeft; // 장소면 MapPin, 메모(설명)면 AlignLeft — 오늘탭과 동일한 아이콘 규칙

@@ -52,7 +52,8 @@ function useFitAvailableHeight(active: boolean, ref: React.RefObject<HTMLElement
       if (!el) return;
       const top = Math.max(el.getBoundingClientRect().top, 0);
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
-      setHeight(Math.max(viewportHeight - top - 12, 0));
+      // 아래 여백: 본문(main)의 아래쪽 패딩(폰 10px / 넓은 화면 16px)보다 조금 더 남겨야 페이지 자체가 스크롤되지 않음
+      setHeight(Math.max(viewportHeight - top - 18, 0));
     };
     recompute();
     const lateTimer = setTimeout(recompute, 300);
@@ -255,21 +256,25 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
   // 주별보기 시간표도 동일한 방식으로 화면 안에 경계가 보이도록 남은 높이를 실측(내부는 스크롤).
   const weekAvailableHeight = useFitAvailableHeight(view === 'week', weekGridWrapperRef, 0);
 
+  // 날짜 칸들이 쓸 수 있는 높이 = 화면 남은 높이 - 요일칸 줄(테두리 포함) - 바깥 테두리(위아래 2px).
+  // 예전에는 요일칸 줄 높이를 빼지 않아서 매번 그만큼(약 30px+) 화면 밖으로 넘쳐 페이지가 위로 스크롤됐음.
+  const monthDatesAreaHeight = monthAvailableHeight != null && monthHeaderRowH != null
+    ? Math.max(monthAvailableHeight - monthHeaderRowH - 2, 120)
+    : undefined;
+  // 각 주(週) 행 사이 테두리(border-b 1px × (주 수-1))도 같이 뺌
   const monthCellHeight = Math.max(
-    monthAvailableHeight != null ? Math.floor(monthAvailableHeight / numWeeks) : MONTH_CELL_FALLBACK_HEIGHT,
+    monthDatesAreaHeight != null ? Math.floor((monthDatesAreaHeight - (numWeeks - 1)) / numWeeks) : MONTH_CELL_FALLBACK_HEIGHT,
     MONTH_CELL_MIN_HEIGHT
   );
   // 칸 크기에 따라 일정을 얼마나 보여줄지 단계적으로 조절: 넉넉하면 제목 텍스트 2줄, 좁으면 1줄,
   // 아주 좁으면 제목 없이 색깔 점(dot)만 — 화면 안에 다 들어오게 하면서도 정보는 최대한 보여줌
-  const monthEventMode: 'chips2' | 'chips1' | 'dots' = monthCellHeight >= 100 ? 'chips2' : monthCellHeight >= 70 ? 'chips1' : 'dots';
+  const monthEventMode: 'chips2' | 'chips1' | 'dots' = monthCellHeight >= 104 ? 'chips2' : monthCellHeight >= 72 ? 'chips1' : 'dots';
   const monthCellMaxChips = monthEventMode === 'chips2' ? 2 : monthEventMode === 'chips1' ? 1 : 0;
-  const showLunarLabel = monthCellHeight >= 78;
+  const showLunarLabel = monthCellHeight >= 80;
   // 펼쳐서(monthExpanded) 화면보다 커질 때, 요일칸 줄+툴바는 그대로 두고 날짜 칸들만 그 안에서
   // 스크롤되도록(주별보기와 동일한 방식) 스크롤 영역의 높이를 계산 — 전체 사용가능 높이에서
   // 요일칸 줄 높이만큼 뺌.
-  const weeksMaxHeight = monthExpanded && monthAvailableHeight != null && monthHeaderRowH != null
-    ? Math.max(monthAvailableHeight - monthHeaderRowH, 120)
-    : undefined;
+  const weeksMaxHeight = monthDatesAreaHeight;
   const weekOfMonth = Math.ceil((currentDate.getDate() + startOfMonth(currentDate).getDay()) / 7);
   const holidayYears = Array.from(new Set(days.map((d) => d.getFullYear())));
   const [governmentHolidayMap, setGovernmentHolidayMap] = useState<Record<string, string>>({});
@@ -360,7 +365,7 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
           const dateColorClass = isToday ? '' : holidayName || dow === 0 ? 'text-rose-500 dark:text-rose-400' : dow === 6 ? 'text-blue-500 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400';
           return <div key={i} onClick={() => openNewEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0))} style={monthExpanded ? { minHeight: monthCellHeight } : { height: monthCellHeight }} className={`p-1.5 border-r border-slate-100 dark:border-slate-800/60 last:border-r-0 transition-all cursor-pointer hover:bg-blue-500/5 ${monthExpanded ? '' : 'overflow-hidden'} ${!isSameMonth(day, monthStart) ? 'opacity-40 dark:opacity-10' : ''} ${isToday ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
             <div className="flex items-center justify-center gap-1 mb-1">
-              <div onClick={(e) => { e.stopPropagation(); handleDayClick(day); }} className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center' : dateColorClass}`}>{format(day, 'd')}</div>
+              <div onClick={(e) => { e.stopPropagation(); handleDayClick(day); }} className={`text-base leading-7 font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 rounded-full flex items-center justify-center leading-none' : dateColorClass}`}>{format(day, 'd')}</div>
               {lunarLabel && <div className="text-[9px] text-slate-400 dark:text-slate-600 leading-tight">{lunarLabel}</div>}
             </div>
             {holidayName && <div className="text-[9px] text-rose-500 dark:text-rose-400 font-bold truncate leading-tight text-center mb-1">{holidayName}</div>}
@@ -377,10 +382,10 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
             ) : (
               <>
                 {/* 월별보기에서는 칸이 좁아 추가정보(장소 등)는 보여주지 않고 제목만 표시 */}
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   {visibleEvents.map((event: any, idx: number) => {
                     const isRecurring = getRecurrenceType(event) !== 'none';
-                    return <div key={idx} onClick={(e) => { e.stopPropagation(); openEditEvent(event); }} className={`py-1 px-2 rounded-full text-xs font-bold border-l-4 truncate flex items-center gap-1.5 min-w-0 ${isRecurring ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-400 dark:text-violet-100' : event.color === 'green' ? 'bg-emerald-50 border-emerald-600 text-emerald-900 dark:bg-emerald-500/20 dark:border-emerald-500 dark:text-emerald-100' : event.color === 'rose' ? 'bg-rose-50 border-rose-600 text-rose-900 dark:bg-rose-500/20 dark:border-rose-500 dark:text-rose-100' : event.color === 'amber' ? 'bg-amber-50 border-amber-600 text-amber-900 dark:bg-amber-500/20 dark:border-amber-500 dark:text-amber-100' : event.color === 'violet' ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-500 dark:text-violet-100' : 'bg-blue-50 border-blue-600 text-blue-900 dark:bg-blue-500/20 dark:border-blue-500 dark:text-blue-100'}`}><span className="truncate">{event.title}</span></div>;
+                    return <div key={idx} onClick={(e) => { e.stopPropagation(); openEditEvent(event); }} className={`py-[3px] px-2 rounded-full text-xs font-bold border-l-4 truncate flex items-center gap-1.5 min-w-0 ${isRecurring ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-400 dark:text-violet-100' : event.color === 'green' ? 'bg-emerald-50 border-emerald-600 text-emerald-900 dark:bg-emerald-500/20 dark:border-emerald-500 dark:text-emerald-100' : event.color === 'rose' ? 'bg-rose-50 border-rose-600 text-rose-900 dark:bg-rose-500/20 dark:border-rose-500 dark:text-rose-100' : event.color === 'amber' ? 'bg-amber-50 border-amber-600 text-amber-900 dark:bg-amber-500/20 dark:border-amber-500 dark:text-amber-100' : event.color === 'violet' ? 'bg-violet-100 border-violet-600 text-violet-900 dark:bg-violet-500/20 dark:border-violet-500 dark:text-violet-100' : 'bg-blue-50 border-blue-600 text-blue-900 dark:bg-blue-500/20 dark:border-blue-500 dark:text-blue-100'}`}><span className="truncate">{event.title}</span></div>;
                   })}
                   {hiddenCount > 0 && <div onClick={(e) => { e.stopPropagation(); setDayViewDate(day); }} className="text-[10px] font-bold text-slate-500 dark:text-slate-400 pl-1.5 hover:text-blue-500 dark:hover:text-blue-400">+{hiddenCount}개 더</div>}
                 </div>
@@ -521,14 +526,15 @@ export default function Calendar({ initialView = 'month', events, user, onNotify
         {/* touch-pan-x만 걸려있으면(이전 방식) 이 영역 안에서 시작한 세로 스와이프가 페이지 스크롤로
             이어지지 못해 "월별보기에서 위아래 스크롤이 안 되는" 문제가 있었음 — x/y 모두 허용. */}
         <div ref={monthGridWrapperRef} className={`rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm bg-white/70 dark:bg-slate-900/20 overflow-hidden ${wideView ? 'min-w-[640px]' : ''}`}>
-            <div ref={monthHeaderRowRef} className="grid grid-cols-7 text-center text-xs font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800/60 py-1.5">{['일', '월', '화', '수', '목', '금', '토'].map((d, i) => <div key={d} className={i === 0 ? 'text-rose-500 dark:text-rose-400' : i === 6 ? 'text-blue-500 dark:text-blue-400' : ''}>{d}</div>)}</div>
+            <div ref={monthHeaderRowRef} className="grid grid-cols-7 text-center text-[15px] font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800/60 py-1.5">{['일', '월', '화', '수', '목', '금', '토'].map((d, i) => <div key={d} className={i === 0 ? 'text-rose-500 dark:text-rose-400' : i === 6 ? 'text-blue-500 dark:text-blue-400' : ''}>{d}</div>)}</div>
             {/* 펼쳐서(monthExpanded) 화면보다 커지면, 주별보기처럼 위 요일칸 줄+툴바는 그대로 두고
                 날짜 칸들만 이 안에서 스크롤되게 함(원래는 화면에 맞춰 고정 높이라 이 래퍼가 필요 없었음) */}
-            {monthExpanded ? (
-              <div data-vscroll className="overflow-y-auto touch-pan-x touch-pan-y" style={{ maxHeight: weeksMaxHeight }}>
-                {weekRows}
-              </div>
-            ) : weekRows}
+            {/* 화면에 딱 맞게 계산되어 평소엔 스크롤이 생기지 않고, 펼치기/아주 작은 화면처럼 넘칠 때만
+                이 안에서 스크롤됨 — 그래서 위의 툴바와 요일칸 줄은 항상 고정(주별보기와 동일).
+                스크롤할 게 없으면 스와이프 판정(isVerticalScrollAtEdge)은 항상 "끝"으로 보므로 기존 동작 그대로. */}
+            <div data-vscroll className="overflow-y-auto overscroll-contain touch-pan-x touch-pan-y" style={{ maxHeight: weeksMaxHeight }}>
+              {weekRows}
+            </div>
           </div>
         </div>
       )}
