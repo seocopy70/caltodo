@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { api } from '../../lib/api-client';
+import { api, newClientId } from '../../lib/api-client';
 import { autoPriorityForDueDate } from '../../lib/todoAutoColor';
 import { useModalBackClose, ModalBackCloseGuard } from '../../lib/useModalBackClose';
 import { useRecentInputs } from '../../lib/useRecentInputs';
@@ -98,7 +98,8 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
       }
 
       onClose();
-      api.todos.create({ title: t, completed: false, dueDate: d ? new Date(d).toISOString() : null, memo: m, priority: p, folderId: f, skipLink })
+      // 서버가 같은 id는 한 번만 저장하므로(연동 일정도 한 번만), 저장 직후 앱이 꺼져도 다음에 안전하게 다시 보낼 수 있음
+      api.todos.create({ title: t, completed: false, dueDate: d ? new Date(d).toISOString() : null, memo: m, priority: p, folderId: f, skipLink, id: newClientId(), idempotent: true, tempIds: tempEventId ? [tempId, tempEventId] : [tempId] })
         .then((res: any) => {
           if (res?.id) onReconcileLocal?.(tempId, res.id);
           if (tempEventId && res?.linkedEventId) onReconcileEvent?.(tempEventId, res.linkedEventId);

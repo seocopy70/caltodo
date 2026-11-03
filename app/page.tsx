@@ -281,9 +281,12 @@ export default function Home() {
   // 서버의 실제 항목과 중복으로 남지 않는다.
   useEffect(() => {
     const handleSyncComplete = () => {
-      setEvents((prev) => prev.filter((x) => !String(x.id).startsWith('temp-')));
-      setTodos((prev) => prev.filter((x) => !String(x.id).startsWith('temp-')));
-      setNotes((prev) => prev.filter((x) => !String(x.id).startsWith('temp-')));
+      // 아직 서버에 확정되지 않은(전송 중/대기 중) 새 항목의 임시 항목은 남기고, 서버에 반영이 끝난 것만 정리한다.
+      const stillPending = getUnconfirmedWrites(0).pendingTempIds;
+      const dropSynced = (x: any) => !String(x.id).startsWith('temp-') || stillPending.has(x.id);
+      setEvents((prev) => prev.filter(dropSynced));
+      setTodos((prev) => prev.filter(dropSynced));
+      setNotes((prev) => prev.filter(dropSynced));
       window.setTimeout(() => { void refreshData(); }, 0);
     };
     window.addEventListener('cal2do-offline-sync-complete', handleSyncComplete);

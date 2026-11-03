@@ -1,6 +1,8 @@
 import { auth } from './firebase';
 import { withTimeout } from './withTimeout';
 
+export { newClientId } from './client-id';
+
 type QueuedMutation = {
   id: string;
   path: string;
@@ -19,6 +21,15 @@ const pathChains = new Map<string, Promise<unknown>>();
 // 서버가 최근에 확정해준 쓰기 기록 — 재조회가 그 쓰기와 겹쳐 낡은 값을 가져왔는지 판단하는 데 씀
 const recentlySettled: { path: string; method: string; at: number }[] = [];
 const SETTLED_KEEP_MS = 5 * 60 * 1000;
+
+// 새 항목의 임시 id(temp-…) → 서버에 저장될 진짜 id. 새 항목 생성 요청을 만들 때 등록한다.
+const tempToReal = new Map<string, string>();
+// 아직 서버 확정 전인 "새 항목 생성" 요청의 결과(진짜 id → 결과). 그 항목의 수정/삭제는 이게 끝난 뒤에 보낸다.
+const createOutcomes = new Map<string, Promise<SendOutcome>>();
+
+const TEMP_PATH = /^(\/api\/(?:notes|todos|events)\/)(temp-[^/?#]+)(.*)$/;
+const ITEM_PATH = /^\/api\/(?:notes|todos|events)\/([^/?#]+)/;
+const realIdFromPath = (path: string): string | null => ITEM_PATH.exec(path)?.[1] ?? null;
 
 const queueKey = (uid: string) => QUEUE_PREFIX + uid;
 
@@ -62,14 +73,60 @@ function noteSettled(path: string, method: string) {
  * `since`(그 재조회를 시작한 시각) 이후에 서버 반영이 끝났거나, 아직 서버 반영이 끝나지 않은(전송 중/대기 중) 쓰기의 path를 돌려준다.
  * 이런 항목은 재조회 응답이 쓰기보다 "먼저 읽은" 낡은 값일 수 있어서, 화면의 최신 값을 서버 값으로 덮어쓰면 안 된다.
  */
-export function getUnconfirmedWrites(since: number): { put: Set<string>; del: Set<string> } {
+export function getUnconfirmedWrites(since: number): { put: Set<string>; del: Set<string>; pendingTempIds: Set<string> } {
   const put = new Set<string>();
   const del = new Set<string>();
+  // 아직 서버에 확정되지 않은 "새 항목 만들기" 요청이 화면에 임시로 띄워둔 항목들의 임시 id(요청 본문의 tempIds)
+  const pendingTempIds = new Set<string>();
   const add = (path: string, method: string) => { (method.toUpperCase() === 'DELETE' ? del : put).add(path); };
   const uid = auth.currentUser?.uid;
-  if (uid) for (const q of readQueue(uid)) add(q.path, q.method);
+  if (uid) {
+    for (const q of readQueue(uid)) {
+      add(q.path, q.method);
+      if (q.method === 'POST' && q.body) {
+        try { const t = JSON.parse(q.body)?.tempIds; if (Array.isArray(t)) t.forEach((x: unknown) => { if (typeof x === 'string') pendingTempIds.add(x); }); } catch { /* 무시 */ }
+      }
+    }
+  }
   for (const s of recentlySettled) if (s.at >= since) add(s.path, s.method);
-  return { put, del };
+  return { put, del, pendingTempIds };
+}
+
+/** 앱이 미리 정한 id로 "한 번만" 저장하도록 보낸 생성 요청인지(재전송해도 중복이 안 생기므로 수정처럼 안전하게 재시도 가능) */
+function isIdempotentCreate(method: string, body: string | null) {
+  if (method !== 'POST' || !body) return false;
+  try { const b = JSON.parse(body); return b?.idempotent === true && typeof b?.id === 'string'; } catch { return false; }
+}
+
+/** 큐에 남아 있는(아직 서버에 확정되지 않은) "새 항목 생성" 요청의 본문에서 진짜 id를 꺼낸다. */
+function createdIdOf(m: { method: string; body: string | null }): string | null {
+  if (m.method !== 'POST' || !m.body) return null;
+  try { const b = JSON.parse(m.body); return b?.idempotent === true && typeof b?.id === 'string' ? b.id : null; } catch { return null; }
+}
+
+function hasPendingCreate(uid: string, id: string): boolean {
+  return readQueue(uid).some((q) => createdIdOf(q) === id);
+}
+
+/**
+ * 아직 서버 확정 전인 새 항목(temp-…)의 수정/삭제는 서버가 아는 "진짜 id" 경로로 바꿔 보낸다(서버엔 임시 id가 없어 404가 나기 때문).
+ * 같은 실행 중이면 메모리에서, 앱을 껐다 켠 뒤면 기기에 남은 생성 요청의 tempIds에서 찾는다.
+ * 진짜 id를 알 수 없는 임시 id(예: 할 일과 함께 만들어지는 연동 일정)는 그대로 둔다.
+ */
+function resolveTempPath(uid: string, path: string): string {
+  const m = TEMP_PATH.exec(path);
+  if (!m) return path;
+  let real = tempToReal.get(m[2]);
+  if (!real) {
+    for (const q of readQueue(uid)) {
+      if (q.method !== 'POST' || !q.body) continue;
+      try {
+        const b = JSON.parse(q.body);
+        if (Array.isArray(b?.tempIds) && b.tempIds[0] === m[2] && typeof b.id === 'string') { real = b.id; break; }
+      } catch { /* 무시 */ }
+    }
+  }
+  return real ? `${m[1]}${real}${m[3]}` : path;
 }
 
 function isQueueableMutation(path: string, method: string) {
@@ -172,11 +229,17 @@ async function syncPendingMutations() {
   let changed = false;
   const doneIds = new Set<string>();
   const blockedPaths = new Set<string>();
+  // 생성이 아직 서버에 못 간 항목 id — 그 항목의 수정/삭제를 먼저 보내면 404로 버려지므로 함께 보류한다
+  const blockedItemIds = new Set<string>();
   try {
     for (const mutation of snapshot) {
       if (inflightIds.has(mutation.id)) continue;
       // 앞선 같은 항목의 쓰기가 아직 못 나갔다면, 순서를 지키기 위해 이 항목도 건너뜀
       if (blockedPaths.has(mutation.path)) continue;
+      if (mutation.method !== 'POST') {
+        const itemId = realIdFromPath(mutation.path);
+        if (itemId && blockedItemIds.has(itemId)) continue;
+      }
 
       inflightIds.add(mutation.id);
       let result: SendOutcome;
@@ -199,6 +262,8 @@ async function syncPendingMutations() {
       } else {
         // 서버 일시 오류(5xx 등): 이 항목은 남겨두되, 다른 항목까지 막지는 않음(같은 항목의 뒤 쓰기만 순서상 보류)
         blockedPaths.add(mutation.path);
+        const createdId = createdIdOf(mutation);
+        if (createdId) blockedItemIds.add(createdId);
       }
 
       if (!navigator.onLine) break;
@@ -243,33 +308,71 @@ async function request(path: string, options: RequestInit = {}) {
   const body = typeof options.body === 'string' ? options.body : null;
   const user = auth.currentUser;
 
-  // 수정/삭제(PUT·PATCH·DELETE)는 "먼저 기기에 기록(outbox) → 서버 전송 → 확정되면 기록 삭제" 순서로 처리한다.
+  // 수정/삭제(PUT·PATCH·DELETE)와, 미리 정한 id로 보내는 새 항목 생성(idempotent POST)은
+  // "먼저 기기에 기록(outbox) → 서버 전송 → 확정되면 기록 삭제" 순서로 처리한다.
   // 저장 직후 앱이 꺼지거나 백그라운드로 가거나, 네트워크가 끊기거나 시간초과가 나도 기록은 남아 있어서
-  // 다음 실행/복귀/온라인 복귀 때 자동으로 다시 서버에 반영된다(전체 덮어쓰기라 재전송해도 안전).
-  if (user && isQueueableMutation(path, method) && method !== 'POST' && typeof window !== 'undefined') {
+  // 다음 실행/복귀/온라인 복귀 때 자동으로 다시 서버에 반영된다(전체 덮어쓰기/같은 id는 한 번만 저장이라 재전송해도 안전).
+  if (user && isQueueableMutation(path, method) && (method !== 'POST' || isIdempotentCreate(method, body)) && typeof window !== 'undefined') {
     const uid = user.uid;
+    // 아직 서버 확정 전인 새 항목(temp-…)의 수정/삭제는 서버가 아는 진짜 id 경로로 바꿔 보낸다.
+    if (method !== 'POST') path = resolveTempPath(uid, path);
     const qid = enqueueMutation(uid, path, method, body);
     if (!navigator.onLine) return { queued: true };
 
+    // 전송 순서를 기다리는 동안에도 "전송 중"으로 표시해, 백그라운드 동기화가 이 항목을 먼저 보내버리지 않게 한다.
     inflightIds.add(qid);
-    let result: SendOutcome;
-    try { result = await runSerialized(path, () => sendMutation({ id: qid, path, method, body, queuedAt: Date.now() })); }
-    finally { inflightIds.delete(qid); }
+    let createdId: string | null = null;
+    try {
+      if (method === 'POST') {
+        const b = JSON.parse(body as string);
+        createdId = b.id;
+        const tempSelf = Array.isArray(b.tempIds) ? b.tempIds[0] : null;
+        if (typeof tempSelf === 'string' && tempSelf.startsWith('temp-')) tempToReal.set(tempSelf, b.id);
+      } else {
+        // 이 항목의 "새로 만들기"가 아직 서버에 확정되지 않았다면, 그게 끝난 뒤에 수정/삭제를 보낸다.
+        const targetId = realIdFromPath(path);
+        if (targetId) {
+          const pendingCreate = createOutcomes.get(targetId);
+          if (pendingCreate) {
+            const created = await pendingCreate;
+            if (created.outcome === 'rejected') {
+              removeFromQueue(uid, [qid]);
+              const err: any = new Error('새 항목이 저장되지 않아 수정할 수 없습니다.');
+              err.status = created.status;
+              throw err;
+            }
+            if (created.outcome === 'retry') return { queued: true }; // 생성이 아직 대기 중 — 기록은 큐에 남고, 동기화가 생성 → 수정 순서로 보냄
+          } else if (hasPendingCreate(uid, targetId)) {
+            // 앱을 껐다 켠 뒤라 생성 요청이 아직 큐에 남아 있음 — 동기화가 큐 순서(생성 → 수정)대로 보낸다.
+            inflightIds.delete(qid);
+            void syncPendingMutations();
+            return { queued: true };
+          }
+        }
+      }
 
-    if (result.outcome === 'ok') {
-      removeFromQueue(uid, [qid]);
-      noteSettled(path, method);
-      void syncPendingMutations();
-      return result.data;
+      const sending = runSerialized(path, () => sendMutation({ id: qid, path, method, body, queuedAt: Date.now() }));
+      if (createdId) createOutcomes.set(createdId, sending.catch((): SendOutcome => ({ outcome: 'retry' })));
+      const result: SendOutcome = await sending;
+
+      if (result.outcome === 'ok') {
+        removeFromQueue(uid, [qid]);
+        noteSettled(path, method);
+        void syncPendingMutations();
+        return result.data;
+      }
+      if (result.outcome === 'rejected') {
+        removeFromQueue(uid, [qid]);
+        const err: any = new Error(result.message);
+        err.status = result.status;
+        throw err;
+      }
+      // 아직 서버에 확정되지 않음 — 기록은 남겨두고 자동 재시도. 호출부는 queued 여부로 안내 문구를 구분한다.
+      return { queued: true };
+    } finally {
+      inflightIds.delete(qid);
+      if (createdId) createOutcomes.delete(createdId);
     }
-    if (result.outcome === 'rejected') {
-      removeFromQueue(uid, [qid]);
-      const err: any = new Error(result.message);
-      err.status = result.status;
-      throw err;
-    }
-    // 아직 서버에 확정되지 않음 — 기록은 남겨두고 자동 재시도. 호출부는 queued 여부로 안내 문구를 구분한다.
-    return { queued: true };
   }
 
   // 오프라인 쓰기(생성 등)는 인증 토큰 갱신조차 시도하지 않고 즉시 로컬 큐에 넣는다.
