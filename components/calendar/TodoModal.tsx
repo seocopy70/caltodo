@@ -102,7 +102,7 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
         .then((res: any) => {
           if (res?.id) onReconcileLocal?.(tempId, res.id);
           if (tempEventId && res?.linkedEventId) onReconcileEvent?.(tempEventId, res.linkedEventId);
-          notifyFn('할 일이 추가되었습니다.');
+          notifyFn(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '할 일이 추가되었습니다.');
         })
         .catch((err: any) => {
           console.error(err);
@@ -128,7 +128,7 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
       bumpToTop: priorityChanged && !!p,
       skipLink,
     })
-      .then(() => notifyFn('할 일이 수정되었습니다.'))
+      .then((res: any) => notifyFn(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '할 일이 수정되었습니다.'))
       .catch((err: any) => {
         console.error(err);
         notifyFn(`수정 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
@@ -143,7 +143,7 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
     onClose();
 
     api.todos.remove(id)
-      .then(() => notifyFn('할 일이 삭제되었습니다.'))
+      .then((res: any) => notifyFn(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '할 일이 삭제되었습니다.'))
       .catch((err: any) => {
         console.error(err);
         notifyFn(`삭제 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
