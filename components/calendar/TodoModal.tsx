@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { api } from '../../lib/api-client';
+import { api, newClientId } from '../../lib/api-client';
 import { autoPriorityForDueDate } from '../../lib/todoAutoColor';
 import { useModalBackClose, ModalBackCloseGuard } from '../../lib/useModalBackClose';
 import { useRecentInputs } from '../../lib/useRecentInputs';
@@ -98,11 +98,12 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
       }
 
       onClose();
-      api.todos.create({ title: t, completed: false, dueDate: d ? new Date(d).toISOString() : null, memo: m, priority: p, folderId: f, skipLink })
+      // 서버가 같은 id는 한 번만 저장하므로(연동 일정도 한 번만), 저장 직후 앱이 꺼져도 다음에 안전하게 다시 보낼 수 있음
+      api.todos.create({ title: t, completed: false, dueDate: d ? new Date(d).toISOString() : null, memo: m, priority: p, folderId: f, skipLink, id: newClientId(), idempotent: true, tempIds: tempEventId ? [tempId, tempEventId] : [tempId] })
         .then((res: any) => {
           if (res?.id) onReconcileLocal?.(tempId, res.id);
           if (tempEventId && res?.linkedEventId) onReconcileEvent?.(tempEventId, res.linkedEventId);
-          notifyFn('할 일이 추가되었습니다.');
+          notifyFn(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '할 일이 추가되었습니다.');
         })
         .catch((err: any) => {
           console.error(err);
@@ -128,7 +129,7 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
       bumpToTop: priorityChanged && !!p,
       skipLink,
     })
-      .then(() => notifyFn('할 일이 수정되었습니다.'))
+      .then((res: any) => notifyFn(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '할 일이 수정되었습니다.'))
       .catch((err: any) => {
         console.error(err);
         notifyFn(`수정 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');
@@ -143,7 +144,7 @@ export default function TodoModal({ todo, folders = [], defaultFolderId = null, 
     onClose();
 
     api.todos.remove(id)
-      .then(() => notifyFn('할 일이 삭제되었습니다.'))
+      .then((res: any) => notifyFn(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '할 일이 삭제되었습니다.'))
       .catch((err: any) => {
         console.error(err);
         notifyFn(`삭제 실패: ${err.isTimeout ? err.message : (err.message || err)}`, 'error');

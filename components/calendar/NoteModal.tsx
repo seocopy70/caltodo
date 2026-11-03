@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../../lib/api-client';
+import { api, newClientId } from '../../lib/api-client';
 import { X, Trash2, ListChecks, ListOrdered, AlignLeft, Plus, Star } from 'lucide-react';
 import { convertContentForFormat } from './NoteContent';
 import { useModalBackClose } from '../../lib/useModalBackClose';
@@ -145,7 +145,7 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
       onPatchLocal?.(targetId, { ...noteData, updatedAt: new Date() });
       onClose();
       api.notes.update(targetId, noteData)
-        .then(() => notify('메모가 수정되었습니다.'))
+        .then((res: any) => notify(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '메모가 수정되었습니다.'))
         .catch((err: any) => { console.error(err); notify(`저장 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
     } else {
       // 새로 만들기: 임시 id로 바로 화면에 나타나게 하고, 서버가 진짜 id를 주면 그걸로 바꿔치기
@@ -153,8 +153,9 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
       const now = new Date();
       onAddLocal?.({ id: tempId, ...noteData, createdAt: now, updatedAt: now, deletedAt: null });
       onClose();
-      api.notes.create(noteData)
-        .then((res: any) => { if (res?.id) onReconcileLocal?.(tempId, res.id); notify('메모가 추가되었습니다.'); })
+      // 서버가 같은 id는 한 번만 저장하므로, 저장 직후 앱이 꺼져 응답을 못 받아도 다음에 안전하게 다시 보낼 수 있음
+      api.notes.create({ ...noteData, id: newClientId(), idempotent: true, tempIds: [tempId] })
+        .then((res: any) => { if (res?.id) onReconcileLocal?.(tempId, res.id); notify(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '메모가 추가되었습니다.'); })
         .catch((err: any) => { console.error(err); notify(`저장 실패: ${err.message || err}`, 'error'); onRollbackLocal?.(tempId); onRefresh?.(); });
     }
   };
@@ -164,7 +165,7 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
     const targetId = note.id;
     onPatchLocal?.(targetId, { deletedAt: new Date() });
     onClose();
-    api.notes.remove(targetId).then(() => notify('메모를 보관함으로 옮겼습니다.'))
+    api.notes.remove(targetId).then((res: any) => notify(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '메모를 보관함으로 옮겼습니다.'))
       .catch((err: any) => { notify(`삭제 실패: ${err.message || err}`, 'error'); onRefresh?.(); });
   };
 

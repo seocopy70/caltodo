@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { turso } from '../../../lib/turso';
 import { verifyRequestUser } from '../../../lib/auth-server';
 import { randomUUID } from 'crypto';
+import { isValidClientId } from '../../../lib/client-id';
 
 export async function GET(req: NextRequest) {
   const uid = await verifyRequestUser(req);
@@ -44,6 +45,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     // 백업 복원 시엔 원래 id를 그대로 유지 (재가져오기해도 중복되지 않도록)
     const id = body.id || randomUUID();
+    // 앱이 미리 정한 id로 "한 번만" 저장(notes와 동일)
+    const idempotent = body.idempotent === true && isValidClientId(body.id);
+    if (body.idempotent === true && !idempotent) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
     const now = Date.now();
     const source = body.source || 'manual';
     const externalUid = body.externalUid || null;
@@ -58,8 +62,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await turso.execute({
-      sql: `INSERT OR REPLACE INTO events (id, user_id, title, start, end_time, end_date, location, description, color, recurrence_type, recurrence_count, is_lunar, lunar_month, lunar_day, is_anniversary, updated_at, source, external_uid, linked_todo_id)
+    const result = await turso.execute({
+      sql: `${idempotent ? 'INSERT OR IGNORE' : 'INSERT OR REPLACE'} INTO events (id, user_id, title, start, end_time, end_date, location, description, color, recurrence_type, recurrence_count, is_lunar, lunar_month, lunar_day, is_anniversary, updated_at, source, external_uid, linked_todo_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
@@ -83,6 +87,12 @@ export async function POST(req: NextRequest) {
         body.linkedTodoId || null,
       ],
     });
+
+    if (idempotent && result.rowsAffected === 0) {
+      const own = await turso.execute({ sql: 'SELECT user_id FROM events WHERE id = ?', args: [id] });
+      if (own.rows.length === 0 || own.rows[0].user_id !== uid) return NextResponse.json({ error: 'id conflict' }, { status: 409 });
+      return NextResponse.json({ id, skipped: false, duplicate: true });
+    }
 
     return NextResponse.json({ id, skipped: false });
   } catch (error: any) {

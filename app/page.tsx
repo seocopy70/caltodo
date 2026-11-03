@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { auth, googleProvider } from '../lib/firebase';
-import { api } from '../lib/api-client';
+import { api, getUnconfirmedWrites } from '../lib/api-client';
 import { autoPriorityForDueDate } from '../lib/todoAutoColor';
 import { signInWithPopup, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import Calendar from '../components/ui/calendar';
@@ -130,23 +130,37 @@ export default function Home() {
   // - requestStartedAt(이 재조회를 시작한 시각) 이후에 로컬에서 수정한 항목은, 이 응답이 그보다
   //   오래된 스냅샷일 수 있으니 서버값 대신 지금 화면의 값을 그대로 유지.
   // - requestStartedAt 이후에 로컬에서 삭제한 항목은, 이 응답에 아직 남아있어도 무시(포함 안 함).
+  // - (추가) 서버 반영이 아직 안 끝난(전송 중/대기 중) 쓰기이거나, 이 재조회가 진행되는 동안 서버 반영이 끝난 쓰기는
+  //   이 응답이 그 쓰기보다 "먼저 읽은" 낡은 값일 수 있으므로 서버값 대신 화면의 값을 유지(삭제는 계속 제외).
+  //   앱을 껐다 켠 뒤에도 못 보낸 저장이 기기에 남아 있으면 그 보호가 이어진다.
+  // - (추가) 방금 서버 저장이 끝나 진짜 id를 받은 새 항목(requestStartedAt 이후 확정)이 이 응답엔 아직 없을 수 있으므로 화면에서 지우지 않음.
   const mergeBootstrapList = <T extends { id: string },>(prev: T[], serverList: T[], typePrefix: string, requestStartedAt: number): T[] => {
+    const apiBase = typePrefix === 'event' ? '/api/events/' : typePrefix === 'todo' ? '/api/todos/' : '/api/notes/';
+    const unconfirmed = getUnconfirmedWrites(requestStartedAt);
     const pendingTemp = prev.filter((x) => typeof x.id === 'string' && x.id.startsWith('temp-'));
     const prevById = new Map(prev.map((x) => [x.id, x]));
+    const serverIds = new Set(serverList.map((x) => x.id));
     const merged = serverList
       .filter((x) => {
         const w = recentLocalWriteRef.current.get(`${typePrefix}:${x.id}`);
-        return !(w?.removed && w.at >= requestStartedAt);
+        if (w?.removed && w.at >= requestStartedAt) return false;
+        return !unconfirmed.del.has(apiBase + x.id);
       })
       .map((x) => {
         const w = recentLocalWriteRef.current.get(`${typePrefix}:${x.id}`);
-        if (w && !w.removed && w.at >= requestStartedAt) {
+        const keepLocal = (w && !w.removed && w.at >= requestStartedAt) || unconfirmed.put.has(apiBase + x.id);
+        if (keepLocal) {
           const local = prevById.get(x.id);
           if (local) return local;
         }
         return x;
       });
-    return [...pendingTemp, ...merged];
+    const createdSinceStart = prev.filter((x) => {
+      if (serverIds.has(x.id) || (typeof x.id === 'string' && x.id.startsWith('temp-'))) return false;
+      const w = recentLocalWriteRef.current.get(`${typePrefix}:${x.id}`);
+      return !!w && !w.removed && w.at >= requestStartedAt;
+    });
+    return [...pendingTemp, ...createdSinceStart, ...merged];
   };
 
   const applyBootstrapResult = useCallback((res: any, requestStartedAt: number = 0) => {
@@ -267,9 +281,12 @@ export default function Home() {
   // 서버의 실제 항목과 중복으로 남지 않는다.
   useEffect(() => {
     const handleSyncComplete = () => {
-      setEvents((prev) => prev.filter((x) => !String(x.id).startsWith('temp-')));
-      setTodos((prev) => prev.filter((x) => !String(x.id).startsWith('temp-')));
-      setNotes((prev) => prev.filter((x) => !String(x.id).startsWith('temp-')));
+      // 아직 서버에 확정되지 않은(전송 중/대기 중) 새 항목의 임시 항목은 남기고, 서버에 반영이 끝난 것만 정리한다.
+      const stillPending = getUnconfirmedWrites(0).pendingTempIds;
+      const dropSynced = (x: any) => !String(x.id).startsWith('temp-') || stillPending.has(x.id);
+      setEvents((prev) => prev.filter(dropSynced));
+      setTodos((prev) => prev.filter(dropSynced));
+      setNotes((prev) => prev.filter(dropSynced));
       window.setTimeout(() => { void refreshData(); }, 0);
     };
     window.addEventListener('cal2do-offline-sync-complete', handleSyncComplete);
@@ -284,16 +301,16 @@ export default function Home() {
   // 이제 네트워크가 끊겨도 임시 항목을 삭제하지 않고 로컬 캐시에 남겨두며, 온라인 복귀 후
   // 서버 동기화가 끝나면 refreshData가 실제 서버 항목으로 교체한다.
   const addTodoLocal = useCallback((todo: any) => setTodos((prev) => [todo, ...prev]), []);
-  const reconcileTodoLocal = useCallback((tempId: string, realId: string) => setTodos((prev) => prev.map((t) => (t.id === tempId ? { ...t, id: realId } : t))), []);
+  const reconcileTodoLocal = useCallback((tempId: string, realId: string) => { markLocalWrite(`todo:${realId}`); setTodos((prev) => prev.map((t) => (t.id === tempId ? { ...t, id: realId } : t))); }, []);
   const rollbackTodoLocal = useCallback((id: string) => setTodos((prev) => prev.filter((t) => t.id !== id)), []);
   const addNoteLocal = useCallback((note: any) => setNotes((prev) => [note, ...prev]), []);
-  const reconcileNoteLocal = useCallback((tempId: string, realId: string) => setNotes((prev) => prev.map((n) => (n.id === tempId ? { ...n, id: realId } : n))), []);
+  const reconcileNoteLocal = useCallback((tempId: string, realId: string) => { markLocalWrite(`note:${realId}`); setNotes((prev) => prev.map((n) => (n.id === tempId ? { ...n, id: realId } : n))); }, []);
   // 위 addNoteLocal로 낙관적으로 추가했다가 서버 저장이 실패했을 때만 쓰는 되돌리기용(휴지통 이동과는 다름)
   const rollbackNoteLocal = useCallback((id: string) => setNotes((prev) => prev.filter((n) => n.id !== id)), []);
   const addEventLocal = useCallback((event: any) => setEvents((prev) => [event, ...prev]), []);
   const patchEventLocal = useCallback((id: string, patch: any) => { markLocalWrite(`event:${id}`); setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e))); }, []);
   const removeEventLocal = useCallback((id: string) => { markLocalWrite(`event:${id}`, true); setEvents((prev) => prev.filter((e) => e.id !== id)); }, []);
-  const reconcileEventLocal = useCallback((tempId: string, realId: string) => setEvents((prev) => prev.map((e) => (e.id === tempId ? { ...e, id: realId } : e))), []);
+  const reconcileEventLocal = useCallback((tempId: string, realId: string) => { markLocalWrite(`event:${realId}`); setEvents((prev) => prev.map((e) => (e.id === tempId ? { ...e, id: realId } : e))); }, []);
   // 날짜가 바뀐 뒤 처음 앱을 열었을 때, 날짜가 지정된 할일들의 색깔원을 "새 할일 만들 때와 동일한 규칙"으로
   // 다시 계산해줌(예: 어제는 여유였던 할일이 오늘 보니 5일 이내로 다가와서 급함으로 바뀌는 식).
   // 하루에 한 번만 하면 되므로 localStorage에 마지막으로 계산한 날짜를 남겨서 그 이후엔 건너뜀.

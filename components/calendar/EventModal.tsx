@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
-import { api } from '../../lib/api-client';
+import { api, newClientId } from '../../lib/api-client';
 import { MapPin, AlignLeft, Trash2, X, Repeat } from 'lucide-react';
 import { getRecurrenceType } from '../../lib/recurrence';
 import { useModalBackClose } from '../../lib/useModalBackClose';
@@ -186,7 +186,7 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       onPatchLocal?.(targetId, localFields);
       onClose();
       api.events.update(targetId, eventData)
-        .then(() => notifyFn('일정이 수정되었습니다.'))
+        .then((res: any) => notifyFn(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '일정이 수정되었습니다.'))
         .catch((e: any) => {
           console.error(e);
           notifyFn(`저장 실패: ${e.isTimeout ? e.message : (e.message || e)}`, 'error');
@@ -196,8 +196,8 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
       const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       onAddLocal?.({ id: tempId, ...localFields, source: 'manual', externalUid: null, linkedTodoId: null });
       onClose();
-      api.events.create(eventData)
-        .then((res: any) => { if (res?.id) onReconcileLocal?.(tempId, res.id); notifyFn('일정이 추가되었습니다.'); })
+      api.events.create({ ...eventData, id: newClientId(), idempotent: true, tempIds: [tempId] })
+        .then((res: any) => { if (res?.id) onReconcileLocal?.(tempId, res.id); notifyFn(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '일정이 추가되었습니다.'); })
         .catch((e: any) => {
           console.error(e);
           notifyFn(`저장 실패: ${e.isTimeout ? e.message : (e.message || e)}`, 'error');
@@ -214,7 +214,7 @@ export default function EventModal({ date, editingEvent, user, notify, onClose, 
     onClose();
 
     api.events.remove(id)
-      .then(() => notifyFn('일정이 삭제되었습니다.'))
+      .then((res: any) => notifyFn(res?.queued ? '저장 대기 중 — 연결되면 자동으로 저장됩니다.' : '일정이 삭제되었습니다.'))
       .catch((e: any) => {
         console.error(e);
         notifyFn(`삭제 실패: ${e.isTimeout ? e.message : (e.message || e)}`, 'error');
