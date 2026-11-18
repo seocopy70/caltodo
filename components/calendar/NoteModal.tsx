@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { api, newClientId } from '../../lib/api-client';
-import { X, Trash2, ListChecks, ListOrdered, AlignLeft, Plus, Star } from 'lucide-react';
+import { X, Trash2, ListChecks, ListOrdered, AlignLeft, Plus, Star, Search } from 'lucide-react';
 import { convertContentForFormat } from './NoteContent';
 import { useModalBackClose } from '../../lib/useModalBackClose';
 import { useRecentInputs } from '../../lib/useRecentInputs';
@@ -29,6 +29,41 @@ function AutocompleteDropdown({ suggestions, onSelect }: { suggestions: string[]
   );
 }
 
+
+/** 검색어와 일치하는 모든 위치(대소문자 무시)를 [시작, 끝) 형태로 돌려줌 */
+function findMatches(text: string, query: string): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  if (!query) return out;
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase();
+  let i = lower.indexOf(q);
+  while (i !== -1) {
+    out.push([i, i + q.length]);
+    i = lower.indexOf(q, i + Math.max(1, q.length));
+  }
+  return out;
+}
+
+/** textarea 안에서 index 위치 글자가 보이도록 스크롤 위치를 계산(같은 스타일의 숨은 div로 높이 측정) */
+function scrollTextareaToIndex(ta: HTMLTextAreaElement, index: number) {
+  const cs = window.getComputedStyle(ta);
+  const mirror = document.createElement('div');
+  const props = ['boxSizing', 'width', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'wordSpacing', 'textIndent'] as const;
+  props.forEach((k) => { (mirror.style as any)[k] = (cs as any)[k]; });
+  mirror.style.position = 'absolute';
+  mirror.style.visibility = 'hidden';
+  mirror.style.whiteSpace = 'pre-wrap';
+  mirror.style.wordWrap = 'break-word';
+  mirror.textContent = ta.value.slice(0, index);
+  const marker = document.createElement('span');
+  marker.textContent = '\u200b';
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+  const top = marker.offsetTop;
+  document.body.removeChild(mirror);
+  ta.scrollTop = Math.max(0, top - ta.clientHeight / 2);
+}
+
 export default function NoteModal({ note, folders = [], secureFolderId, initialFocus, initialLineIndex, initialCharOffset, onClose, onRefresh, onNotify, onAddLocal, onPatchLocal, onReconcileLocal, onRollbackLocal }: any) {
   useModalBackClose(onClose);
   const [title, setTitle] = useState('');
@@ -44,6 +79,11 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
   const isInSecureFolder = !!secureFolderId && folderId === secureFolderId;
   const [titleSuggestOpen, setTitleSuggestOpen] = useState(false);
   const { remember: rememberTitle, suggestionsFor: titleSuggestionsFor } = useRecentInputs('note-title');
+  // 수정창 안 본문 검색: 열기/검색어/현재 몇 번째 결과인지
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [matchIdx, setMatchIdx] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setTitle(note?.title || '');
@@ -87,6 +127,50 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
   };
 
   const lines = content.split('\n');
+  // ── 본문 검색 ──
+  // 일반 메모는 전체 본문, 체크리스트는 앞의 "[ ] " 표시를 뺀 항목 글자만, 번호매김은 항목 글자를 검색
+  const searchMatches: Array<{ line: number; start: number; end: number }> = (() => {
+    const q = searchQuery.trim();
+    if (!searchOpen || !q) return [];
+    if (format === 'plain') return findMatches(content, q).map(([start, end]) => ({ line: 0, start, end }));
+    const res: Array<{ line: number; start: number; end: number }> = [];
+    lines.forEach((ln, i) => {
+      const text = format === 'checklist' ? (ln.match(/^\[( |x)\]\s?(.*)$/i)?.[2] ?? ln) : ln;
+      findMatches(text, q).forEach(([start, end]) => res.push({ line: i, start, end }));
+    });
+    return res;
+  })();
+  const matchCount = searchMatches.length;
+  const currentMatch = matchCount > 0 ? Math.min(matchIdx, matchCount - 1) : 0;
+
+  const jumpToMatch = (idx: number) => {
+    const m = searchMatches[idx];
+    if (!m) return;
+    setMatchIdx(idx);
+    if (format === 'plain') {
+      const ta = contentRef.current;
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(m.start, m.end);
+      scrollTextareaToIndex(ta, m.start);
+    } else {
+      const input = lineInputRefs.current[m.line];
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(m.start, m.end);
+      input.scrollIntoView({ block: 'center' });
+    }
+  };
+  const moveMatch = (delta: -1 | 1) => {
+    if (matchCount === 0) return;
+    jumpToMatch((currentMatch + delta + matchCount) % matchCount);
+  };
+  const toggleSearch = () => {
+    if (searchOpen) { setSearchOpen(false); setSearchQuery(''); setMatchIdx(0); return; }
+    setSearchOpen(true);
+    setTimeout(() => searchInputRef.current?.focus(), 0);
+  };
+
   const updateLine = (idx: number, text: string) => {
     const arr = [...lines];
     if (format === 'checklist') {
@@ -175,8 +259,30 @@ export default function NoteModal({ note, folders = [], secureFolderId, initialF
         <div className="p-6 space-y-4 flex flex-col flex-1 min-h-0">
           <div className="flex justify-between items-center shrink-0">
             <h3 className="font-bold text-xl text-slate-900 dark:text-white">{isEdit ? '메모 수정' : '새 메모'}</h3>
-            <button onClick={onClose} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><X /></button>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={toggleSearch} aria-label="내용 검색" className={`p-1.5 rounded-full ${searchOpen ? 'bg-blue-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><Search className="w-5 h-5" /></button>
+              <button onClick={onClose} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><X /></button>
+            </div>
           </div>
+
+          {searchOpen && (
+            <div className="flex items-center gap-1.5 shrink-0 bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-1.5">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setMatchIdx(0); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); moveMatch(e.shiftKey ? -1 : 1); } }}
+                placeholder="내용 검색 (Enter: 다음 결과)"
+                className="flex-1 min-w-0 bg-transparent outline-none text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
+              />
+              {searchQuery.trim() && (
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0">{matchCount === 0 ? '결과 없음' : `${currentMatch + 1} / ${matchCount}`}</span>
+              )}
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => moveMatch(-1)} disabled={matchCount === 0} aria-label="이전 검색 결과" className="px-2 py-0.5 rounded-md text-base font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30">‹</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => moveMatch(1)} disabled={matchCount === 0} aria-label="다음 검색 결과" className="px-2 py-0.5 rounded-md text-base font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30">›</button>
+            </div>
+          )}
 
           <div className="relative shrink-0">
             <input ref={titleRef} className="w-full bg-transparent text-xl font-bold focus:outline-none border-b border-slate-200 dark:border-slate-700 pb-2 text-slate-900 dark:text-white" placeholder="제목" value={title} onChange={(e) => setTitle(e.target.value)} onFocus={() => setTitleSuggestOpen(true)} onBlur={() => setTimeout(() => setTitleSuggestOpen(false), 150)} />
