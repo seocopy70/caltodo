@@ -27,15 +27,19 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
   return <>{parts}</>;
 }
 
+// 메모 미리보기에 보여줄 줄 수: 검색어가 있는 줄을 가운데 두고 위아래 3줄씩(총 7줄)
+const SNIPPET_LINES = 7;
+const SNIPPET_BEFORE = Math.floor(SNIPPET_LINES / 2);
+
 function noteContentSnippet(content: string, query: string) {
   const lines = (content || '').split(/\r?\n/);
-  if (!query) return lines.slice(0, 3).join('\n');
+  if (!query) return lines.slice(0, SNIPPET_LINES).join('\n');
   const lowerQuery = query.toLowerCase();
   const matchLine = lines.findIndex((line) => line.toLowerCase().includes(lowerQuery));
-  if (matchLine < 0) return lines.slice(0, 3).join('\n');
-  const start = Math.max(0, matchLine - 1);
-  const end = Math.min(lines.length, start + 3);
-  const adjustedStart = Math.min(start, Math.max(0, end - 3));
+  if (matchLine < 0) return lines.slice(0, SNIPPET_LINES).join('\n');
+  const start = Math.max(0, matchLine - SNIPPET_BEFORE);
+  const end = Math.min(lines.length, start + SNIPPET_LINES);
+  const adjustedStart = Math.min(start, Math.max(0, end - SNIPPET_LINES));
   return lines.slice(adjustedStart, end).join('\n');
 }
 
@@ -229,7 +233,7 @@ export default function GlobalSearch({ query, date, dateEnd, events, todos, note
           <button key={n.id} onClick={() => openNote(n)} className="w-full text-left p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800">
             <span className="font-bold text-sm"><HighlightedText text={n.title || ''} query={q} /></span>
             {preview && (
-              <span className={`block text-sm leading-5 text-slate-600 dark:text-slate-300 whitespace-pre-line ${isContentMatch || isDateSearch ? 'line-clamp-3' : ''}`}>
+              <span className={`block text-sm leading-5 text-slate-600 dark:text-slate-300 whitespace-pre-line ${isContentMatch || isDateSearch ? 'line-clamp-[14]' : ''}`}>
                 <HighlightedText text={preview} query={isContentMatch ? q : ''} />
               </span>
             )}
