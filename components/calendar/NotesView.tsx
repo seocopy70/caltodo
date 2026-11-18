@@ -104,8 +104,11 @@ function SecureSearchContent({ content, format, query, noteId, activeMatchIndex,
       if (activeMatchIndex < seen + count) { activeLine = i; break; }
       seen += count;
     }
-    lineStartOffset = Math.max(0, activeLine - 1);
-    lines = allLines.slice(lineStartOffset, Math.min(allLines.length, lineStartOffset + 3));
+    // 일치하는 줄을 가운데 두고 위아래 3줄씩(총 7줄). 메모 끝에 가까우면 부족한 줄만큼 위쪽을 더 보여준다.
+    const SNIPPET_LINES = 7;
+    const SNIPPET_BEFORE = Math.floor(SNIPPET_LINES / 2);
+    lineStartOffset = Math.min(Math.max(0, activeLine - SNIPPET_BEFORE), Math.max(0, allLines.length - SNIPPET_LINES));
+    lines = allLines.slice(lineStartOffset, Math.min(allLines.length, lineStartOffset + SNIPPET_LINES));
   }
   const prefixLengths = format === 'checklist'
     ? lines.map((line) => {
@@ -162,7 +165,7 @@ function SecureSearchContent({ content, format, query, noteId, activeMatchIndex,
   }
 
   if (format === 'numbered') {
-    // 스니펫(앞뒤 3줄만 보여주는 경우)에서도 원래 메모의 번호가 유지되도록, 잘려나간 앞부분의 빈 줄 아닌 줄 수만큼 번호를 이어 붙인다.
+    // 스니펫(앞뒤 3줄씩 총 7줄만 보여주는 경우)에서도 원래 메모의 번호가 유지되도록, 잘려나간 앞부분의 빈 줄 아닌 줄 수만큼 번호를 이어 붙인다.
     let n = snippetOnly ? allLines.slice(0, lineStartOffset).filter((l) => l.trim()).length : 0;
     return (
       <div className="break-words [overflow-wrap:anywhere]">
@@ -604,7 +607,7 @@ export default function NotesView({ notes, folders = [], user, onNotify, onRefre
                 {note.showToday && <Star className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="currentColor" />}
                 <button title="보관함으로 이동" onClick={(e) => { e.stopPropagation(); remove(note.id); }} className="text-slate-400 dark:text-slate-600 hover:text-rose-500 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
-                {/* 보안검색 중이고 본문에서 검색어가 잡히면, 제목만 보이는 목록에서도 앞뒤 3줄 미리보기 + 강조 + 이전/다음 이동을 보여준다 */}
+                {/* 보안검색 중이고 본문에서 검색어가 잡히면, 제목만 보이는 목록에서도 앞뒤 3줄씩(총 7줄) 미리보기 + 강조 + 이전/다음 이동을 보여준다 */}
                 {secureQuery && contentMatchCount > 0 && (
                   <div className="px-4 pb-3 -mt-1 text-base text-slate-600 dark:text-slate-400 leading-relaxed min-w-0">
                     <SecureSearchContent
